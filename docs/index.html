@@ -405,6 +405,12 @@
       --accent: var(--green);
     }
 
+    .collapse-card { --accent: var(--gold); }
+    .collapse-art { display:grid;place-items:center;background:radial-gradient(circle,rgba(255,209,102,.17),transparent 16rem),linear-gradient(rgba(255,255,255,.05) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.05) 1px,transparent 1px),#070b17;background-size:auto,48px 48px,48px 48px,auto; }
+    .collapse-grid { display:grid;grid-template-columns:repeat(6,34px);gap:5px;padding:10px;border:1px solid rgba(255,209,102,.4);border-radius:14px;background:rgba(2,5,12,.7);box-shadow:0 0 28px rgba(255,209,102,.2); }
+    .collapse-grid i { width:34px;height:34px;border:1px solid rgba(255,255,255,.1);border-radius:5px;background:rgba(255,255,255,.04); }
+    .collapse-grid i.on { background:var(--gold);border-color:white;box-shadow:0 0 12px var(--gold); }
+
     .tag {
       position: absolute;
       top: 1.35rem;
@@ -1063,6 +1069,19 @@
             <span class="play">Play Game <span aria-hidden="true">&#8594;</span></span>
           </div>
         </div>
+      </a>
+
+      <a class="game-card collapse-card" href="NeonCollapse.html">
+        <span class="tag">Puzzle</span>
+        <div class="art collapse-art" aria-hidden="true"><span class="collapse-grid">
+          <i></i><i class="on"></i><i></i><i class="on"></i><i></i><i class="on"></i>
+          <i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i>
+          <i></i><i></i><i class="on"></i><i></i><i class="on"></i><i></i>
+          <i class="on"></i><i></i><i class="on"></i><i></i><i class="on"></i><i></i>
+          <i class="on"></i><i class="on"></i><i class="on"></i><i></i><i></i><i></i>
+          <i></i><i></i><i></i><i></i><i class="on"></i><i class="on"></i>
+        </span></div>
+        <div class="card-body"><span class="game-icon"><svg width="45" height="45" viewBox="0 0 45 45" fill="none" aria-hidden="true"><path d="M5 5h10v10H5zM17.5 5h10v10h-10zM30 5h10v10H30zM5 17.5h10v10H5zM17.5 17.5h10v10h-10zM30 30h10v10H30z" stroke="currentColor" stroke-width="2"/><path d="M7 36h18M16 33l-3 3 3 3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></span><div><h3>Neon Collapse</h3><p>Fit glowing shapes and detonate complete rows and columns.</p><span class="play">Play Game <span aria-hidden="true">&#8594;</span></span></div></div>
       </a>
     </section>
 
