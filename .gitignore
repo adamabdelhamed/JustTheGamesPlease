@@ -1,0 +1,12 @@
+# Windows and Visual Studio clutter
+.vs/
+bin/
+obj/
+
+# Local editor files
+*.user
+*.suo
+
+# OS files
+Thumbs.db
+Desktop.ini

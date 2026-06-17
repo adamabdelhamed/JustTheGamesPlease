@@ -1,0 +1,543 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
+<title>Neon Links</title>
+<style>
+:root {
+  --bg0:#070a12;
+  --bg1:#111827;
+  --text:#eef4ff;
+  --muted:#9fb0cc;
+}
+
+* { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+
+body {
+  margin:0;
+  min-height:100vh;
+  overflow:hidden;
+  font-family:Inter,ui-sans-serif,system-ui,Segoe UI,Roboto,Arial;
+  color:var(--text);
+  background:
+    radial-gradient(circle at 20% 16%, rgba(86,204,255,.2), transparent 30%),
+    radial-gradient(circle at 85% 18%, rgba(255,95,183,.17), transparent 28%),
+    radial-gradient(circle at 50% 86%, rgba(124,255,178,.13), transparent 34%),
+    linear-gradient(145deg,var(--bg0),var(--bg1));
+}
+
+header {
+  position:fixed;
+  inset:18px 16px auto 16px;
+  display:flex;
+  justify-content:space-between;
+  align-items:flex-start;
+  gap:12px;
+  z-index:5;
+  pointer-events:none;
+}
+
+h1 {
+  margin:0;
+  font-size:clamp(25px,7vw,42px);
+  letter-spacing:-.05em;
+  line-height:.95;
+}
+
+.subtitle {
+  color:var(--muted);
+  font-weight:650;
+  margin-top:6px;
+  font-size:14px;
+}
+
+.stats {
+  display:flex;
+  gap:8px;
+  align-items:center;
+  flex-shrink:0;
+}
+
+.pill, button {
+  border:1px solid rgba(255,255,255,.14);
+  background:rgba(255,255,255,.08);
+  color:var(--text);
+  backdrop-filter:blur(14px);
+  box-shadow:0 10px 30px rgba(0,0,0,.24);
+  border-radius:999px;
+  padding:10px 12px;
+  font-weight:800;
+  font-size:13px;
+}
+
+button {
+  pointer-events:auto;
+  cursor:pointer;
+  transition:transform .15s ease, background .15s ease;
+}
+
+button:active { transform:scale(.96); background:rgba(255,255,255,.16); }
+
+#game {
+  position:fixed;
+  inset:0;
+  width:100vw;
+  height:100vh;
+  touch-action:none;
+  user-select:none;
+}
+
+.dot {
+  position:absolute;
+  width:42px;
+  height:42px;
+  border-radius:50%;
+  transform:translate(-50%,-50%);
+  border:3px solid rgba(255,255,255,.92);
+  box-shadow:
+    0 0 0 9px rgba(255,255,255,.055),
+    0 0 26px currentColor,
+    0 12px 34px rgba(0,0,0,.4);
+  cursor:pointer;
+  z-index:4;
+  transition:transform .16s ease, filter .16s ease, opacity .16s ease;
+}
+
+.dot.active { transform:translate(-50%,-50%) scale(1.2); filter:brightness(1.25); }
+.dot.connected { animation:pulse .7s ease; }
+
+@keyframes pulse {
+  0% { transform:translate(-50%,-50%) scale(1); }
+  50% { transform:translate(-50%,-50%) scale(1.42); }
+  100% { transform:translate(-50%,-50%) scale(1); }
+}
+
+.spark {
+  position:absolute;
+  width:7px;
+  height:7px;
+  border-radius:50%;
+  pointer-events:none;
+  z-index:3;
+  background:white;
+  box-shadow:0 0 16px white;
+  animation:spark .72s ease-out forwards;
+}
+
+@keyframes spark {
+  to {
+    opacity:0;
+    transform:translate(var(--dx),var(--dy)) scale(0);
+  }
+}
+
+svg {
+  position:absolute;
+  inset:0;
+  width:100%;
+  height:100%;
+  z-index:2;
+  pointer-events:none;
+}
+
+path {
+  fill:none;
+  stroke-linecap:round;
+  stroke-linejoin:round;
+  filter:drop-shadow(0 0 8px currentColor);
+}
+
+.draw-path {
+  stroke-width:9;
+  opacity:.96;
+}
+
+.ghost-path {
+  stroke-width:7;
+  opacity:.72;
+}
+
+.bad-path {
+  stroke:#ff5577 !important;
+  color:#ff5577 !important;
+  animation:badPulse .3s ease infinite alternate;
+}
+
+@keyframes badPulse {
+  from { opacity:.55; }
+  to { opacity:1; }
+}
+
+.overlay {
+  position:fixed;
+  inset:0;
+  display:grid;
+  place-items:center;
+  background:rgba(2,5,12,.38);
+  backdrop-filter:blur(9px);
+  opacity:0;
+  pointer-events:none;
+  z-index:10;
+  transition:opacity .35s ease;
+}
+
+.overlay.show {
+  opacity:1;
+  pointer-events:auto;
+}
+
+.dialog {
+  width:min(430px,calc(100vw - 34px));
+  padding:30px;
+  border-radius:30px;
+  text-align:center;
+  border:1px solid rgba(255,255,255,.18);
+  background:linear-gradient(180deg,rgba(255,255,255,.16),rgba(255,255,255,.07));
+  box-shadow:0 30px 90px rgba(0,0,0,.52);
+  transform:translateY(18px) scale(.96);
+  transition:transform .35s cubic-bezier(.2,1.3,.2,1);
+}
+
+.overlay.show .dialog { transform:translateY(0) scale(1); }
+
+.dialog h2 {
+  margin:0 0 8px;
+  font-size:34px;
+  letter-spacing:-.04em;
+}
+
+.dialog p {
+  margin:0 0 22px;
+  color:var(--muted);
+  line-height:1.45;
+}
+
+.board-flash { animation:endFlash .75s ease; }
+
+@keyframes endFlash {
+  0% { filter:brightness(1); }
+  45% { filter:brightness(1.75) saturate(1.5); }
+  100% { filter:brightness(1); }
+}
+
+@media (max-width:520px) {
+  header { inset:14px 12px auto 12px; }
+  .subtitle { max-width:210px; }
+  .pill { display:none; }
+}
+</style>
+</head>
+<body>
+<header>
+  <div>
+    <h1>Neon Links</h1>
+    <div class="subtitle">Draw paths between matching dots. No crossings.</div>
+  </div>
+  <div class="stats">
+    <div class="pill" id="levelLabel">Pairs: 3</div>
+    <button id="newGame">New</button>
+  </div>
+</header>
+
+<div id="game">
+  <svg id="svg"></svg>
+</div>
+
+<div class="overlay" id="overlay">
+  <div class="dialog">
+    <h2 id="dialogTitle"></h2>
+    <p id="dialogText"></p>
+    <button id="again">Play again</button>
+  </div>
+</div>
+
+<script>
+const game = document.getElementById("game");
+const svg = document.getElementById("svg");
+const overlay = document.getElementById("overlay");
+const dialogTitle = document.getElementById("dialogTitle");
+const dialogText = document.getElementById("dialogText");
+const levelLabel = document.getElementById("levelLabel");
+
+const colors = ["#56ccff","#ff5fb7","#7cffb2","#ffd166"];
+let dots = [];
+let paths = [];
+let active = null;
+let activePoints = [];
+let ghost = null;
+let locked = false;
+let crossedWhileDrawing = false;
+
+function rand(min,max) { return Math.random() * (max - min) + min; }
+function distance(a,b) { return Math.hypot(a.x - b.x, a.y - b.y); }
+
+function clearGame() {
+  dots.forEach(d => d.el.remove());
+  dots = [];
+  paths = [];
+  active = null;
+  activePoints = [];
+  locked = false;
+  crossedWhileDrawing = false;
+  svg.innerHTML = "";
+  overlay.classList.remove("show");
+  document.querySelectorAll(".spark").forEach(s => s.remove());
+}
+
+function newGame() {
+  clearGame();
+  const pairCount = Math.random() < .5 ? 3 : 4;
+  levelLabel.textContent = `Pairs: ${pairCount}`;
+  const marginX = Math.max(42, Math.min(90, innerWidth * .12));
+  const top = Math.max(122, innerHeight * .18);
+  const marginBottom = 56;
+  const points = [];
+
+  while (points.length < pairCount * 2) {
+    const p = { x:rand(marginX, innerWidth - marginX), y:rand(top, innerHeight - marginBottom) };
+    if (points.every(q => distance(p,q) > 86)) points.push(p);
+  }
+
+  for (let pair = 0; pair < pairCount; pair++) {
+    for (let i = 0; i < 2; i++) {
+      const p = points[pair * 2 + i];
+      const el = document.createElement("div");
+      el.className = "dot";
+      el.style.left = `${p.x}px`;
+      el.style.top = `${p.y}px`;
+      el.style.color = colors[pair];
+      el.style.background = `radial-gradient(circle at 35% 30%, white, ${colors[pair]} 30%, #111 120%)`;
+      game.appendChild(el);
+      dots.push({ id:dots.length, pair, x:p.x, y:p.y, color:colors[pair], el, connected:false });
+    }
+  }
+}
+
+function makePath(points,color,cls) {
+  const path = document.createElementNS("http://www.w3.org/2000/svg","path");
+  path.style.stroke = color;
+  path.style.color = color;
+  path.setAttribute("class", cls);
+  path.setAttribute("d", pathData(points));
+  svg.appendChild(path);
+  return path;
+}
+
+function pathData(points) {
+  if (points.length === 0) return "";
+  if (points.length === 1) return `M ${points[0].x} ${points[0].y}`;
+  let d = `M ${points[0].x} ${points[0].y}`;
+  for (let i = 1; i < points.length; i++) {
+    const prev = points[i - 1];
+    const p = points[i];
+    const mx = (prev.x + p.x) / 2;
+    const my = (prev.y + p.y) / 2;
+    d += ` Q ${prev.x} ${prev.y} ${mx} ${my}`;
+  }
+  const last = points[points.length - 1];
+  d += ` T ${last.x} ${last.y}`;
+  return d;
+}
+
+function getDotAt(x,y) {
+  for (let i = dots.length - 1; i >= 0; i--) {
+    const d = dots[i];
+    if (distance(d, { x, y }) <= 34) return d;
+  }
+  return null;
+}
+
+function startDraw(dot, pointerId) {
+  if (locked || dot.connected) return;
+  active = dot;
+  activePoints = [{ x:dot.x, y:dot.y, dotId:dot.id }];
+  crossedWhileDrawing = false;
+  dot.el.classList.add("active");
+  ghost = makePath(activePoints, dot.color, "ghost-path");
+  try { game.setPointerCapture(pointerId); } catch {}
+  sparkle(dot.x, dot.y, dot.color, 12);
+}
+
+function pointerDown(e) {
+  const dot = getDotAt(e.clientX, e.clientY);
+  if (dot) startDraw(dot, e.pointerId);
+}
+
+function pointerMove(e) {
+  if (!active || !ghost || locked) return;
+  const point = { x:e.clientX, y:e.clientY };
+  const last = activePoints[activePoints.length - 1];
+
+  if (distance(point, last) < 8) return;
+
+  const nextSegment = { a:last, b:point };
+  const crossesExisting = paths.some(path => path.segments.some(seg => segmentsIntersect(nextSegment.a, nextSegment.b, seg.a, seg.b)));
+  const crossesSelf = activePoints.length > 4 && activePoints.slice(0, -3).some((p, i) => segmentsIntersect(nextSegment.a, nextSegment.b, p, activePoints[i + 1]));
+
+  if (crossesExisting || crossesSelf) crossedWhileDrawing = true;
+
+  activePoints.push(point);
+  ghost.setAttribute("d", pathData(activePoints));
+  ghost.classList.toggle("bad-path", crossedWhileDrawing);
+
+  if (Math.random() < .6) sparkle(e.clientX, e.clientY, active.color, 1);
+}
+
+function pointerUp(e) {
+  const target = getDotAt(e.clientX, e.clientY);
+  finishDraw(target);
+}
+
+function finishDraw(target) {
+  if (!active || locked) return;
+
+  const source = active;
+  source.el.classList.remove("active");
+
+  if (!target) {
+    cleanupActivePath();
+    return;
+  }
+
+  activePoints.push({ x:target.x, y:target.y, dotId:target.id });
+
+  if (source.id === target.id || source.pair !== target.pair || target.connected) {
+    cleanupActivePath();
+    fail("Wrong link", "Only matching colors can be connected.");
+    return;
+  }
+
+  const segments = makeSegments(activePoints);
+  const crossesExisting = paths.some(path => path.segments.some(existing => segments.some(next => segmentsIntersect(next.a, next.b, existing.a, existing.b))));
+  const crossesSelf = segments.some((a, i) => segments.some((b, j) => Math.abs(i - j) > 1 && segmentsIntersect(a.a, a.b, b.a, b.b)));
+
+  if (crossedWhileDrawing || crossesExisting || crossesSelf) {
+    cleanupActivePath();
+    fail("Lines crossed", "That path overlaps another connection.");
+    return;
+  }
+
+  if (ghost) ghost.remove();
+  const finalPath = makePath(activePoints, source.color, "draw-path");
+  paths.push({ source, target, points:activePoints.slice(), segments, el:finalPath });
+
+  source.connected = true;
+  target.connected = true;
+  source.el.classList.add("connected");
+  target.el.classList.add("connected");
+  animatePath(finalPath);
+  sparkle(target.x, target.y, target.color, 22);
+
+  active = null;
+  activePoints = [];
+  ghost = null;
+
+  if (dots.every(d => d.connected)) success();
+}
+
+function cleanupActivePath() {
+  if (ghost) ghost.remove();
+  ghost = null;
+  active = null;
+  activePoints = [];
+  crossedWhileDrawing = false;
+}
+
+function makeSegments(points) {
+  const segments = [];
+  for (let i = 1; i < points.length; i++) {
+    segments.push({ a:points[i - 1], b:points[i] });
+  }
+  return segments;
+}
+
+function animatePath(path) {
+  const len = path.getTotalLength();
+  path.style.strokeDasharray = len;
+  path.style.strokeDashoffset = len;
+  path.animate([{ strokeDashoffset:len }, { strokeDashoffset:0 }], { duration:420, easing:"cubic-bezier(.2,.9,.2,1)", fill:"forwards" });
+}
+
+function sparkle(x,y,color,count) {
+  for (let i = 0; i < count; i++) {
+    const s = document.createElement("div");
+    s.className = "spark";
+    s.style.left = `${x}px`;
+    s.style.top = `${y}px`;
+    s.style.background = color;
+    s.style.boxShadow = `0 0 18px ${color}`;
+    s.style.setProperty("--dx", `${rand(-35,35)}px`);
+    s.style.setProperty("--dy", `${rand(-35,35)}px`);
+    game.appendChild(s);
+    setTimeout(() => s.remove(), 760);
+  }
+}
+
+function segmentsIntersect(a,b,c,d) {
+  const sharedEndpoint = (samePoint(a,c) || samePoint(a,d) || samePoint(b,c) || samePoint(b,d));
+  if (sharedEndpoint) return false;
+
+  const o1 = orientation(a,b,c);
+  const o2 = orientation(a,b,d);
+  const o3 = orientation(c,d,a);
+  const o4 = orientation(c,d,b);
+
+  if (o1 !== o2 && o3 !== o4) return true;
+  if (o1 === 0 && onSegment(a,c,b)) return true;
+  if (o2 === 0 && onSegment(a,d,b)) return true;
+  if (o3 === 0 && onSegment(c,a,d)) return true;
+  if (o4 === 0 && onSegment(c,b,d)) return true;
+  return false;
+}
+
+function orientation(a,b,c) {
+  const value = (b.y - a.y) * (c.x - b.x) - (b.x - a.x) * (c.y - b.y);
+  if (Math.abs(value) < .001) return 0;
+  return value > 0 ? 1 : 2;
+}
+
+function onSegment(a,b,c) {
+  return b.x <= Math.max(a.x,c.x) + .001 && b.x >= Math.min(a.x,c.x) - .001 && b.y <= Math.max(a.y,c.y) + .001 && b.y >= Math.min(a.y,c.y) - .001;
+}
+
+function samePoint(a,b) {
+  return Math.abs(a.x - b.x) < .001 && Math.abs(a.y - b.y) < .001;
+}
+
+function success() {
+  locked = true;
+  endBurst("#54f7b5");
+  setTimeout(() => showDialog("Perfect path", "Every pair is connected without a single crossing."), 850);
+}
+
+function fail(title,text) {
+  locked = true;
+  endBurst("#ff5577");
+  setTimeout(() => showDialog(title, text), 850);
+}
+
+function endBurst(color) {
+  game.classList.add("board-flash");
+  dots.forEach(d => sparkle(d.x, d.y, color, 14));
+  setTimeout(() => game.classList.remove("board-flash"), 800);
+}
+
+function showDialog(title,text) {
+  dialogTitle.textContent = title;
+  dialogText.textContent = text;
+  overlay.classList.add("show");
+}
+
+game.addEventListener("pointerdown", pointerDown);
+game.addEventListener("pointermove", pointerMove);
+game.addEventListener("pointerup", pointerUp);
+game.addEventListener("pointercancel", () => cleanupActivePath());
+document.getElementById("newGame").addEventListener("click", newGame);
+document.getElementById("again").addEventListener("click", newGame);
+addEventListener("resize", () => setTimeout(newGame, 120));
+
+newGame();
+</script>
+</body>
+</html>

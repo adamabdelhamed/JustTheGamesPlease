@@ -1,0 +1,368 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Just The Games Please</title>
+  <meta name="description" content="Free, ad-free static HTML games. No accounts, no timers, no popups, no nonsense.">
+  <meta name="theme-color" content="#080a10">
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #080a10;
+      --panel: #101522;
+      --panel-soft: #151b2a;
+      --line: rgba(255, 255, 255, 0.13);
+      --text: #f4f7ff;
+      --muted: #aeb9cc;
+      --cyan: #76d6ff;
+      --pink: #ff6fae;
+      --green: #86f1b5;
+      --yellow: #ffd166;
+      --max: 1120px;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: "Segoe UI", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+      line-height: 1.5;
+      color: var(--text);
+      background:
+        radial-gradient(circle at 15% 12%, rgba(118, 214, 255, 0.16), transparent 30%),
+        radial-gradient(circle at 86% 18%, rgba(255, 111, 174, 0.14), transparent 28%),
+        radial-gradient(circle at 52% 92%, rgba(134, 241, 181, 0.10), transparent 34%),
+        linear-gradient(145deg, #070911, var(--bg) 54%, #0d111a);
+    }
+
+    a {
+      color: inherit;
+    }
+
+    .wrap {
+      width: min(calc(100% - 2rem), var(--max));
+      margin: 0 auto;
+    }
+
+    header {
+      padding: 2rem 0 1rem;
+    }
+
+    .topbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1rem;
+      padding-bottom: 3.5rem;
+    }
+
+    .brand {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.75rem;
+      text-decoration: none;
+      font-weight: 800;
+    }
+
+    .mark {
+      width: 42px;
+      height: 42px;
+      display: grid;
+      place-items: center;
+      border-radius: 8px;
+      background: linear-gradient(135deg, var(--cyan), var(--pink));
+      color: #090b10;
+      box-shadow: 0 14px 34px rgba(0, 0, 0, 0.28);
+    }
+
+    .nav-note {
+      color: var(--muted);
+      font-size: 0.95rem;
+      text-align: right;
+    }
+
+    .hero {
+      display: grid;
+      grid-template-columns: minmax(0, 1.1fr) minmax(280px, 0.75fr);
+      gap: 2rem;
+      align-items: end;
+      padding-bottom: 3rem;
+    }
+
+    h1,
+    h2,
+    h3,
+    p {
+      margin-top: 0;
+    }
+
+    h1 {
+      max-width: 760px;
+      margin-bottom: 1rem;
+      font-size: clamp(2.6rem, 8vw, 6.4rem);
+      line-height: 0.95;
+      letter-spacing: 0;
+    }
+
+    .hero p {
+      max-width: 62ch;
+      margin-bottom: 0;
+      color: #d9e2f1;
+      font-size: clamp(1rem, 2vw, 1.2rem);
+    }
+
+    .pledge {
+      display: grid;
+      gap: 0.75rem;
+      padding: 1rem;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: rgba(16, 21, 34, 0.78);
+      box-shadow: 0 18px 46px rgba(0, 0, 0, 0.25);
+    }
+
+    .pledge span {
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+      color: var(--muted);
+      font-weight: 650;
+    }
+
+    .pledge b {
+      width: 10px;
+      height: 10px;
+      border-radius: 999px;
+      background: var(--green);
+      box-shadow: 0 0 20px rgba(134, 241, 181, 0.55);
+      flex: 0 0 auto;
+    }
+
+    main {
+      padding-bottom: 3rem;
+    }
+
+    .section-title {
+      display: flex;
+      align-items: end;
+      justify-content: space-between;
+      gap: 1rem;
+      margin-bottom: 1rem;
+    }
+
+    .section-title h2 {
+      margin-bottom: 0;
+      font-size: clamp(1.6rem, 3vw, 2.4rem);
+      line-height: 1.05;
+    }
+
+    .section-title p {
+      margin-bottom: 0;
+      color: var(--muted);
+      text-align: right;
+    }
+
+    .games {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 1rem;
+    }
+
+    .game {
+      position: relative;
+      min-height: 320px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      overflow: hidden;
+      padding: 1.2rem;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--panel);
+      text-decoration: none;
+      box-shadow: 0 18px 46px rgba(0, 0, 0, 0.24);
+      transition: transform 140ms ease, border-color 140ms ease, background-color 140ms ease;
+    }
+
+    .game::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      opacity: 0.9;
+      background: var(--art);
+      z-index: 0;
+    }
+
+    .game > * {
+      position: relative;
+      z-index: 1;
+    }
+
+    .game:hover,
+    .game:focus-visible {
+      transform: translateY(-2px);
+      border-color: rgba(255, 255, 255, 0.32);
+      outline: 0;
+    }
+
+    .game h3 {
+      margin-bottom: 0.45rem;
+      font-size: clamp(1.5rem, 3vw, 2.2rem);
+      line-height: 1;
+    }
+
+    .game p {
+      max-width: 36ch;
+      margin-bottom: 0;
+      color: #dce5f4;
+    }
+
+    .tags {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.45rem;
+      margin-top: 1rem;
+    }
+
+    .tag {
+      padding: 0.32rem 0.55rem;
+      border: 1px solid rgba(255, 255, 255, 0.14);
+      border-radius: 999px;
+      background: rgba(0, 0, 0, 0.24);
+      color: #eef4ff;
+      font-size: 0.78rem;
+      font-weight: 750;
+    }
+
+    .play {
+      align-self: flex-start;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 44px;
+      margin-top: 2rem;
+      padding: 0.7rem 1rem;
+      border-radius: 8px;
+      background: #f4f7ff;
+      color: #080a10;
+      font-weight: 850;
+    }
+
+    .links {
+      --art:
+        linear-gradient(180deg, rgba(16, 21, 34, 0.32), rgba(16, 21, 34, 0.88)),
+        radial-gradient(circle at 18% 22%, var(--cyan) 0 16px, transparent 17px),
+        radial-gradient(circle at 72% 26%, var(--cyan) 0 16px, transparent 17px),
+        radial-gradient(circle at 28% 74%, var(--pink) 0 16px, transparent 17px),
+        radial-gradient(circle at 78% 70%, var(--pink) 0 16px, transparent 17px),
+        linear-gradient(128deg, transparent 24%, rgba(118, 214, 255, 0.60) 24% 25%, transparent 25% 58%, rgba(255, 111, 174, 0.60) 58% 59%, transparent 59%),
+        var(--panel-soft);
+    }
+
+    .swarm {
+      --art:
+        linear-gradient(180deg, rgba(16, 21, 34, 0.25), rgba(16, 21, 34, 0.88)),
+        repeating-linear-gradient(90deg, transparent 0 24%, rgba(255, 255, 255, 0.10) 24% 25%, transparent 25% 49%),
+        radial-gradient(circle at 48% 76%, var(--cyan) 0 18px, transparent 19px),
+        radial-gradient(circle at 22% 24%, var(--pink) 0 13px, transparent 14px),
+        radial-gradient(circle at 72% 36%, var(--pink) 0 18px, transparent 19px),
+        radial-gradient(circle at 78% 18%, var(--yellow) 0 11px, transparent 12px),
+        var(--panel-soft);
+    }
+
+    footer {
+      padding: 2rem 0;
+      color: var(--muted);
+      border-top: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    @media (max-width: 760px) {
+      .topbar,
+      .hero,
+      .section-title {
+        display: block;
+      }
+
+      .nav-note,
+      .section-title p {
+        margin-top: 0.75rem;
+        text-align: left;
+      }
+
+      .topbar {
+        padding-bottom: 2.25rem;
+      }
+
+      .games {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <header class="wrap">
+    <div class="topbar">
+      <a class="brand" href="./" aria-label="Just The Games Please home">
+        <span class="mark">JP</span>
+        <span>Just The Games Please</span>
+      </a>
+      <div class="nav-note">Static HTML games. Free. Ad free.</div>
+    </div>
+
+    <section class="hero" aria-labelledby="page-title">
+      <div>
+        <h1 id="page-title">Playable games without the junk.</h1>
+        <p>Small browser games inspired by the good idea hiding inside fake-ad mobile games and over-monetized time wasters. No accounts, no ads, no tracking, no install.</p>
+      </div>
+      <div class="pledge" aria-label="Site promise">
+        <span><b></b>Runs from static files</span>
+        <span><b></b>No ads or dark patterns</span>
+        <span><b></b>Works on desktop and mobile</span>
+      </div>
+    </section>
+  </header>
+
+  <main class="wrap">
+    <div class="section-title">
+      <h2>Games</h2>
+      <p>Pick one and play immediately.</p>
+    </div>
+
+    <section class="games" aria-label="Available games">
+      <a class="game links" href="Dots.html">
+        <div>
+          <h3>Neon Links</h3>
+          <p>Draw paths between matching dots. Solve the board without crossing lines.</p>
+          <div class="tags" aria-label="Neon Links tags">
+            <span class="tag">Puzzle</span>
+            <span class="tag">Touch friendly</span>
+            <span class="tag">Quick rounds</span>
+          </div>
+        </div>
+        <span class="play">Play Neon Links</span>
+      </a>
+
+      <a class="game swarm" href="Swarm.html">
+        <div>
+          <h3>Neon Swarm</h3>
+          <p>Switch lanes, dodge waves, and collect upgrades before the swarm catches you.</p>
+          <div class="tags" aria-label="Neon Swarm tags">
+            <span class="tag">Arcade</span>
+            <span class="tag">Two lanes</span>
+            <span class="tag">Upgrades</span>
+          </div>
+        </div>
+        <span class="play">Play Neon Swarm</span>
+      </a>
+    </section>
+  </main>
+
+  <footer>
+    <div class="wrap">Just The Games Please. Free static web games, served directly.</div>
+  </footer>
+</body>
+</html>
