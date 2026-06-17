@@ -9,6 +9,7 @@ You can play the games [here](https://adamabdelhamed.github.io/JustTheGamesPleas
 
 - **Neon Links**: draw paths between matching dots without crossing existing paths.
 - **Neon Swarm**: switch lanes, dodge enemies, and grab upgrades.
+- **Neon Pour**: pour glowing liquid groups until every tube holds one color.
 
 ## GitHub Pages
 

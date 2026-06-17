@@ -354,7 +354,7 @@
 
     .games {
       display: grid;
-      grid-template-columns: repeat(2, minmax(0, 1fr));
+      grid-template-columns: repeat(3, minmax(0, 1fr));
       gap: clamp(1.2rem, 4vw, 3rem);
       margin-bottom: 3.7rem;
     }
@@ -399,6 +399,10 @@
 
     .swarm-card {
       --accent: var(--cyan);
+    }
+
+    .pour-card {
+      --accent: var(--green);
     }
 
     .tag {
@@ -651,6 +655,90 @@
       left: calc(25% - 17px);
       top: 36%;
       color: var(--gold);
+    }
+
+    .pour-art {
+      display: flex;
+      align-items: end;
+      justify-content: center;
+      gap: 24px;
+      padding: 72px 28px 42px;
+      background:
+        radial-gradient(circle at 28% 24%, rgba(124, 255, 178, 0.18), transparent 8rem),
+        radial-gradient(circle at 76% 75%, rgba(255, 64, 246, 0.15), transparent 8rem),
+        linear-gradient(rgba(255, 255, 255, 0.055) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255, 255, 255, 0.045) 1px, transparent 1px),
+        linear-gradient(180deg, #08122d, #02050c 74%);
+      background-size: auto, auto, 72px 72px, 72px 72px, auto;
+    }
+
+    .preview-tube {
+      position: relative;
+      width: 52px;
+      height: 190px;
+      border: 2px solid rgba(226, 250, 255, 0.58);
+      border-top: 0;
+      border-radius: 0 0 24px 24px;
+      background:
+        linear-gradient(90deg, rgba(255, 255, 255, 0.2), rgba(255, 255, 255, 0.03) 24% 70%, rgba(255, 255, 255, 0.18)),
+        rgba(255, 255, 255, 0.03);
+      box-shadow:
+        inset 0 0 16px rgba(255, 255, 255, 0.08),
+        0 0 24px rgba(124, 255, 178, 0.2);
+      overflow: hidden;
+    }
+
+    .preview-tube::before {
+      content: "";
+      position: absolute;
+      left: -8px;
+      right: -8px;
+      top: -8px;
+      height: 16px;
+      border: 2px solid rgba(226, 250, 255, 0.6);
+      border-radius: 50%;
+      background: rgba(255, 255, 255, 0.08);
+      box-shadow: 0 0 16px rgba(86, 204, 255, 0.24);
+      z-index: 2;
+    }
+
+    .preview-tube::after {
+      content: "";
+      position: absolute;
+      inset: 16px auto 22px 10px;
+      width: 7px;
+      border-radius: 999px;
+      background: linear-gradient(180deg, rgba(255, 255, 255, 0.55), transparent);
+      opacity: 0.36;
+      z-index: 3;
+    }
+
+    .preview-segment {
+      position: absolute;
+      left: 5px;
+      right: 5px;
+      height: 23%;
+      bottom: calc(var(--level) * 23%);
+      border-radius: 10px 10px 4px 4px;
+      background:
+        radial-gradient(circle at 30% 22%, rgba(255, 255, 255, 0.76), transparent 18%),
+        linear-gradient(135deg, color-mix(in srgb, var(--c), white 24%), var(--c) 56%, color-mix(in srgb, var(--c), black 24%));
+      box-shadow:
+        inset 0 6px 11px rgba(255, 255, 255, 0.18),
+        inset 0 -7px 14px rgba(0, 0, 0, 0.22),
+        0 0 18px color-mix(in srgb, var(--c), transparent 38%);
+    }
+
+    .pour-stream-preview {
+      position: absolute;
+      left: 50%;
+      top: 72px;
+      width: 8px;
+      height: 108px;
+      border-radius: 999px;
+      background: linear-gradient(180deg, rgba(255, 255, 255, 0.9), var(--green));
+      box-shadow: 0 0 16px var(--green), 0 0 34px rgba(124, 255, 178, 0.45);
+      transform: translateX(-50%) rotate(18deg);
     }
 
     .card-body {
@@ -938,6 +1026,40 @@
           <div>
             <h3>Neon Swarm</h3>
             <p>Switch lanes, dodge enemies, and grab upgrades.</p>
+            <span class="play">Play Game <span aria-hidden="true">&#8594;</span></span>
+          </div>
+        </div>
+      </a>
+
+      <a class="game-card pour-card" href="NeonPour.html">
+        <span class="tag">Puzzle</span>
+        <div class="art pour-art" aria-hidden="true">
+          <span class="preview-tube">
+            <span class="preview-segment" style="--level: 0; --c: var(--green)"></span>
+            <span class="preview-segment" style="--level: 1; --c: var(--green)"></span>
+            <span class="preview-segment" style="--level: 2; --c: var(--cyan)"></span>
+          </span>
+          <span class="pour-stream-preview"></span>
+          <span class="preview-tube">
+            <span class="preview-segment" style="--level: 0; --c: var(--pink)"></span>
+            <span class="preview-segment" style="--level: 1; --c: var(--gold)"></span>
+            <span class="preview-segment" style="--level: 2; --c: var(--green)"></span>
+          </span>
+          <span class="preview-tube">
+            <span class="preview-segment" style="--level: 0; --c: var(--violet)"></span>
+          </span>
+        </div>
+        <div class="card-body">
+          <span class="game-icon">
+            <svg width="45" height="45" viewBox="0 0 45 45" fill="none" aria-hidden="true">
+              <path d="M14 5h17M17 5v23c0 7 11 7 11 0V5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path>
+              <path d="M17 25h11M17 18h11M17 31h11" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path>
+              <path d="M32 16l7 5-7 5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path>
+            </svg>
+          </span>
+          <div>
+            <h3>Neon Pour</h3>
+            <p>Pour glowing liquid groups until every tube holds one color.</p>
             <span class="play">Play Game <span aria-hidden="true">&#8594;</span></span>
           </div>
         </div>
