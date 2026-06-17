@@ -2,7 +2,7 @@
 
 Free, ad-free static HTML games inspired by the kinds of simple game ideas that often get buried under fake ads, timers, popups, and other nonsense. The games are hosted on github pages and have no server component. All Static content. Feel free to add more games.
 
-You can play the games [here](https://adamabdelhamed.github.io/JustTheGamesPlease/Swarm.html).
+You can play the games [here](https://adamabdelhamed.github.io/JustTheGamesPlease).
 
 
 ## Games
