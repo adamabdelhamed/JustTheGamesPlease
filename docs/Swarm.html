@@ -33,7 +33,10 @@ body {
 
 header {
   position:fixed;
-  inset:18px 16px auto 16px;
+  top:18px;
+  left:50%;
+  width:min(430px, calc(100vw - 32px));
+  transform:translateX(-50%);
   display:flex;
   justify-content:space-between;
   align-items:flex-start;
@@ -97,7 +100,7 @@ button:active { transform:scale(.96); background:rgba(255,255,255,.16); }
 .settings {
   position:fixed;
   top:66px;
-  right:16px;
+  right:max(16px, calc((100vw - 430px) / 2));
   z-index:8;
   width:210px;
   padding:12px;
@@ -139,11 +142,17 @@ button:active { transform:scale(.96); background:rgba(255,255,255,.16); }
 
 #game {
   position:fixed;
-  inset:0;
-  width:100vw;
+  inset:0 auto 0 50%;
+  width:min(430px, 100vw);
   height:100vh;
+  height:100dvh;
+  transform:translateX(-50%);
   touch-action:none;
   user-select:none;
+  overflow:hidden;
+  border-left:1px solid rgba(255,255,255,.08);
+  border-right:1px solid rgba(255,255,255,.08);
+  box-shadow:0 0 80px rgba(0,0,0,.24);
 }
 
 .lane-line {
@@ -391,7 +400,13 @@ button:active { transform:scale(.96); background:rgba(255,255,255,.16); }
 }
 
 @media (max-width:620px) {
-  header { inset:14px 12px auto 12px; }
+  header {
+    top:14px;
+    width:calc(100vw - 24px);
+  }
+  .settings {
+    right:12px;
+  }
   .subtitle { max-width:190px; }
   .stats { max-width:180px; }
   .pill { padding:9px 10px; font-size:12px; }
@@ -527,23 +542,31 @@ function makeLanes() {
   for (let i = 1; i < laneCount; i++) {
     const el = document.createElement("div");
     el.className = "lane-line";
-    el.style.left = `${innerWidth * i / laneCount}px`;
+    el.style.left = `${gameWidth() * i / laneCount}px`;
     game.appendChild(el);
     lanes.push(el);
   }
 }
 
+function gameWidth() {
+  return game.clientWidth;
+}
+
+function gameHeight() {
+  return game.clientHeight;
+}
+
 function laneX(lane) {
-  return innerWidth * (lane + .5) / laneCount;
+  return gameWidth() * (lane + .5) / laneCount;
 }
 
 function nearestLane(x) {
-  return x < innerWidth / 2 ? 0 : 1;
+  return x < gameWidth() / 2 ? 0 : 1;
 }
 
 function addPlayer(offset) {
   const el = makeEl("entity player");
-  const player = { x:playerX + offset, y:innerHeight - 86, offset, r:15, el, alive:true, phase:random(0, Math.PI * 2) };
+  const player = { x:playerX + offset, y:gameHeight() - 86, offset, r:15, el, alive:true, phase:random(0, Math.PI * 2) };
   players.push(player);
   setPos(el, player.x, player.y);
   sparkle(player.x, player.y, "#56ccff", 18);
@@ -680,8 +703,8 @@ function updatePlayers(dt, now) {
 
   alive.forEach((p, i) => {
     p.offset += ((start + i * spacing) - p.offset) * Math.min(1, dt * 8);
-    p.x = clamp(playerX + p.offset, 24, innerWidth - 24);
-    p.y = innerHeight - 78 + Math.sin(now * .006 + p.phase) * 2.5;
+    p.x = clamp(playerX + p.offset, 24, gameWidth() - 24);
+    p.y = gameHeight() - 78 + Math.sin(now * .006 + p.phase) * 2.5;
     setPos(p.el, p.x, p.y);
 
     if (Math.random() < .25) makeTrail(p.x, p.y + 14, "#56ccff");
@@ -702,7 +725,7 @@ function updateEnemies(dt) {
     const e = enemies[i];
     e.y += e.speed * dt;
     setPos(e.el, e.x, e.y);
-    if (e.y > innerHeight + 80) remove(enemies, i);
+    if (e.y > gameHeight() + 80) remove(enemies, i);
   }
 }
 
@@ -711,7 +734,7 @@ function updatePickups(dt) {
     const p = pickups[i];
     p.y += p.speed * dt;
     setPos(p.el, p.x, p.y);
-    if (p.y > innerHeight + 80) remove(pickups, i);
+    if (p.y > gameHeight() + 80) remove(pickups, i);
   }
 }
 
@@ -721,7 +744,7 @@ function updateProjectiles(dt) {
     p.y -= p.speed * dt;
     p.x += p.vx * dt;
     setPos(p.el, p.x, p.y);
-    if (p.y < -40 || p.x < -40 || p.x > innerWidth + 40) remove(projectiles, i);
+    if (p.y < -40 || p.x < -40 || p.x > gameWidth() + 40) remove(projectiles, i);
   }
 }
 
@@ -813,14 +836,16 @@ function sparkle(x,y,color,count) {
 
 function pointerDown(e) {
   dragging = true;
-  currentLane = nearestLane(e.clientX);
+  const localX = e.clientX - game.getBoundingClientRect().left;
+  currentLane = nearestLane(localX);
   targetX = laneX(currentLane);
   try { game.setPointerCapture(e.pointerId); } catch {}
 }
 
 function pointerMove(e) {
   if (!dragging || !running) return;
-  currentLane = nearestLane(e.clientX);
+  const localX = e.clientX - game.getBoundingClientRect().left;
+  currentLane = nearestLane(localX);
   targetX = laneX(currentLane);
 }
 
