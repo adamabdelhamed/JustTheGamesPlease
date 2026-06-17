@@ -474,6 +474,8 @@ let kills = 0;
 let weaponLevel = 1;
 let running = false;
 let raf = 0;
+let lastGameWidth = 0;
+let resizeTimer = 0;
 let seed = Math.floor(Math.random() * 2147483647);
 let difficulty = "normal";
 const difficultyConfig = {
@@ -524,6 +526,7 @@ function clearGame() {
 function newGame() {
   clearGame();
   seed = Math.floor(Math.random() * 2147483647);
+  lastGameWidth = gameWidth();
   currentLane = 0;
   playerX = laneX(currentLane);
   targetX = playerX;
@@ -542,10 +545,10 @@ function makeLanes() {
   for (let i = 1; i < laneCount; i++) {
     const el = document.createElement("div");
     el.className = "lane-line";
-    el.style.left = `${gameWidth() * i / laneCount}px`;
     game.appendChild(el);
     lanes.push(el);
   }
+  updateLaneLines();
 }
 
 function gameWidth() {
@@ -558,6 +561,12 @@ function gameHeight() {
 
 function laneX(lane) {
   return gameWidth() * (lane + .5) / laneCount;
+}
+
+function updateLaneLines() {
+  lanes.forEach((el, index) => {
+    el.style.left = `${gameWidth() * (index + 1) / laneCount}px`;
+  });
 }
 
 function nearestLane(x) {
@@ -853,6 +862,43 @@ function pointerUp() {
   dragging = false;
 }
 
+function relayoutGame() {
+  const oldWidth = lastGameWidth || gameWidth();
+  const nextWidth = gameWidth();
+  const nextHeight = gameHeight();
+  if (!oldWidth || !nextWidth || !nextHeight) return;
+
+  const scaleX = nextWidth / oldWidth;
+  lastGameWidth = nextWidth;
+  updateLaneLines();
+
+  currentLane = Math.max(0, Math.min(laneCount - 1, currentLane));
+  targetX = laneX(currentLane);
+  playerX = running ? clamp(playerX * scaleX, 24, nextWidth - 24) : targetX;
+
+  const now = performance.now();
+  players.forEach(player => {
+    player.x = clamp(player.x * scaleX, 24, nextWidth - 24);
+    player.y = nextHeight - 78 + Math.sin(now * .006 + player.phase) * 2.5;
+    if (player.alive) setPos(player.el, player.x, player.y);
+  });
+
+  enemies.forEach(enemy => {
+    enemy.x = clamp(enemy.x * scaleX, enemy.r, nextWidth - enemy.r);
+    setPos(enemy.el, enemy.x, enemy.y);
+  });
+
+  pickups.forEach(pickup => {
+    pickup.x = clamp(pickup.x * scaleX, pickup.r, nextWidth - pickup.r);
+    setPos(pickup.el, pickup.x, pickup.y);
+  });
+
+  projectiles.forEach(projectile => {
+    projectile.x = clamp(projectile.x * scaleX, -40, nextWidth + 40);
+    setPos(projectile.el, projectile.x, projectile.y);
+  });
+}
+
 function endGame() {
   running = false;
   cancelAnimationFrame(raf);
@@ -876,7 +922,10 @@ document.querySelectorAll(".difficulty").forEach(button => button.addEventListen
   document.getElementById("settingsPanel").classList.remove("show");
   newGame();
 }));
-addEventListener("resize", () => setTimeout(newGame, 120));
+addEventListener("resize", () => {
+  clearTimeout(resizeTimer);
+  resizeTimer = setTimeout(relayoutGame, 80);
+});
 
 newGame();
 </script>
