@@ -335,6 +335,16 @@ button:disabled { opacity:.45; cursor:default; }
     width:clamp(48px, 17vw, 64px);
     height:clamp(154px, 31vh, 204px);
   }
+  body[data-difficulty="hard"] #game {
+    padding-top:140px;
+  }
+  body[data-difficulty="hard"] .board {
+    gap:9px 8px;
+  }
+  body[data-difficulty="hard"] .tube {
+    width:clamp(46px, 16vw, 58px);
+    height:clamp(112px, calc((100dvh - 176px) / 3), 154px);
+  }
 }
 </style>
 </head>
@@ -488,6 +498,7 @@ function generatePuzzle() {
 }
 
 function startGame() {
+  document.body.dataset.difficulty = difficultyEl.value;
   tubes = generatePuzzle();
   selected = null;
   history = [];
