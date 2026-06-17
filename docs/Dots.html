@@ -373,9 +373,8 @@ function pointerMove(e) {
 
   const nextSegment = { a:last, b:point };
   const crossesExisting = paths.some(path => path.segments.some(seg => segmentsIntersect(nextSegment.a, nextSegment.b, seg.a, seg.b)));
-  const crossesSelf = activePoints.length > 4 && activePoints.slice(0, -3).some((p, i) => segmentsIntersect(nextSegment.a, nextSegment.b, p, activePoints[i + 1]));
 
-  if (crossesExisting || crossesSelf) crossedWhileDrawing = true;
+  if (crossesExisting) crossedWhileDrawing = true;
 
   activePoints.push(point);
   ghost.setAttribute("d", pathData(activePoints));
@@ -410,9 +409,8 @@ function finishDraw(target) {
 
   const segments = makeSegments(activePoints);
   const crossesExisting = paths.some(path => path.segments.some(existing => segments.some(next => segmentsIntersect(next.a, next.b, existing.a, existing.b))));
-  const crossesSelf = segments.some((a, i) => segments.some((b, j) => Math.abs(i - j) > 1 && segmentsIntersect(a.a, a.b, b.a, b.b)));
 
-  if (crossedWhileDrawing || crossesExisting || crossesSelf) {
+  if (crossedWhileDrawing || crossesExisting) {
     cleanupActivePath();
     fail("Lines crossed", "That path overlaps another connection.");
     return;
