@@ -31,14 +31,14 @@ export class Renderer {
     c.restore();
   }
   drawPickup(p, units) {
-    const c = this.ctx, item = p.id === 'multi' ? { name: 'MULTIPLY', icon: `×${Math.min(4, units + 1)}`, color: '#5cffb0' } : ALL_EQUIPMENT[p.id];
+    const c = this.ctx, item = p.id === 'multi' ? { name: 'MULTIPLY', icon: `×${Math.min(8, units + 1)}`, color: '#5cffb0' } : ALL_EQUIPMENT[p.id];
     c.save(); c.translate(p.x, p.y); c.rotate(p.spin); c.shadowBlur = 22; c.shadowColor = item.color; c.fillStyle = '#08101f'; c.strokeStyle = item.color; c.lineWidth = 3; this.polygon(0, 0, 19, 6); c.fill(); c.stroke(); c.rotate(-p.spin);
     c.fillStyle = item.color; c.font = 'bold 12px Segoe UI'; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText(item.icon, 0, 0);
     c.fillStyle = '#eef7ff'; c.font = 'bold 9px Segoe UI'; c.fillText(item.name.toUpperCase(), 0, -29); c.restore();
   }
   drawShot(s) {
     const c = this.ctx; c.save(); c.shadowBlur = s.type === 'rail' ? 28 : 14; c.shadowColor = s.color; c.fillStyle = s.color;
-    if (s.type === 'rail') c.fillRect(s.x - 3, s.y - 35, 6, 70); else { c.beginPath(); c.arc(s.x, s.y, s.r, 0, 7); c.fill(); }
+    if (s.type === 'rail') c.fillRect(s.x - s.r / 2, s.y - 35 - s.r, s.r, 70 + s.r * 2); else { c.beginPath(); c.arc(s.x, s.y, s.r, 0, 7); c.fill(); }
     c.restore();
   }
   drawEnemy(e, time) {

@@ -45,8 +45,11 @@ function addShot(x, y, vx, vy, r, damage, type, color, pierce = 0) { state.shots
 function firePrimary() {
   const slot = arsenal.primary, weapon = PRIMARY[slot.id]; if ((slot.cooldown -= frameDelta) > 0) return; slot.cooldown = weapon.rate / (1 + (slot.level - 1) * .1);
   for (const offset of state.unitOffsets()) { const x = state.playerX + offset;
-    if (slot.id === 'scatter') for (let i = -2 - slot.level; i <= 2 + slot.level; i++) { const a = i * .07; addShot(x, renderer.height - 105, Math.sin(a) * weapon.speed, -Math.cos(a) * weapon.speed, 3, weapon.damage, 'scatter', weapon.color); }
-    else addShot(x, renderer.height - 110, 0, -weapon.speed, slot.id === 'rail' ? 5 : 3, weapon.damage * (1 + (slot.level - 1) * .22), slot.id, weapon.color, slot.id === 'rail' ? 2 + slot.level : 0);
+    const damage = weapon.damage * (1 + (slot.level - 1) * .22), size = 2.5 + slot.level * .55;
+    if (slot.id === 'scatter') for (let i = -2 - slot.level; i <= 2 + slot.level; i++) { const a = i * .07; addShot(x, renderer.height - 105, Math.sin(a) * weapon.speed, -Math.cos(a) * weapon.speed, size, damage, 'scatter', weapon.color); }
+    else if (slot.id === 'burst') for (let i = -1; i <= 1; i++) { const a = i * (.035 + slot.level * .008); addShot(x, renderer.height - 110 + Math.abs(i) * 9, Math.sin(a) * weapon.speed, -Math.cos(a) * weapon.speed, size, damage, 'burst', i ? '#ffd166' : weapon.color); }
+    else if (slot.id === 'rotary') { const spray = random(-.035, .035) * slot.level; addShot(x + (Math.random() < .5 ? -7 : 7), renderer.height - 108, Math.sin(spray) * weapon.speed, -Math.cos(spray) * weapon.speed, size, damage, 'rotary', Math.random() < .35 ? '#ffffff' : weapon.color); }
+    else addShot(x, renderer.height - 110, 0, -weapon.speed, slot.id === 'rail' ? 5 + slot.level : size, damage, slot.id, weapon.color, slot.id === 'rail' ? 2 + slot.level : 0);
   }
   gameAudio.playRotated('Primary', 3);
 }
@@ -58,7 +61,9 @@ function fireSecondary() {
 }
 function explode(shot) { ring(shot.x, shot.y, shot.color); burst(shot.x, shot.y, shot.color, 24, 230); state.shake = 8; for (const enemy of state.enemies) { const d = Math.hypot(enemy.x - shot.x, enemy.y - shot.y); if (d < 110) enemy.hp -= shot.damage * (1 - d / 140); } }
 function damageEnemy(enemy, shot) {
-  enemy.hp -= shot.damage; enemy.hitTimer = .08; if (enemy.boss) enemy.healthBarTimer = 2.2; burst(shot.x, shot.y, shot.color, 5, 90);
+  enemy.hp -= shot.damage; enemy.hitTimer = Math.min(.16, .05 + shot.damage / 700); if (enemy.boss) enemy.healthBarTimer = 2.2;
+  burst(shot.x, shot.y, shot.color, Math.min(18, 4 + Math.ceil(shot.damage / 8)), Math.min(230, 70 + shot.damage * 2));
+  if (shot.damage >= 35) ring(shot.x, shot.y, shot.color, .18 + Math.min(.2, shot.damage / 400));
   if (shot.type === 'nova') explode(shot); if (shot.pierce-- <= 0 || shot.type === 'nova') shot.life = 0;
   if (enemy.hp > 0) return false;
   gameAudio.play(enemy.boss ? 'BossDestroyed' : 'EnemyDestroyed');
@@ -68,7 +73,7 @@ function damageEnemy(enemy, shot) {
 }
 function collectPickups() {
   for (let i = state.pickups.length - 1; i >= 0; i--) { const p = state.pickups[i]; if (Math.hypot(state.playerX - p.x, renderer.height - 88 - p.y) >= 40) continue;
-    if (p.id === 'multi') { state.units = Math.min(4, state.units + 1); ui.status.textContent = `SQUAD · ${state.units} UNITS`; burst(p.x, p.y, '#5cffb0', 28, 200); }
+    if (p.id === 'multi') { state.units = Math.min(8, state.units + 1); ui.status.textContent = `SQUAD · ${state.units} UNITS`; burst(p.x, p.y, '#5cffb0', 28 + state.units * 2, 200); }
     else { const item = arsenal.equip(p.id); updateArsenalCard(item); burst(p.x, p.y, item.color, 24, 190); }
     gameAudio.play('Pickup'); state.pickups.splice(i, 1);
   }
