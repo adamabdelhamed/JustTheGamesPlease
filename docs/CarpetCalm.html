@@ -5,15 +5,16 @@
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
   <title>Carpet Calm</title>
   <script src="lib/analytics.js"></script>
-  <link rel="stylesheet" href="lib/top-bar/top-bar.css">
+  <link rel="stylesheet" href="lib/top-bar/top-bar.css?v=20260618-2">
   <link rel="stylesheet" href="CarpetCalm/game.css">
   <style>.dry-meter b{background:linear-gradient(90deg,#54a7ff,#b9e9ff);box-shadow:0 0 10px #67c9ff}.dry-meter strong{color:#9edcff}.vacuum-icon{color:#b99cff}@media(min-width:651px){.toolbox .tool{width:132px}}@media(max-width:650px){.toolbox{gap:3px;padding:5px}.toolbox .tool{width:68px;padding:6px}.clean-meter i{width:48px}}</style>
   <style>.overlay.celebration{align-items:end;padding-bottom:18px;background:linear-gradient(180deg,rgba(3,12,9,.08),rgba(3,12,9,.18));backdrop-filter:none;pointer-events:none}.overlay.celebration .dialog{width:min(520px,calc(100% - 24px));padding:18px 28px;border-color:#7fffc255;background:#0d1814d9;box-shadow:0 12px 50px #0008;pointer-events:auto}.overlay.celebration .dialog h2{margin:6px 0;font-size:clamp(26px,4vw,42px)}.overlay.celebration .dialog p{margin:6px 0}.overlay.celebration .dialog button{margin:7px 0 4px}.overlay.celebration .dialog small{display:none}</style>
+  <style>.toolbox-handle{display:none}.rotate-device{display:none}@media(pointer:coarse){.toolbox-handle{position:absolute;z-index:9;left:50%;bottom:0;display:flex;min-width:112px;height:28px;align-items:center;justify-content:center;gap:7px;transform:translateX(-50%);border:1px solid #ffffff26;border-bottom:0;border-radius:12px 12px 0 0;background:#101815e8;color:#eafff5;font:800 11px system-ui;letter-spacing:.05em}.toolbox-handle::before{content:"";width:24px;height:3px;border-radius:3px;background:#7fffc288}.toolbox.mobile-collapsed{visibility:hidden;opacity:0;transform:translate(-50%,18px);pointer-events:none}.toolbox{transition:opacity .18s,transform .18s,visibility .18s}}@media(pointer:coarse) and (orientation:portrait){.rotate-device{position:fixed;z-index:100;inset:0;display:grid;place-items:center;padding:28px;background:#07100df5;color:#f4fff9;text-align:center}.rotate-device div{max-width:330px}.rotate-device b{display:block;margin-bottom:12px;color:#7fffc2;font-size:28px}.rotate-device p{margin:0;color:#b8c8c1;line-height:1.55}.rotate-device svg{width:70px;margin-bottom:18px;fill:none;stroke:#7fffc2;stroke-width:2}}</style>
 </head>
 <body>
   <main id="game" aria-label="Carpet Calm game area">
     <canvas id="scene"></canvas>
-    <header data-game-topbar data-contained>
+    <header data-game-topbar data-contained data-mobile-compact>
       <div class="game-topbar__identity"><h1>CARPET <b>CALM</b></h1><p class="game-topbar__instructions" id="status">Choose a tool, then drag across the carpet</p></div>
       <div class="game-topbar__right">
         <div class="clean-meter game-topbar__controls"><span>Clean</span><i><b id="cleanFill"></b></i><strong id="cleanText">0%</strong></div>
@@ -22,19 +23,21 @@
         <div class="game-topbar__utilities" data-game-topbar-utilities></div>
       </div>
     </header>
-    <section class="toolbox" aria-label="Cleaning tools">
-      <button class="tool selected" data-tool="soap"><span class="tool-icon soap-icon">+</span><strong>Soap</strong><small>Loosens dirt</small><kbd>1</kbd></button>
+    <section class="toolbox" id="toolbox" aria-label="Cleaning tools">
+      <button class="tool" data-tool="soap"><span class="tool-icon soap-icon">+</span><strong>Soap</strong><small>Loosens dirt</small><kbd>1</kbd></button>
       <button class="tool" data-tool="water"><span class="tool-icon water-icon">◆</span><strong>Water</strong><small>Rinses right</small><kbd>2</kbd></button>
       <button class="tool" data-tool="rotary"><span class="tool-icon rotary-icon">✦</span><strong>Rotary</strong><small>Agitates mud</small><kbd>3</kbd></button>
       <button class="tool" data-tool="squeegee"><span class="tool-icon squeegee-icon">T</span><strong>Squeegee</strong><small>Pushes runoff</small><kbd>4</kbd></button>
       <button class="tool" data-tool="vacuum"><span class="tool-icon vacuum-icon">V</span><strong>Vacuum</strong><small>Extracts water</small><kbd>5</kbd></button>
     </section>
-    <div class="hint" id="hint">Soap the dirty fibers first</div>
+    <button class="toolbox-handle" id="toolboxHandle" type="button" aria-expanded="true" aria-controls="toolbox">TOOLS</button>
+    <div class="hint" id="hint">Choose a tool to begin</div>
+    <section class="rotate-device" aria-live="polite"><div><svg viewBox="0 0 64 64" aria-hidden="true"><rect x="18" y="8" width="28" height="48" rx="5"/><path d="M7 27c2-9 8-16 17-20M7 27l-2-9M7 27l9-2"/></svg><b>Turn your phone sideways</b><p>Carpet Calm needs a horizontal screen. Rotate your device to continue.</p></div></section>
     <section class="overlay show" id="overlay">
       <div class="dialog"><span class="eyebrow">SATISFYING CLEAN</span><h2 id="overlayTitle">Reveal the carpet<br><b>underneath.</b></h2><p id="overlayMessage">Soap, scrub, and rinse. Push thick mud with the squeegee, then vacuum clean water until the mat is dry.</p><button id="start">START CLEANING</button><small>Drag · Touch · Keys 1–5</small></div>
     </section>
   </main>
-  <script src="lib/top-bar/top-bar.js"></script>
+  <script src="lib/top-bar/top-bar.js?v=20260618-2"></script>
   <script src="lib/audio/audio.js?v=20260618-2"></script>
   <script>gameAudio.preload(['Soap','Water','Rotary','SqueegeeFloor','SqueegeeCarpet','Vacuum','Complete']);gameAudio.playSharedMusic(['Music']);</script>
   <script type="module" src="CarpetCalm/game.js"></script>
