@@ -3,6 +3,7 @@
 
   const pageName = decodeURIComponent(location.pathname.split('/').pop() || '').replace(/\.html?$/i, '');
   const audioRoot = `${pageName}/audio/`;
+  const assetVersion = '20260618-1';
   const rotations = new Map();
   const preloadCache = new Map();
   let musicIds = [];
@@ -14,7 +15,7 @@
   function source(id, shared) {
     const file = /\.[a-z0-9]+$/i.test(id) ? id : `${id}.mp3`;
     const root = shared ? 'lib/audio/music/' : audioRoot;
-    return root + file.split('/').map(encodeURIComponent).join('/');
+    return `${root}${file.split('/').map(encodeURIComponent).join('/')}?v=${assetVersion}`;
   }
 
   function safePlay(element) {
