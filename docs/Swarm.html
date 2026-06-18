@@ -5,13 +5,14 @@
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
   <title>Neon Swarm</title>
   <link rel="stylesheet" href="Swarm/game.css">
+  <link rel="stylesheet" href="lib/top-bar/top-bar.css">
 </head>
 <body>
   <main id="game" aria-label="Neon Swarm game area">
     <canvas id="canvas"></canvas>
-    <header>
-      <div><h1>NEON <b>SWARM</b></h1><p id="status">Drag or use A / D to move</p></div>
-      <div class="stats"><span id="score">0</span><span id="combo">x1</span><button id="sound" aria-label="Toggle sound">♪</button></div>
+    <header data-game-topbar data-contained>
+      <div class="game-topbar__identity"><h1>NEON <b>SWARM</b></h1><p class="game-topbar__instructions" id="status">Drag or use A / D to move</p></div>
+      <div class="game-topbar__right"><div class="stats game-topbar__controls"><span id="score">0</span><span id="combo">x1</span></div><div class="game-topbar__utilities" data-game-topbar-utilities></div></div>
     </header>
     <section class="weapon-card" id="weaponCard">
       <span id="weaponIcon">◆</span><div><strong id="weaponName">Pulse</strong><small id="weaponDetail">Balanced auto cannon</small></div>
@@ -22,6 +23,9 @@
       <div class="dialog"><span class="eyebrow">ARCADE SURVIVAL</span><h2 id="title">Build a beautiful<br><b>arsenal.</b></h2><p id="message">Collect weapon cores to transform your firepower. Every weapon plays differently.</p><button id="start">ENTER THE SWARM</button><small>Mouse · Touch · A/D · Arrow keys</small></div>
     </section>
   </main>
+  <script src="lib/top-bar/top-bar.js"></script>
+  <script src="lib/audio/audio.js"></script>
+  <script>gameAudio.preload(['Boss','Primary','Secondary','Streak','Pickup','Shield','Hit','GameOver']);gameAudio.playSharedMusic(['Music']);</script>
   <script type="module" src="Swarm/game.js"></script>
 </body>
 </html>

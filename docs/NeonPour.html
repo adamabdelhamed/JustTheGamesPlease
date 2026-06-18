@@ -347,23 +347,24 @@ button:disabled { opacity:.45; cursor:default; }
   }
 }
 </style>
+<link rel="stylesheet" href="lib/top-bar/top-bar.css">
 </head>
 <body>
-<header>
-  <div>
+<header data-game-topbar>
+  <div class="game-topbar__identity">
     <h1>Neon Pour</h1>
-    <div class="subtitle">Tap a tube, then pour into an empty tube or onto the same top color.</div>
+    <p class="game-topbar__instructions">Tap a tube, then pour into an empty tube or onto the same top color.</p>
   </div>
-  <div class="controls" aria-label="Game controls">
+  <div class="game-topbar__right"><div class="controls game-topbar__controls" aria-label="Game controls">
     <div class="pill" id="moveLabel">Moves: 0</div>
-    <select id="difficulty" aria-label="Difficulty">
+    <select id="difficulty" aria-label="Difficulty" data-topbar-select>
       <option value="easy">Easy</option>
       <option value="normal" selected>Normal</option>
       <option value="hard">Hard</option>
     </select>
     <button id="undo">Undo</button>
     <button id="newGame">New</button>
-  </div>
+  </div><div class="game-topbar__utilities" data-game-topbar-utilities></div></div>
 </header>
 
 <main id="game">
@@ -378,7 +379,10 @@ button:disabled { opacity:.45; cursor:default; }
   </div>
 </div>
 
+<script src="lib/top-bar/top-bar.js"></script>
+<script src="lib/audio/audio.js"></script>
 <script>
+gameAudio.playSharedMusic(['Music']);
 const CAPACITY = 4;
 const COLORS = ["#20d7ff", "#ff3d8a", "#8cff2f", "#ffd43b", "#8b5cff", "#ff7a1a", "#ff3030", "#2f6bff"];
 const SETTINGS = {

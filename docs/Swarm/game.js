@@ -1,13 +1,11 @@
 import { Arsenal, ALL_EQUIPMENT, equipmentIds, PRIMARY, SECONDARY } from './arsenal.js';
-import { Sound } from './audio.js';
 import { Renderer } from './renderer.js';
 
 const canvas = document.querySelector('#canvas');
 const game = document.querySelector('#game');
 const renderer = new Renderer(canvas);
-const sound = new Sound();
 const arsenal = new Arsenal();
-const ui = Object.fromEntries(['overlay','title','message','start','score','combo','status','weaponCard','weaponName','weaponDetail','weaponIcon','weaponLevel','sound','bossBar','bossHp'].map(id => [id, document.getElementById(id)]));
+const ui = Object.fromEntries(['overlay','title','message','start','score','combo','status','weaponCard','weaponName','weaponDetail','weaponIcon','weaponLevel','bossBar','bossHp'].map(id => [id, document.getElementById(id)]));
 
 const state = {
   running: false, time: 0, score: 0, streak: 0, units: 1, playerX: 0, targetX: 0, shake: 0, flash: 0,
@@ -35,7 +33,7 @@ function spawnEnemy() {
   const boss = state.bossTimer <= 0 && !state.enemies.some(e => e.boss); if (boss) state.bossTimer = 34;
   const r = boss ? 34 : random(12, 22), hp = boss ? 420 + state.time * 5 : 18 + state.time * .8;
   state.enemies.push({ x: laneX(Math.random() < .5 ? 0 : 1), y: -50, r, hp, maxHp: hp, speed: boss ? 42 : random(72, 125) + state.time * .65, boss, hitTimer: 0, healthBarTimer: 0 });
-  if (boss) { ui.bossBar.classList.add('show'); sound.tone(55, .5, 'sawtooth', .08); }
+  if (boss) { ui.bossBar.classList.add('show'); gameAudio.play('Boss'); }
 }
 function spawnPickup() {
   const roll = Math.random(); let id = roll < .22 ? 'multi' : equipmentIds[Math.floor(Math.random() * equipmentIds.length)];
@@ -48,13 +46,13 @@ function firePrimary() {
     if (slot.id === 'scatter') for (let i = -2 - slot.level; i <= 2 + slot.level; i++) { const a = i * .07; addShot(x, renderer.height - 105, Math.sin(a) * weapon.speed, -Math.cos(a) * weapon.speed, 3, weapon.damage, 'scatter', weapon.color); }
     else addShot(x, renderer.height - 110, 0, -weapon.speed, slot.id === 'rail' ? 5 : 3, weapon.damage * (1 + (slot.level - 1) * .22), slot.id, weapon.color, slot.id === 'rail' ? 2 + slot.level : 0);
   }
-  sound.tone(slot.id === 'rail' ? 90 : slot.id === 'scatter' ? 220 : 380, .06, slot.id === 'pulse' ? 'square' : 'triangle');
+  gameAudio.playRotated('Primary', 3);
 }
 function fireSecondary() {
   const slot = arsenal.secondary; if (!slot.id || slot.charges <= 0 || (slot.cooldown -= frameDelta) > 0) return;
   const weapon = SECONDARY[slot.id]; slot.charges--; slot.cooldown = .8; const x = state.playerX;
   addShot(x, renderer.height - 120, 0, -weapon.speed, slot.id === 'nova' ? 10 : 7, weapon.damage * (1 + (slot.level - 1) * .25), slot.id, weapon.color, slot.id === 'storm' ? 4 : 0);
-  ring(x, renderer.height - 115, weapon.color); sound.tone(slot.id === 'nova' ? 130 : 680, .14, 'triangle', .06);
+  ring(x, renderer.height - 115, weapon.color); gameAudio.playRotated('Secondary', 2);
 }
 function explode(shot) { ring(shot.x, shot.y, shot.color); burst(shot.x, shot.y, shot.color, 24, 230); state.shake = 8; for (const enemy of state.enemies) { const d = Math.hypot(enemy.x - shot.x, enemy.y - shot.y); if (d < 110) enemy.hp -= shot.damage * (1 - d / 140); } }
 function damageEnemy(enemy, shot) {
@@ -62,21 +60,21 @@ function damageEnemy(enemy, shot) {
   if (shot.type === 'nova') explode(shot); if (shot.pierce-- <= 0 || shot.type === 'nova') shot.life = 0;
   if (enemy.hp > 0) return false;
   state.score += Math.round((enemy.boss ? 500 : 20) * (1 + state.streak * .05)); state.streak++;
-  if (state.streak % 5 === 0) { arsenal.addStreakCharge(); ui.status.textContent = arsenal.secondary.id ? `SECONDARY CHARGED · ${arsenal.secondary.charges}` : `${state.streak} STREAK`; sound.tone(820, .16, 'triangle', .06); }
+  if (state.streak % 5 === 0) { arsenal.addStreakCharge(); ui.status.textContent = arsenal.secondary.id ? `SECONDARY CHARGED · ${arsenal.secondary.charges}` : `${state.streak} STREAK`; gameAudio.play('Streak'); }
   burst(enemy.x, enemy.y, enemy.boss ? '#ffd45c' : '#ff5577', enemy.boss ? 55 : 16, enemy.boss ? 320 : 170); state.shake = enemy.boss ? 16 : 3; if (enemy.boss) { ui.bossBar.classList.remove('show'); state.flash = 1; } return true;
 }
 function collectPickups() {
   for (let i = state.pickups.length - 1; i >= 0; i--) { const p = state.pickups[i]; if (Math.hypot(state.playerX - p.x, renderer.height - 88 - p.y) >= 40) continue;
     if (p.id === 'multi') { state.units = Math.min(4, state.units + 1); ui.status.textContent = `SQUAD · ${state.units} UNITS`; burst(p.x, p.y, '#5cffb0', 28, 200); }
     else { const item = arsenal.equip(p.id); updateArsenalCard(item); burst(p.x, p.y, item.color, 24, 190); }
-    sound.tone(620, .16, 'triangle', .06); state.pickups.splice(i, 1);
+    gameAudio.play('Pickup'); state.pickups.splice(i, 1);
   }
 }
 function hitSquad() {
   for (let i = state.enemies.length - 1; i >= 0; i--) { const e = state.enemies[i]; if (Math.hypot(e.x - state.playerX, e.y - (renderer.height - 88)) >= e.r + 16 + state.units * 6) continue;
     state.enemies.splice(i, 1); burst(e.x, e.y, '#ff5577', 25, 220); state.shake = 12;
-    if (arsenal.absorbHit()) { ui.status.textContent = `SHIELD · ${Math.ceil(arsenal.shield.durability / arsenal.shield.max * 100)}%`; sound.tone(120, .2, 'sawtooth', .07); }
-    else { state.units--; ui.status.textContent = `HIT · ${state.units} UNIT${state.units === 1 ? '' : 'S'} LEFT`; sound.tone(70, .3, 'sawtooth', .08); if (state.units <= 0) { end('Squad destroyed.'); return true; } }
+    if (arsenal.absorbHit()) { ui.status.textContent = `SHIELD · ${Math.ceil(arsenal.shield.durability / arsenal.shield.max * 100)}%`; gameAudio.play('Shield'); }
+    else { state.units--; ui.status.textContent = `HIT · ${state.units} UNIT${state.units === 1 ? '' : 'S'} LEFT`; gameAudio.play('Hit'); if (state.units <= 0) { end('Squad destroyed.'); return true; } }
   } return false;
 }
 function handleEscapes() {
@@ -100,10 +98,10 @@ function update(dt) {
   const boss = state.enemies.find(e => e.boss); if (boss) ui.bossHp.style.width = `${Math.max(0, boss.hp / boss.maxHp * 100)}%`;
   ui.score.textContent = state.score.toLocaleString(); ui.combo.textContent = `STREAK ${state.streak}`;
 }
-function end(reason) { state.running = false; ui.title.innerHTML = `${reason}<br><b>${state.score.toLocaleString()}</b>`; ui.message.textContent = `You survived ${state.time.toFixed(1)} seconds. Build all three arsenal slots and protect every unit.`; ui.start.textContent = 'RUN IT BACK'; ui.overlay.classList.add('show'); sound.tone(70, .5, 'sawtooth', .08); }
+function end(reason) { state.running = false; ui.title.innerHTML = `${reason}<br><b>${state.score.toLocaleString()}</b>`; ui.message.textContent = `You survived ${state.time.toFixed(1)} seconds. Build all three arsenal slots and protect every unit.`; ui.start.textContent = 'RUN IT BACK'; ui.overlay.classList.add('show'); gameAudio.play('GameOver'); }
 function loop(now) { if (!state.running) return; const dt = Math.min(.033, (now - lastFrame) / 1000); lastFrame = now; update(dt); renderer.draw(state); if (state.running) requestAnimationFrame(loop); }
 
 canvas.addEventListener('pointerdown', event => { state.targetX = laneX(event.offsetX < renderer.width / 2 ? 0 : 1); });
 addEventListener('keydown', event => keys[event.key] = true); addEventListener('keyup', event => keys[event.key] = false);
-addEventListener('resize', () => renderer.resize()); ui.start.onclick = reset; ui.sound.onclick = () => { sound.enabled = !sound.enabled; ui.sound.textContent = sound.enabled ? '♪' : '×'; };
+addEventListener('resize', () => renderer.resize()); ui.start.onclick = reset;
 renderer.draw(state);
