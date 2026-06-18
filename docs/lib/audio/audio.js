@@ -8,6 +8,7 @@
   let musicIds = [];
   let musicIndex = 0;
   let music = null;
+  let musicUnlockArmed = false;
   let musicEnabled = localStorage.getItem('gameAudio.musicEnabled') !== 'false';
 
   function source(id, shared) {
@@ -21,6 +22,25 @@
       const attempt = element.play();
       if (attempt && typeof attempt.catch === 'function') attempt.catch(() => {});
     } catch (_) { /* Missing or unsupported audio is intentionally a no-op. */ }
+  }
+
+  function disarmMusicUnlock() {
+    if (!musicUnlockArmed) return;
+    musicUnlockArmed = false;
+    document.removeEventListener('pointerdown', unlockMusic, true);
+    document.removeEventListener('keydown', unlockMusic, true);
+  }
+
+  function unlockMusic() {
+    disarmMusicUnlock();
+    if (musicEnabled && music && music.paused) safePlay(music);
+  }
+
+  function armMusicUnlock() {
+    if (musicUnlockArmed) return;
+    musicUnlockArmed = true;
+    document.addEventListener('pointerdown', unlockMusic, true);
+    document.addEventListener('keydown', unlockMusic, true);
   }
 
   function play(id) {
@@ -76,6 +96,7 @@
       playCurrentMusic();
     }, { once: true });
     safePlay(music);
+    if (music.paused) armMusicUnlock();
   }
 
   function playMusic(ids) {
@@ -111,7 +132,10 @@
       musicEnabled = !musicEnabled;
       localStorage.setItem('gameAudio.musicEnabled', String(musicEnabled));
       if (musicEnabled) playCurrentMusic();
-      else if (music) music.pause();
+      else {
+        disarmMusicUnlock();
+        if (music) music.pause();
+      }
       updateToggle(button);
     });
     if (!global.gameTopBar || !global.gameTopBar.addUtility(button)) document.body.append(button);

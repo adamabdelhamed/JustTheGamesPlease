@@ -383,6 +383,7 @@ button:disabled { opacity:.45; cursor:default; }
 <script src="lib/audio/audio.js"></script>
 <script>
 gameAudio.playSharedMusic(['Music']);
+gameAudio.preload(['TubeSelect','TubeDeselect','Pour','InvalidPour','Undo','PuzzleComplete']);
 const CAPACITY = 4;
 const COLORS = ["#20d7ff", "#ff3d8a", "#8cff2f", "#ffd43b", "#8b5cff", "#ff7a1a", "#ff3030", "#2f6bff"];
 const SETTINGS = {
@@ -551,12 +552,14 @@ function chooseTube(index) {
   if (locked) return;
   if (selected === null) {
     if (!tubes[index].length) return markInvalid(index);
+    gameAudio.play('TubeSelect');
     selected = index;
     render();
     return;
   }
 
   if (selected === index) {
+    gameAudio.play('TubeDeselect');
     selected = null;
     render();
     return;
@@ -579,6 +582,7 @@ function pour(from, to, amount) {
   const color = topGroup(tubes[from]).color;
   const fromEl = boardEl.querySelector(`[data-index="${from}"]`);
   const toEl = boardEl.querySelector(`[data-index="${to}"]`);
+  gameAudio.play('Pour');
   animatePour(fromEl, toEl, COLORS[color]);
 
   window.setTimeout(() => {
@@ -618,6 +622,7 @@ function animatePour(fromEl, toEl, color) {
 function markInvalid(index) {
   const tube = boardEl.querySelector(`[data-index="${index}"]`);
   if (!tube) return;
+  gameAudio.play('InvalidPour');
   tube.classList.remove("invalid");
   void tube.offsetWidth;
   tube.classList.add("invalid");
@@ -629,12 +634,14 @@ function undo() {
   tubes = history.pop();
   selected = null;
   moves = Math.max(0, moves - 1);
+  gameAudio.play('Undo');
   render();
 }
 
 function celebrate() {
   locked = true;
   selected = null;
+  gameAudio.play('PuzzleComplete');
   render();
   const rect = boardEl.getBoundingClientRect();
   for (let i = 0; i < 54; i++) {

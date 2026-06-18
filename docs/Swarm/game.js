@@ -33,7 +33,7 @@ function spawnEnemy() {
   const boss = state.bossTimer <= 0 && !state.enemies.some(e => e.boss); if (boss) state.bossTimer = 34;
   const r = boss ? 34 : random(12, 22), hp = boss ? 420 + state.time * 5 : 18 + state.time * .8;
   state.enemies.push({ x: laneX(Math.random() < .5 ? 0 : 1), y: -50, r, hp, maxHp: hp, speed: boss ? 42 : random(72, 125) + state.time * .65, boss, hitTimer: 0, healthBarTimer: 0 });
-  if (boss) { ui.bossBar.classList.add('show'); gameAudio.play('Boss'); }
+  if (boss) { ui.bossBar.classList.add('show'); gameAudio.playRotated('Boss', 1); }
 }
 function spawnPickup() {
   const roll = Math.random(); let id = roll < .22 ? 'multi' : equipmentIds[Math.floor(Math.random() * equipmentIds.length)];
@@ -59,6 +59,7 @@ function damageEnemy(enemy, shot) {
   enemy.hp -= shot.damage; enemy.hitTimer = .08; if (enemy.boss) enemy.healthBarTimer = 2.2; burst(shot.x, shot.y, shot.color, 5, 90);
   if (shot.type === 'nova') explode(shot); if (shot.pierce-- <= 0 || shot.type === 'nova') shot.life = 0;
   if (enemy.hp > 0) return false;
+  gameAudio.play(enemy.boss ? 'BossDestroyed' : 'EnemyDestroyed');
   state.score += Math.round((enemy.boss ? 500 : 20) * (1 + state.streak * .05)); state.streak++;
   if (state.streak % 5 === 0) { arsenal.addStreakCharge(); ui.status.textContent = arsenal.secondary.id ? `SECONDARY CHARGED · ${arsenal.secondary.charges}` : `${state.streak} STREAK`; gameAudio.play('Streak'); }
   burst(enemy.x, enemy.y, enemy.boss ? '#ffd45c' : '#ff5577', enemy.boss ? 55 : 16, enemy.boss ? 320 : 170); state.shake = enemy.boss ? 16 : 3; if (enemy.boss) { ui.bossBar.classList.remove('show'); state.flash = 1; } return true;
@@ -78,7 +79,7 @@ function hitSquad() {
   } return false;
 }
 function handleEscapes() {
-  for (let i = state.enemies.length - 1; i >= 0; i--) { const e = state.enemies[i]; if (e.y <= renderer.height + e.r) continue; state.score -= e.boss ? 100 : 20; state.streak = 0; state.enemies.splice(i, 1); burst(e.x, renderer.height - 5, '#ff4f9a', 16, 150); if (state.score < 0) { end('The swarm broke your score line.'); return true; } }
+  for (let i = state.enemies.length - 1; i >= 0; i--) { const e = state.enemies[i]; if (e.y <= renderer.height + e.r) continue; state.score -= e.boss ? 100 : 20; state.streak = 0; state.enemies.splice(i, 1); gameAudio.play('EnemyEscaped'); burst(e.x, renderer.height - 5, '#ff4f9a', 16, 150); if (state.score < 0) { end('The swarm broke your score line.'); return true; } }
   return false;
 }
 let frameDelta = 0;

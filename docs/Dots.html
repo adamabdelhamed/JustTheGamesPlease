@@ -132,7 +132,7 @@ button:active { transform:scale(.96); background:rgba(255,255,255,.16); }
   }
 }
 
-svg {
+#svg {
   position:absolute;
   inset:0;
   width:100%;
@@ -257,7 +257,7 @@ path {
 <script src="lib/audio/audio.js"></script>
 <script>
 gameAudio.playSharedMusic(['Music']);
-gameAudio.preload(['DotGrab']);
+gameAudio.preload(['DotGrab','LinkCancel','LinkComplete','WrongLink','PuzzleComplete']);
 const game = document.getElementById("game");
 const svg = document.getElementById("svg");
 const overlay = document.getElementById("overlay");
@@ -401,6 +401,7 @@ function finishDraw(target) {
   source.el.classList.remove("active");
 
   if (!target) {
+    gameAudio.play('LinkCancel');
     cleanupActivePath();
     return;
   }
@@ -430,6 +431,7 @@ function finishDraw(target) {
   target.connected = true;
   source.el.classList.add("connected");
   target.el.classList.add("connected");
+  gameAudio.play('LinkComplete');
   animatePath(finalPath);
   sparkle(target.x, target.y, target.color, 22);
 
@@ -511,12 +513,14 @@ function samePoint(a,b) {
 
 function success() {
   locked = true;
+  gameAudio.play('PuzzleComplete');
   endBurst("#54f7b5");
   setTimeout(() => showDialog("Perfect path", "Every pair is connected without a single crossing."), 850);
 }
 
 function fail(title,text) {
   locked = true;
+  gameAudio.play('WrongLink');
   endBurst("#ff5577");
   setTimeout(() => showDialog(title, text), 850);
 }
