@@ -16,7 +16,7 @@
       <div class="game-topbar__right"><div class="hud game-topbar__controls"><span id="wave">WAVE 1</span><span id="score">0</span><span id="health">100</span><select id="difficulty" data-topbar-select aria-label="Difficulty"><option value="easy">Easy</option><option value="normal" selected>Normal</option><option value="hard">Hard</option></select></div><div class="game-topbar__utilities" data-game-topbar-utilities></div></div>
     </header>
     <section class="weapon-card" id="weaponCard"><span id="weaponIcon">◆</span><div><strong id="weaponName">Pulse Gun</strong><small id="weaponDetail">LEVEL I · 12 DAMAGE</small></div><i id="streak">x1</i></section>
-    <section class="requisition"><label><span>REQUISITION</span><b id="reqText">0 / 100</b></label><i><b id="reqBar"></b></i></section>
+    <section class="requisition"><button id="upgradeReady" type="button" aria-label="Choose available upgrade"><span>✦</span><b id="upgradeCount">1</b></button><div><label><span>REQUISITION</span><b id="reqText">0 / 100</b></label><i><b id="reqBar"></b></i></div></section>
     <section class="overlay show" id="overlay"><div class="dialog"><span class="eyebrow">ARCADE DEFENSE</span><h2 id="title">Hold the<br><b>last line.</b></h2><p id="message">Shoot planes before they deploy. Cut parachutes to make troopers fall. Survive, requisition upgrades, and build a devastating weapon.</p><button id="start">MAN THE GUN</button><small>Mouse · Touch · Space · Easy / Normal / Hard</small></div></section>
     <section class="upgrade-overlay" id="upgradeOverlay"><div class="upgrade-dialog"><span class="eyebrow">REQUISITION READY</span><h2>Choose an upgrade</h2><div id="upgradeChoices" class="upgrade-choices"></div></div></section>
   </main>
