@@ -257,6 +257,7 @@ path {
 <script src="lib/audio/audio.js"></script>
 <script>
 gameAudio.playSharedMusic(['Music']);
+gameAudio.preload(['DotGrab']);
 const game = document.getElementById("game");
 const svg = document.getElementById("svg");
 const overlay = document.getElementById("overlay");
@@ -354,6 +355,7 @@ function getDotAt(x,y) {
 
 function startDraw(dot, pointerId) {
   if (locked || dot.connected) return;
+  gameAudio.play('DotGrab');
   active = dot;
   activePoints = [{ x:dot.x, y:dot.y, dotId:dot.id }];
   crossedWhileDrawing = false;
