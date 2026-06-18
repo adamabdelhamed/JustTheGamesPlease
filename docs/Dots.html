@@ -231,12 +231,17 @@ path {
 <link rel="stylesheet" href="lib/top-bar/top-bar.css">
 </head>
 <body>
-<header data-game-topbar>
+<header data-game-topbar data-mobile-compact>
   <div class="game-topbar__identity">
     <h1>Neon Links</h1>
     <p class="game-topbar__instructions">Draw paths between matching dots. No crossings.</p>
   </div>
   <div class="game-topbar__right">
+    <select id="difficulty" aria-label="Difficulty" data-topbar-select>
+      <option value="easy" selected>Easy</option>
+      <option value="normal">Normal</option>
+      <option value="hard">Hard</option>
+    </select>
     <div class="stats game-topbar__controls"><div class="pill" id="levelLabel">Pairs: 3</div><button id="newGame">New</button></div>
     <div class="game-topbar__utilities" data-game-topbar-utilities></div>
   </div>
@@ -265,8 +270,14 @@ const overlay = document.getElementById("overlay");
 const dialogTitle = document.getElementById("dialogTitle");
 const dialogText = document.getElementById("dialogText");
 const levelLabel = document.getElementById("levelLabel");
+const difficultyEl = document.getElementById("difficulty");
 
-const colors = ["#56ccff","#ff5fb7","#7cffb2","#ffd166"];
+const colors = ["#56ccff","#ff5fb7","#7cffb2","#ffd166","#a78bfa","#ff8a5b"];
+const difficultySettings = {
+  easy: { minPairs:3, maxPairs:4 },
+  normal: { minPairs:5, maxPairs:5 },
+  hard: { minPairs:6, maxPairs:6 }
+};
 let dots = [];
 let paths = [];
 let active = null;
@@ -297,18 +308,36 @@ function clearGame() {
 
 function newGame() {
   clearGame();
-  pairCount = Math.random() < .5 ? 3 : 4;
+  const difficulty = difficultyEl.value;
+  const settings = difficultySettings[difficulty];
+  pairCount = Math.floor(rand(settings.minPairs, settings.maxPairs + 1));
   completedLinks = 0;
-  gameAnalytics.played("Neon Links", { pair_count: pairCount });
+  gameAnalytics.played("Neon Links", { difficulty, pair_count: pairCount });
   levelLabel.textContent = `Pairs: ${pairCount}`;
   const marginX = Math.max(42, Math.min(90, innerWidth * .12));
   const top = Math.max(122, innerHeight * .18);
   const marginBottom = 56;
   const points = [];
+  const minimumSpacing = Math.max(58, Math.min(86, Math.sqrt((innerWidth - marginX * 2) * (innerHeight - top - marginBottom) / (pairCount * 2)) * .52));
+  let attempts = 0;
 
-  while (points.length < pairCount * 2) {
+  while (points.length < pairCount * 2 && attempts++ < 2000) {
     const p = { x:rand(marginX, innerWidth - marginX), y:rand(top, innerHeight - marginBottom) };
-    if (points.every(q => distance(p,q) > 86)) points.push(p);
+    if (points.every(q => distance(p,q) > minimumSpacing)) points.push(p);
+  }
+
+  if (points.length < pairCount * 2) {
+    points.length = 0;
+    const columns = Math.ceil(Math.sqrt(pairCount * 2));
+    const rows = Math.ceil(pairCount * 2 / columns);
+    for (let i = 0; i < pairCount * 2; i++) {
+      const column = i % columns;
+      const row = Math.floor(i / columns);
+      points.push({
+        x:marginX + (innerWidth - marginX * 2) * (column + .5) / columns,
+        y:top + (innerHeight - top - marginBottom) * (row + .5) / rows
+      });
+    }
   }
 
   for (let pair = 0; pair < pairCount; pair++) {
@@ -521,7 +550,7 @@ function samePoint(a,b) {
 
 function success() {
   locked = true;
-  gameAnalytics.completed("Neon Links", { pair_count: pairCount, links_completed: completedLinks });
+  gameAnalytics.completed("Neon Links", { difficulty: difficultyEl.value, pair_count: pairCount, links_completed: completedLinks });
   gameAudio.play('PuzzleComplete');
   endBurst("#54f7b5");
   setTimeout(() => showDialog("Perfect path", "Every pair is connected without a single crossing."), 850);
@@ -529,7 +558,7 @@ function success() {
 
 function fail(title,text) {
   locked = true;
-  gameAnalytics.failed("Neon Links", { failure_reason: title, pair_count: pairCount, links_completed: completedLinks });
+  gameAnalytics.failed("Neon Links", { difficulty: difficultyEl.value, failure_reason: title, pair_count: pairCount, links_completed: completedLinks });
   gameAudio.play('WrongLink');
   endBurst("#ff5577");
   setTimeout(() => showDialog(title, text), 850);
@@ -553,6 +582,7 @@ game.addEventListener("pointerup", pointerUp);
 game.addEventListener("pointercancel", () => cleanupActivePath());
 document.getElementById("newGame").addEventListener("click", newGame);
 document.getElementById("again").addEventListener("click", newGame);
+difficultyEl.addEventListener("change", newGame);
 addEventListener("resize", () => setTimeout(newGame, 120));
 
 newGame();
