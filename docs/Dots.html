@@ -4,6 +4,7 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
 <title>Neon Links</title>
+<script src="lib/analytics.js"></script>
 <style>
 :root {
   --bg0:#070a12;
@@ -273,6 +274,10 @@ let activePoints = [];
 let ghost = null;
 let locked = false;
 let crossedWhileDrawing = false;
+let completedLinks = 0;
+let pairCount = 0;
+
+gameAnalytics.pageLoaded("Neon Links");
 
 function rand(min,max) { return Math.random() * (max - min) + min; }
 function distance(a,b) { return Math.hypot(a.x - b.x, a.y - b.y); }
@@ -292,7 +297,9 @@ function clearGame() {
 
 function newGame() {
   clearGame();
-  const pairCount = Math.random() < .5 ? 3 : 4;
+  pairCount = Math.random() < .5 ? 3 : 4;
+  completedLinks = 0;
+  gameAnalytics.played("Neon Links", { pair_count: pairCount });
   levelLabel.textContent = `Pairs: ${pairCount}`;
   const marginX = Math.max(42, Math.min(90, innerWidth * .12));
   const top = Math.max(122, innerHeight * .18);
@@ -426,6 +433,7 @@ function finishDraw(target) {
   if (ghost) ghost.remove();
   const finalPath = makePath(activePoints, source.color, "draw-path");
   paths.push({ source, target, points:activePoints.slice(), segments, el:finalPath });
+  completedLinks++;
 
   source.connected = true;
   target.connected = true;
@@ -513,6 +521,7 @@ function samePoint(a,b) {
 
 function success() {
   locked = true;
+  gameAnalytics.completed("Neon Links", { pair_count: pairCount, links_completed: completedLinks });
   gameAudio.play('PuzzleComplete');
   endBurst("#54f7b5");
   setTimeout(() => showDialog("Perfect path", "Every pair is connected without a single crossing."), 850);
@@ -520,6 +529,7 @@ function success() {
 
 function fail(title,text) {
   locked = true;
+  gameAnalytics.failed("Neon Links", { failure_reason: title, pair_count: pairCount, links_completed: completedLinks });
   gameAudio.play('WrongLink');
   endBurst("#ff5577");
   setTimeout(() => showDialog(title, text), 850);

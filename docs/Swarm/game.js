@@ -6,6 +6,7 @@ const game = document.querySelector('#game');
 const renderer = new Renderer(canvas);
 const arsenal = new Arsenal();
 const ui = Object.fromEntries(['overlay','title','message','start','score','combo','status','weaponCard','weaponName','weaponDetail','weaponIcon','weaponLevel','bossBar','bossHp'].map(id => [id, document.getElementById(id)]));
+gameAnalytics.pageLoaded('Neon Swarm');
 
 const state = {
   running: false, time: 0, score: 0, streak: 0, units: 1, playerX: 0, targetX: 0, shake: 0, flash: 0,
@@ -28,6 +29,7 @@ function updateArsenalCard(item = PRIMARY[arsenal.primary.id]) {
 function reset() {
   arsenal.reset(); Object.assign(state, { running: true, time: 0, score: 0, streak: 0, units: 1, shake: 0, flash: 0, spawnTimer: 0, pickupTimer: 2.2, bossTimer: 25, enemies: [], shots: [], pickups: [], particles: [], rings: [] });
   state.playerX = state.targetX = laneX(0); ui.overlay.classList.remove('show'); ui.bossBar.classList.remove('show'); updateArsenalCard(); lastFrame = performance.now(); requestAnimationFrame(loop);
+  gameAnalytics.played('Neon Swarm');
 }
 function spawnEnemy() {
   const boss = state.bossTimer <= 0 && !state.enemies.some(e => e.boss); if (boss) state.bossTimer = 34;
@@ -99,7 +101,7 @@ function update(dt) {
   const boss = state.enemies.find(e => e.boss); if (boss) ui.bossHp.style.width = `${Math.max(0, boss.hp / boss.maxHp * 100)}%`;
   ui.score.textContent = state.score.toLocaleString(); ui.combo.textContent = `STREAK ${state.streak}`;
 }
-function end(reason) { state.running = false; ui.title.innerHTML = `${reason}<br><b>${state.score.toLocaleString()}</b>`; ui.message.textContent = `You survived ${state.time.toFixed(1)} seconds. Build all three arsenal slots and protect every unit.`; ui.start.textContent = 'RUN IT BACK'; ui.overlay.classList.add('show'); gameAudio.play('GameOver'); }
+function end(reason) { state.running = false; gameAnalytics.failed('Neon Swarm', { failure_reason: reason, score: state.score, survival_seconds: Math.round(state.time * 10) / 10, max_streak: state.streak, units_remaining: state.units, primary_weapon: arsenal.primary.id, primary_level: arsenal.primary.level, secondary_weapon: arsenal.secondary.id || null, secondary_level: arsenal.secondary.level, shield_level: arsenal.shield.level }); ui.title.innerHTML = `${reason}<br><b>${state.score.toLocaleString()}</b>`; ui.message.textContent = `You survived ${state.time.toFixed(1)} seconds. Build all three arsenal slots and protect every unit.`; ui.start.textContent = 'RUN IT BACK'; ui.overlay.classList.add('show'); gameAudio.play('GameOver'); }
 function loop(now) { if (!state.running) return; const dt = Math.min(.033, (now - lastFrame) / 1000); lastFrame = now; update(dt); renderer.draw(state); if (state.running) requestAnimationFrame(loop); }
 
 canvas.addEventListener('pointerdown', event => { state.targetX = laneX(event.offsetX < renderer.width / 2 ? 0 : 1); });

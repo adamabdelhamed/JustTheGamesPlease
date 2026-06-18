@@ -4,6 +4,7 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
 <title>Neon Pour</title>
+<script src="lib/analytics.js"></script>
 <style>
 :root {
   --bg0:#070a12;
@@ -405,6 +406,9 @@ let selected = null;
 let history = [];
 let moves = 0;
 let locked = false;
+let undoCount = 0;
+
+gameAnalytics.pageLoaded("Neon Pour");
 
 function cloneBoard(board) {
   return board.map(tube => tube.slice());
@@ -508,9 +512,11 @@ function startGame() {
   selected = null;
   history = [];
   moves = 0;
+  undoCount = 0;
   locked = false;
   overlay.classList.remove("show");
   render();
+  gameAnalytics.played("Neon Pour", { difficulty: difficultyEl.value, color_count: SETTINGS[difficultyEl.value].colors });
 }
 
 function render() {
@@ -634,12 +640,14 @@ function undo() {
   tubes = history.pop();
   selected = null;
   moves = Math.max(0, moves - 1);
+  undoCount++;
   gameAudio.play('Undo');
   render();
 }
 
 function celebrate() {
   locked = true;
+  gameAnalytics.completed("Neon Pour", { difficulty: difficultyEl.value, moves, undo_count: undoCount, color_count: SETTINGS[difficultyEl.value].colors });
   selected = null;
   gameAudio.play('PuzzleComplete');
   render();
