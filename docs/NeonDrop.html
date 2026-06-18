@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+  <title>Neon Drop</title>
+  <script src="lib/analytics.js"></script>
+  <link rel="stylesheet" href="NeonDrop/game.css">
+  <link rel="stylesheet" href="lib/top-bar/top-bar.css">
+</head>
+<body>
+  <main id="game" aria-label="Neon Drop game area">
+    <canvas id="canvas"></canvas>
+    <header data-game-topbar data-contained data-mobile-compact>
+      <div class="game-topbar__identity"><h1>NEON <b>DROP</b></h1><p class="game-topbar__instructions" id="status">Aim with mouse or touch · hold to fire</p></div>
+      <div class="game-topbar__right"><div class="hud game-topbar__controls"><span id="wave">WAVE 1</span><span id="score">0</span><span id="health">100</span><select id="difficulty" data-topbar-select aria-label="Difficulty"><option value="easy">Easy</option><option value="normal" selected>Normal</option><option value="hard">Hard</option></select></div><div class="game-topbar__utilities" data-game-topbar-utilities></div></div>
+    </header>
+    <section class="weapon-card" id="weaponCard"><span id="weaponIcon">◆</span><div><strong id="weaponName">Pulse Gun</strong><small id="weaponDetail">LEVEL I · 12 DAMAGE</small></div><i id="streak">x1</i></section>
+    <section class="requisition"><label><span>REQUISITION</span><b id="reqText">0 / 100</b></label><i><b id="reqBar"></b></i></section>
+    <section class="overlay show" id="overlay"><div class="dialog"><span class="eyebrow">ARCADE DEFENSE</span><h2 id="title">Hold the<br><b>last line.</b></h2><p id="message">Shoot planes before they deploy. Cut parachutes to make troopers fall. Survive, requisition upgrades, and build a devastating weapon.</p><button id="start">MAN THE GUN</button><small>Mouse · Touch · Space · Easy / Normal / Hard</small></div></section>
+    <section class="upgrade-overlay" id="upgradeOverlay"><div class="upgrade-dialog"><span class="eyebrow">REQUISITION READY</span><h2>Choose an upgrade</h2><div id="upgradeChoices" class="upgrade-choices"></div></div></section>
+  </main>
+  <script src="lib/top-bar/top-bar.js"></script>
+  <script src="lib/audio/audio.js"></script>
+  <script>gameAudio.preload(['Primary','Primary_Alt1','Primary_Alt2','Primary_Alt3','Secondary','Secondary_Alt1','Secondary_Alt2','Streak','Pickup','Shield','Hit','GameOver','EnemyDestroyed','BossDestroyed','EnemyEscaped']);gameAudio.playSharedMusic(['Music']);</script>
+  <script type="module" src="NeonDrop/game.js"></script>
+</body>
+</html>
