@@ -6,6 +6,8 @@
   const assetVersion = '20260618-1';
   const rotations = new Map();
   const preloadCache = new Map();
+  const decodedLoopCache = new Map();
+  let audioContext = null;
   let musicIds = [];
   let musicIndex = 0;
   let music = null;
@@ -63,6 +65,67 @@
         stopped = true;
         effect.pause();
         effect.currentTime = 0;
+      }
+    };
+  }
+
+  function loopGapless(id) {
+    let stopped = false;
+    let bufferSource = null;
+    let fallbackEffect = null;
+    const AudioContextType = global.AudioContext || global.webkitAudioContext;
+    if (!AudioContextType) return loop(id);
+    if (!audioContext) audioContext = new AudioContextType();
+
+    function startFallback() {
+      if (stopped || fallbackEffect) return;
+      fallbackEffect = new Audio(source(id));
+      fallbackEffect.loop = true;
+      fallbackEffect.preload = 'auto';
+      safePlay(fallbackEffect);
+    }
+
+    async function start() {
+      try {
+        if (audioContext.state === 'suspended') await audioContext.resume();
+        if (audioContext.state !== 'running') {
+          startFallback();
+          return;
+        }
+        let buffer = decodedLoopCache.get(id);
+        if (!buffer) {
+          const response = await fetch(source(id));
+          if (!response.ok) {
+            startFallback();
+            return;
+          }
+          buffer = await audioContext.decodeAudioData(await response.arrayBuffer());
+          decodedLoopCache.set(id, buffer);
+        }
+        if (stopped) return;
+        bufferSource = audioContext.createBufferSource();
+        bufferSource.buffer = buffer;
+        bufferSource.loop = true;
+        bufferSource.connect(audioContext.destination);
+        bufferSource.start();
+      } catch (_) { startFallback(); }
+    }
+
+    start();
+    return {
+      stop() {
+        if (stopped) return;
+        stopped = true;
+        if (bufferSource) {
+          try { bufferSource.stop(); } catch (_) {}
+          bufferSource.disconnect();
+          bufferSource = null;
+        }
+        if (fallbackEffect) {
+          fallbackEffect.pause();
+          fallbackEffect.currentTime = 0;
+          fallbackEffect = null;
+        }
       }
     };
   }
@@ -142,7 +205,7 @@
     if (!global.gameTopBar || !global.gameTopBar.addUtility(button)) document.body.append(button);
   }
 
-  const api = { playMusic, playSharedMusic, play, loop, preload, playRotated, addMusicToggle };
+  const api = { playMusic, playSharedMusic, play, loop, loopGapless, preload, playRotated, addMusicToggle };
   global.gameAudio = Object.freeze(api);
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', addMusicToggle);
   else addMusicToggle();
