@@ -11,6 +11,7 @@ You can play the games [here](https://adamabdelhamed.github.io/JustTheGamesPleas
 - **Neon Swarm**: switch lanes, dodge enemies, and grab upgrades.
 - **Neon Pour**: pour glowing liquid groups until every tube holds one color.
 - **Neon Collapse**: fit glowing shapes into the grid and detonate completed rows and columns.
+- **Neon Drop**: shoot down troop carriers, cut parachutes, and defend the last bunker through escalating waves.
 
 ## GitHub Pages
 
