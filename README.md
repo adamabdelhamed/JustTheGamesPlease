@@ -18,4 +18,18 @@ The `docs` folder is the site content, and deploys automatically when the main b
 
 ## Adding Games
 
-Add each game as a standalone `.html` file in `docs`, then add it to the cards in `docs/index.html`.
+Add the game's entry-point `.html` file directly in `docs`, then add it to the cards in `docs/index.html`.
+
+Small games may remain a single HTML file. A larger game can keep its scripts and assets in a sibling folder with the same base name:
+
+```text
+docs/
+  Swarm.html
+  Swarm/
+    game.css
+    game.js
+    audio/
+    images/
+```
+
+Use relative references from the entry point, such as `Swarm/game.js`. Keeping the HTML entry point at the top level preserves existing GitHub Pages URLs while allowing complex games to be split into maintainable modules and asset folders.
