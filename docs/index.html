@@ -554,8 +554,9 @@
       width: 42px;
       height: 42px;
       border: 3px solid rgba(255, 255, 255, 0.72);
-      border-radius: 999px;
-      background: radial-gradient(circle at 35% 30%, white, #56ccff 31%, #111 120%);
+      border-radius: 4px;
+      clip-path: polygon(50% 0, 100% 100%, 50% 76%, 0 100%);
+      background: linear-gradient(135deg, white, #56ccff 38%, #355eff);
       box-shadow:
         0 0 0 10px rgba(255, 255, 255, 0.055),
         0 0 28px #56ccff,
@@ -566,7 +567,7 @@
       content: "";
       position: absolute;
       inset: 9px;
-      border-radius: inherit;
+      border-radius: 50%;
       border: 1px solid rgba(255, 255, 255, 0.72);
     }
 
@@ -618,8 +619,8 @@
       height: 38px;
       color: #ff5577;
       border: 3px solid rgba(255, 255, 255, 0.64);
-      border-radius: 999px;
-      background: radial-gradient(circle at 35% 30%, white, currentColor 32%, #111 120%);
+      clip-path: polygon(50% 0, 90% 22%, 100% 68%, 68% 100%, 22% 90%, 0 45%);
+      background: linear-gradient(135deg, white, currentColor 34%, #4d0825 100%);
       box-shadow:
         0 0 0 8px rgba(255, 85, 119, 0.08),
         0 0 24px currentColor,
@@ -638,8 +639,9 @@
       height: 34px;
       color: var(--green);
       border: 3px solid rgba(255, 255, 255, 0.64);
-      border-radius: 999px;
-      background: radial-gradient(circle at 35% 30%, white, currentColor 32%, #111 120%);
+      border-radius: 8px;
+      clip-path: polygon(25% 7%, 75% 7%, 100% 50%, 75% 93%, 25% 93%, 0 50%);
+      background: #08101f;
       box-shadow:
         0 0 0 8px rgba(124, 255, 178, 0.08),
         0 0 24px currentColor,
@@ -647,12 +649,12 @@
     }
 
     .boost::after {
-      content: "+";
+      content: "\25C6";
       position: absolute;
       inset: 0;
       display: grid;
       place-items: center;
-      color: #04100a;
+      color: white;
       font-weight: 950;
     }
 
@@ -1031,7 +1033,7 @@
           </span>
           <div>
             <h3>Neon Swarm</h3>
-            <p>Switch lanes, dodge enemies, and grab upgrades.</p>
+            <p>Weave between two neon lanes and build a wildly different weapon every run.</p>
             <span class="play">Play Game <span aria-hidden="true">&#8594;</span></span>
           </div>
         </div>
