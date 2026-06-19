@@ -23,3 +23,8 @@
   .joystick{--size:124px;bottom:22px}.joystick.left{left:26px}.joystick.right{right:26px}
   #game.sling-mode .joystick{--size:138px}
 }
+@media (orientation:landscape) and (max-height:600px){
+  .joystick{bottom:max(clamp(44px,12vh,78px),env(safe-area-inset-bottom))}
+  .joystick.left{left:max(clamp(56px,10vw,120px),env(safe-area-inset-left))}
+  .joystick.right{right:max(clamp(56px,10vw,120px),env(safe-area-inset-right))}
+}
