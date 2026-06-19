@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+  <title>Neon Sling</title>
+  <script src="lib/analytics.js"></script>
+  <link rel="stylesheet" href="NeonSling/game.css">
+  <link rel="stylesheet" href="lib/top-bar/top-bar.css">
+</head>
+<body>
+  <main id="game" aria-label="Neon Sling game area">
+    <canvas id="canvas"></canvas>
+    <header data-game-topbar data-contained data-mobile-compact>
+      <div class="game-topbar__identity">
+        <h1>NEON <b>SLING</b></h1>
+        <p class="game-topbar__instructions">Move left · look right · tap left to ready the slingshot</p>
+      </div>
+      <div class="game-topbar__right">
+        <div class="hud game-topbar__controls">
+          <span id="orbCount">0 ORBS</span><span id="timer">0:00.0</span>
+          <select id="difficulty" data-topbar-select aria-label="Difficulty">
+            <option value="easy">Easy</option><option value="normal" selected>Normal</option><option value="hard">Hard</option>
+          </select>
+        </div>
+        <div class="game-topbar__utilities" data-game-topbar-utilities></div>
+      </div>
+    </header>
+    <div class="reticle" aria-hidden="true"><i></i><i></i><i></i><i></i><b></b></div>
+    <div class="prompt" id="prompt">TAP LEFT STICK TO READY</div>
+    <div class="joystick left" id="leftStick" aria-label="Movement and slingshot joystick">
+      <div class="stick-ring"><div class="stick-knob"><span>MOVE</span></div></div>
+    </div>
+    <div class="joystick right" id="rightStick" aria-label="Look joystick">
+      <div class="stick-ring"><div class="stick-knob"><span>LOOK</span></div></div>
+    </div>
+    <section class="overlay show" id="overlay">
+      <div class="dialog"><span class="eyebrow">FIRST PERSON TARGET RANGE</span><h2 id="title">Pull back.<br><b>Let go.</b></h2><p id="message">Clear every floating orb. Use the left stick to move and the right stick to look. Tap the left stick to raise your slingshot, then pull and release.</p><button id="start">ENTER THE RANGE</button><small>Touch controls · WASD + arrows supported</small></div>
+    </section>
+  </main>
+  <script src="lib/top-bar/top-bar.js"></script>
+  <script src="lib/audio/audio.js"></script>
+  <script>gameAudio.preload(['Ready','Grab','Stretch','Launch','Flight','OrbExplode','Win']);gameAudio.playSharedMusic(['Music']);</script>
+  <script src="NeonSling/game.js"></script>
+</body>
+</html>
