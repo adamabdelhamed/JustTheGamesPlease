@@ -6,6 +6,8 @@
 #game.sling-mode .joystick{--size:clamp(145px,27vmin,204px)}
 .joystick.left{left:max(clamp(30px,6vw,84px),env(safe-area-inset-left))}
 .joystick.right{right:max(clamp(30px,6vw,84px),env(safe-area-inset-right))}
+.backward-button{position:absolute;left:50%;top:calc(100% + 8px);width:88px;height:32px;transform:translateX(-50%);border:1px solid #55e7ff55;border-radius:999px;background:#061326d9;color:#bcefff;font:900 9px/1 Segoe UI,system-ui,sans-serif;letter-spacing:.12em;box-shadow:0 5px 18px #0009;touch-action:none;pointer-events:auto}
+.backward-button.active{border-color:#55e7ffcc;background:#12385acc;color:#fff;box-shadow:0 0 20px #55e7ff55;transform:translateX(-50%) scale(.96)}
 @media (max-width:900px){
   .control-options{display:none}
   #game [data-game-topbar][data-mobile-compact].mobile-menu-open .control-options{position:absolute;z-index:40;top:46px;right:8px;display:grid;gap:5px;padding:7px;overflow:visible;border:1px solid #ffffff29;border-radius:15px;background:#070c1af7;box-shadow:0 14px 34px #0008}
