@@ -19,9 +19,20 @@
       <div class="game-topbar__right">
         <div class="hud game-topbar__controls">
           <span id="orbCount">0 ORBS</span><span id="timer">0:00.0</span>
-          <select id="difficulty" data-topbar-select aria-label="Difficulty">
-            <option value="easy">Easy</option><option value="normal" selected>Normal</option><option value="hard">Hard</option>
-          </select>
+          <div class="control-options">
+            <select id="difficulty" data-topbar-select aria-label="Difficulty">
+              <option value="easy">Easy</option><option value="normal" selected>Normal</option><option value="hard">Hard</option>
+            </select>
+            <select id="invertLook" data-topbar-select aria-label="Invert vertical look">
+              <option value="on" selected>Invert On</option><option value="off">Invert Off</option>
+            </select>
+            <select id="lookSensitivity" data-topbar-select aria-label="Look sensitivity">
+              <option value="0.7">Look Low</option><option value="1" selected>Look Normal</option><option value="1.35">Look High</option>
+            </select>
+            <select id="walkSpeed" data-topbar-select aria-label="Walk speed">
+              <option value="0.7">Walk Slow</option><option value="1" selected>Walk Normal</option><option value="1.35">Walk Fast</option>
+            </select>
+          </div>
         </div>
         <div class="game-topbar__utilities" data-game-topbar-utilities></div>
       </div>
