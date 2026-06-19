@@ -3,7 +3,7 @@
 const canvas=document.getElementById('canvas'),ctx=canvas.getContext('2d',{alpha:false});
 const ui={game:document.getElementById('game'),count:document.getElementById('orbCount'),timer:document.getElementById('timer'),prompt:document.getElementById('prompt'),overlay:document.getElementById('overlay'),title:document.getElementById('title'),message:document.getElementById('message'),start:document.getElementById('start'),difficulty:document.getElementById('difficulty'),invert:document.getElementById('invertLook'),sensitivity:document.getElementById('lookSensitivity'),walkSpeed:document.getElementById('walkSpeed')};
 const TAU=Math.PI*2,PI=Math.PI,settings={easy:{orbs:6,moving:0},normal:{orbs:10,moving:3},hard:{orbs:16,moving:9}};
-const preferences={invert:localStorage.getItem('neonSling.invertLook')!=='off',sensitivity:Number(localStorage.getItem('neonSling.lookSensitivity'))||1,walkSpeed:Number(localStorage.getItem('neonSling.walkSpeed'))||1};
+const preferences={invert:localStorage.getItem('neonSling.invertLook')==='on',sensitivity:Number(localStorage.getItem('neonSling.lookSensitivity'))||1,walkSpeed:Number(localStorage.getItem('neonSling.walkSpeed'))||1};
 let W=0,H=0,DPR=1,F=700,last=performance.now(),running=false,startTime=0,elapsed=0,won=false,armed=false,pulling=false,recoil=0,shake=0,flightLoop=null;
 const camera={x:0,y:1.65,z:1,yaw:0,pitch:-.04};
 const left={x:0,y:0},right={x:0,y:0},keys=new Set(),orbs=[],shots=[],particles=[],stars=[];

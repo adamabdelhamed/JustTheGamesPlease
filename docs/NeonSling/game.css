@@ -8,8 +8,10 @@
 .joystick.right{right:max(clamp(30px,6vw,84px),env(safe-area-inset-right))}
 @media (max-width:900px){
   .control-options{display:none}
-  #game [data-game-topbar][data-mobile-compact].mobile-menu-open .control-options{position:absolute;z-index:40;top:46px;right:8px;display:grid;gap:5px;padding:7px;border:1px solid #ffffff29;border-radius:15px;background:#070c1af7;box-shadow:0 14px 34px #0008}
+  #game [data-game-topbar][data-mobile-compact].mobile-menu-open .control-options{position:absolute;z-index:40;top:46px;right:8px;display:grid;gap:5px;padding:7px;overflow:visible;border:1px solid #ffffff29;border-radius:15px;background:#070c1af7;box-shadow:0 14px 34px #0008}
   #game [data-game-topbar][data-mobile-compact].mobile-menu-open .control-options .game-topbar__select{position:relative!important;top:auto!important;right:auto!important;display:block}
+  #game [data-game-topbar][data-mobile-compact].mobile-menu-open .control-options .game-topbar__select.open{z-index:1000!important}
+  #game [data-game-topbar][data-mobile-compact].mobile-menu-open .control-options .game-topbar__select.open .game-topbar__select-menu{z-index:1001!important}
   #game [data-game-topbar][data-mobile-compact].mobile-menu-open .game-topbar__utilities{top:246px}
 }
 @media (max-width:600px) and (orientation:portrait){
