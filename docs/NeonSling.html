@@ -38,7 +38,7 @@
       </div>
     </header>
     <div class="reticle" aria-hidden="true"><i></i><i></i><i></i><i></i><b></b></div>
-    <div class="prompt" id="prompt">TAP LEFT STICK TO READY</div>
+    <div class="prompt" id="prompt">PUSH UP TO MOVE · PULL DOWN TO FIRE</div>
     <div class="joystick left" id="leftStick" aria-label="Movement and slingshot joystick">
       <div class="stick-ring"><div class="stick-knob"><span>MOVE</span></div></div>
       <button class="backward-button" id="backwardButton" type="button" aria-label="Hold to walk backwards">REVERSE</button>
@@ -46,13 +46,14 @@
     <div class="joystick right" id="rightStick" aria-label="Look joystick">
       <div class="stick-ring"><div class="stick-knob"><span>LOOK</span></div></div>
     </div>
+    <button class="fullscreen-button" id="fullscreenButton" type="button" aria-label="Enter full screen" title="Enter full screen" hidden><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 3H3v5M16 3h5v5M21 16v5h-5M3 16v5h5"/></svg></button>
     <section class="overlay show" id="overlay">
       <div class="dialog"><span class="eyebrow">FIRST PERSON TARGET RANGE</span><h2 id="title">Pull back.<br><b>Let go.</b></h2><p id="message">Clear every floating orb. Push the left stick forward or sideways to move; pull it down and release to fire. Use the right stick to look.</p><button id="start">ENTER THE RANGE</button><small>Touch controls · W/A/D + arrows supported</small></div>
     </section>
   </main>
   <script src="lib/top-bar/top-bar.js"></script>
   <script src="lib/audio/audio.js"></script>
-  <script>gameAudio.preload(['Ready','Grab','Stretch','Launch','Flight','OrbExplode','Win']);gameAudio.playSharedMusic(['Music']);</script>
+  <script>gameAudio.preload(['Ready','Grab','Stretch','Launch','Flight','OrbExplode','Win']);</script>
   <script src="NeonSling/game.js"></script>
 </body>
 </html>
