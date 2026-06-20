@@ -35,6 +35,18 @@ docs/
 
 Use relative references from the entry point, such as `Swarm/game.js`. Keeping the HTML entry point at the top level preserves existing GitHub Pages URLs while allowing complex games to be split into maintainable modules and asset folders.
 
+## In Progress Games
+
+Games can be marked with `data-status="InProgress"` in `docs/index.html`.
+
+These games are hidden from normal visitors but can be viewed using the developer index:
+
+https://adamabdelhamed.github.io/JustTheGamesPlease/?dev=1
+
+This allows unfinished games to be merged to `main` and deployed through GitHub Pages without appearing on the public homepage.
+
+When launched from developer mode, games receive the `dev=1` query parameter. The analytics package detects this flag and disables analytics logging so developer testing does not affect production metrics.
+
 ## Shared libraries
 
 Shared browser libraries live under `docs/lib`.

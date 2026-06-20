@@ -1153,6 +1153,13 @@
         </div>
         <div class="card-body"><span class="game-icon"><svg width="45" height="45" viewBox="0 0 45 45" fill="none" aria-hidden="true"><path d="M6 13h19l7-6h4l-3 6h7l3 3-3 3h-7l3 6h-4l-7-6H6l-4-3z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M22 41V28l7-7M17 41h10" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></span><div><h3>Neon Drop</h3><p>Down troop carriers and defend the last bunker through relentless escalating waves.</p><span class="play">Play Game <span aria-hidden="true">&#8594;</span></span></div></div>
       </a>
+      <a class="game-card" href="NeonSling.html" data-game-name="Neon Sling" data-status="InProgress" style="--accent:var(--pink)">
+        <span class="tag">Arcade</span>
+        <div class="art" aria-hidden="true" style="display:grid;place-items:center;background:radial-gradient(circle at 50% 38%,rgba(255,79,154,.28),transparent 8rem),linear-gradient(180deg,#11103a,#03040b)">
+          <svg width="72%" height="72%" viewBox="0 0 240 210" fill="none" style="color:var(--pink);filter:drop-shadow(0 0 12px currentColor)"><circle cx="120" cy="52" r="24" fill="currentColor"/><path d="M55 190 82 82M185 190 158 82M82 82l38 58 38-58" stroke="#ffd45c" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"/><circle cx="120" cy="140" r="13" fill="#ff4f9a"/></svg>
+        </div>
+        <div class="card-body"><span class="game-icon" aria-hidden="true">&#9670;</span><div><h3>Neon Sling</h3><p>Move through a neon target range and slingshot every floating orb.</p><span class="play">Play Game <span aria-hidden="true">&#8594;</span></span></div></div>
+      </a>
     </section>
 
     <section class="features" id="about" aria-label="Site features">
@@ -1243,6 +1250,18 @@
     <a href="#privacy">Privacy</a>
   </footer>
   <script>
+    const showInProgress = new URLSearchParams(location.search).get('dev') === '1';
+    document.querySelectorAll('.game-card[data-status="InProgress"]').forEach(card => {
+      if (!showInProgress) {
+        card.remove();
+        return;
+      }
+
+      const destination = new URL(card.getAttribute('href'), location.href);
+      destination.searchParams.set('dev', '1');
+      card.setAttribute('href', `${destination.pathname.split('/').pop()}${destination.search}${destination.hash}`);
+    });
+
     gameAnalytics.capture('index_page_loaded');
     document.querySelectorAll('.game-card[data-game-name]').forEach(card => {
       card.addEventListener('click', () => gameAnalytics.capture('game_entry_clicked', {
