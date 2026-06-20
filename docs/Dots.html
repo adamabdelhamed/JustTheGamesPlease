@@ -385,12 +385,36 @@ function pathData(points) {
   return d;
 }
 
-function getDotAt(x,y) {
+const DOT_HIT_RADIUS = 34;
+const DOT_START_SLOP = 14;
+const DOT_LANDING_SLOP = 20;
+
+function getDotAt(x,y,radius = DOT_HIT_RADIUS) {
   for (let i = dots.length - 1; i >= 0; i--) {
     const d = dots[i];
-    if (distance(d, { x, y }) <= 34) return d;
+    if (distance(d, { x, y }) <= radius) return d;
   }
   return null;
+}
+
+function getForgivingLanding(x,y) {
+  if (!active) return null;
+
+  const point = { x, y };
+  const target = dots.find(d =>
+    d.id !== active.id &&
+    d.pair === active.pair &&
+    !d.connected &&
+    distance(d, point) <= DOT_HIT_RADIUS + DOT_LANDING_SLOP);
+
+  if (!target) return getDotAt(x,y);
+
+  const last = activePoints[activePoints.length - 1];
+  const landingSegment = { a:last, b:target };
+  const blocked = paths.some(path => path.segments.some(segment =>
+    segmentsIntersect(landingSegment.a, landingSegment.b, segment.a, segment.b)));
+
+  return blocked ? getDotAt(x,y) : target;
 }
 
 function startDraw(dot, pointerId) {
@@ -406,7 +430,7 @@ function startDraw(dot, pointerId) {
 }
 
 function pointerDown(e) {
-  const dot = getDotAt(e.clientX, e.clientY);
+  const dot = getDotAt(e.clientX, e.clientY, DOT_HIT_RADIUS + DOT_START_SLOP);
   if (dot) startDraw(dot, e.pointerId);
 }
 
@@ -430,7 +454,7 @@ function pointerMove(e) {
 }
 
 function pointerUp(e) {
-  const target = getDotAt(e.clientX, e.clientY);
+  const target = getForgivingLanding(e.clientX, e.clientY);
   finishDraw(target);
 }
 
