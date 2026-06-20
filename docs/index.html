@@ -92,8 +92,7 @@
 
     .site-header {
       position: relative;
-      min-height: 66vh;
-      padding: 2.1rem 0 1.5rem;
+      padding: 2.1rem 0 clamp(2.75rem, 6vw, 5rem);
       overflow: hidden;
     }
 
@@ -217,7 +216,7 @@
       z-index: 2;
       display: grid;
       justify-items: center;
-      padding-top: clamp(3rem, 7vw, 5rem);
+      padding-top: clamp(2.5rem, 6vw, 4.75rem);
       text-align: center;
     }
 
@@ -316,6 +315,10 @@
       letter-spacing: 0.16em;
       text-transform: uppercase;
       box-shadow: 0 0 22px rgba(0, 229, 255, 0.18), inset 0 0 22px rgba(255, 64, 246, 0.08);
+    }
+
+    .hero .claim {
+      font-size: clamp(0.82rem, 1.5vw, 1rem);
     }
 
     .claim b {
@@ -1002,7 +1005,7 @@
       <nav aria-label="Primary navigation">
         <a href="#games" aria-current="page">Games</a>
         <a href="#about">About</a>
-        <a href="#privacy">Privacy</a>
+        <a href="Privacy.html">Privacy</a>
         <a href="https://github.com/adamabdelhamed/JustTheGamesPlease" target="_blank" rel="noreferrer">GitHub &#8599;</a>
         <span class="theme-button" aria-hidden="true">
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
@@ -1013,17 +1016,7 @@
       </nav>
     </div>
 
-    <section class="wrap hero" aria-labelledby="page-title">
-      <h1 id="page-title">
-        <span class="hero-just">Just</span>
-        <span class="hero-games">The Games</span>
-        <span class="hero-please">Please</span>
-      </h1>
-      <div class="hero-rule" aria-hidden="true">&#9889;</div>
-      <div class="hero-copy">
-        <p>Free, ad-free static HTML games. No timers. No popups.</p>
-        <p>Just clean, simple games you can play instantly.</p>
-      </div>
+    <section class="wrap hero" aria-label="Site promise">
       <div class="claim">No ads. No nonsense.&nbsp;<b>Just games.</b></div>
     </section>
   </header>
@@ -1208,43 +1201,6 @@
       </div>
     </section>
 
-    <article class="privacy" id="privacy" aria-labelledby="privacy-title">
-      <header>
-        <h2 id="privacy-title">Privacy policy</h2>
-        <p>Last updated: June 2026</p>
-      </header>
-
-      <h3>What we collect</h3>
-      <p>This site uses privacy-friendly analytics to understand how visitors use our content. We collect:</p>
-      <ul>
-        <li>Pages visited and navigation paths</li>
-        <li>Referring sources, such as which site linked to us</li>
-        <li>Browser type, device type, and screen size</li>
-        <li>Country-level location derived from a privacy-preserving hash; we do not store your IP address</li>
-        <li>Interactions with page elements, such as game and button clicks</li>
-      </ul>
-      <p>We do not collect:</p>
-      <ul>
-        <li>Your name, email, or any personally identifiable information</li>
-        <li>Precise location data</li>
-        <li>Data that tracks you across other websites</li>
-      </ul>
-
-      <h3>How we collect it</h3>
-      <p>We use <a href="https://posthog.com/" target="_blank" rel="noreferrer">PostHog</a>, an analytics platform configured in cookieless, anonymous mode. No cookies or persistent identifiers are stored in your browser, you are not tracked across sessions or devices, and no individual user profiles are created. Because analytics does not use cookies, no analytics cookie consent banner is shown.</p>
-
-      <h3>How we use it</h3>
-      <p>Analytics data is used solely to understand which games are useful, identify broken pages or navigation issues, and measure overall traffic trends. We do not use this data for advertising, profiling, or sale to third parties.</p>
-
-      <h3>Third-party access</h3>
-      <p>Aggregated, anonymous event data is processed by PostHog, Inc. PostHog's infrastructure is located in the United States and PostHog provides GDPR compliance controls. Read <a href="https://posthog.com/privacy" target="_blank" rel="noreferrer">PostHog's privacy policy</a> and <a href="https://posthog.com/docs/privacy/gdpr-compliance" target="_blank" rel="noreferrer">GDPR compliance documentation</a> for more detail.</p>
-
-      <h3>Your rights</h3>
-      <p>Because we collect no personally identifiable information and create no user profiles, there is no individual profile data to access, correct, or delete. For privacy questions, contact <a href="mailto:adamabdelhamed@live.com">adamabdelhamed@live.com</a>.</p>
-
-      <h3>Changes to this policy</h3>
-      <p>We may update this policy from time to time. The date at the top of this section reflects the most recent revision.</p>
-    </article>
   </main>
 
   <footer>
@@ -1253,7 +1209,7 @@
     <span class="heart">&#9825;</span>
     <span>for simple games.</span>
     <span class="heart">&#9825;</span>
-    <a href="#privacy">Privacy</a>
+    <a href="Privacy.html">Privacy</a>
   </footer>
   <script>
     const showInProgress = new URLSearchParams(location.search).get('dev') === '1';
