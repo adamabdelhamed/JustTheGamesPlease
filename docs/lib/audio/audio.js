@@ -12,6 +12,8 @@
   let musicIndex = 0;
   let music = null;
   let musicUnlockArmed = false;
+  let musicPausedForInactivity = false;
+  let pageInactive = document.hidden || !document.hasFocus();
   let musicEnabled = localStorage.getItem('gameAudio.musicEnabled') !== 'false';
 
   function source(id, shared) {
@@ -36,7 +38,7 @@
 
   function unlockMusic() {
     disarmMusicUnlock();
-    if (musicEnabled && music && music.paused) safePlay(music);
+    if (!pageInactive && musicEnabled && music && music.paused) safePlay(music);
   }
 
   function armMusicUnlock() {
@@ -159,6 +161,27 @@
       musicIndex = (musicIndex + 1) % musicIds.length;
       playCurrentMusic();
     }, { once: true });
+    if (pageInactive) musicPausedForInactivity = true;
+    else {
+      musicPausedForInactivity = false;
+      safePlay(music);
+      if (music.paused) armMusicUnlock();
+    }
+  }
+
+  function pauseMusicForInactivity() {
+    pageInactive = true;
+    disarmMusicUnlock();
+    if (!music || music.paused) return;
+    musicPausedForInactivity = true;
+    music.pause();
+  }
+
+  function resumeMusicAfterInactivity() {
+    pageInactive = document.hidden || !document.hasFocus();
+    if (pageInactive || !musicPausedForInactivity) return;
+    musicPausedForInactivity = false;
+    if (!musicEnabled || !music) return;
     safePlay(music);
     if (music.paused) armMusicUnlock();
   }
@@ -197,6 +220,7 @@
       localStorage.setItem('gameAudio.musicEnabled', String(musicEnabled));
       if (musicEnabled) playCurrentMusic();
       else {
+        musicPausedForInactivity = false;
         disarmMusicUnlock();
         if (music) music.pause();
       }
@@ -207,6 +231,14 @@
 
   const api = { playMusic, playSharedMusic, play, loop, loopGapless, preload, playRotated, addMusicToggle };
   global.gameAudio = Object.freeze(api);
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) pauseMusicForInactivity();
+    else resumeMusicAfterInactivity();
+  });
+  global.addEventListener('blur', pauseMusicForInactivity);
+  global.addEventListener('focus', resumeMusicAfterInactivity);
+  global.addEventListener('pagehide', pauseMusicForInactivity);
+  global.addEventListener('pageshow', resumeMusicAfterInactivity);
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', addMusicToggle);
   else addMusicToggle();
 })(window);
