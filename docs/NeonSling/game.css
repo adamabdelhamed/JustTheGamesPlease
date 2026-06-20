@@ -8,6 +8,10 @@
 .joystick.right{right:max(clamp(30px,6vw,84px),env(safe-area-inset-right))}
 .backward-button{position:absolute;left:50%;top:calc(100% + 8px);width:88px;height:32px;transform:translateX(-50%);border:1px solid #55e7ff55;border-radius:999px;background:#061326d9;color:#bcefff;font:900 9px/1 Segoe UI,system-ui,sans-serif;letter-spacing:.12em;box-shadow:0 5px 18px #0009;touch-action:none;pointer-events:auto}
 .backward-button.active{border-color:#55e7ffcc;background:#12385acc;color:#fff;box-shadow:0 0 20px #55e7ff55;transform:translateX(-50%) scale(.96)}
+.projectile-button{position:absolute;left:50%;bottom:calc(100% + 10px);min-width:116px;height:34px;padding:0 12px;transform:translateX(-50%);border:1px solid #ffd45c88;border-radius:999px;background:#211707df;color:#ffe6a1;font:900 9px/1 Segoe UI,system-ui,sans-serif;letter-spacing:.1em;box-shadow:0 5px 18px #0009,0 0 14px #ffd45c18;touch-action:manipulation;pointer-events:auto;white-space:nowrap}
+.projectile-button:active{transform:translateX(-50%) scale(.96)}
+.projectile-button[data-projectile="seeker"]{border-color:#ff793dcc;background:#281006e8;color:#ffd0a8;box-shadow:0 0 20px #ff5b2860}
+.projectile-button[data-projectile="miniMissiles"]{border-color:#aa78ffcc;background:#190d30e8;color:#ddcaff;box-shadow:0 0 20px #aa78ff60}
 .fullscreen-button{position:absolute;z-index:7;right:max(12px,env(safe-area-inset-right));bottom:max(10px,env(safe-area-inset-bottom));display:grid;place-items:center;width:38px;height:38px;padding:0;border:1px solid #aa78ff88;border-radius:12px;background:#110b26d9;color:#d9caff;box-shadow:0 5px 20px #000a,0 0 16px #aa78ff22;touch-action:manipulation}.fullscreen-button[hidden]{display:none}.fullscreen-button svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}.fullscreen-button:active{transform:scale(.94);border-color:#d9caff;box-shadow:0 0 22px #aa78ff66}
 @media (max-width:900px){
   .control-options{display:none}
