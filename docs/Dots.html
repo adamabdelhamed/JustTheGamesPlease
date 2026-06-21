@@ -707,6 +707,7 @@ window.neonLinksReplay = {
   seek(timeMs, options = {}) {
     if (!this.replay) return;
     svg.innerHTML = "";
+    document.querySelectorAll(".spark").forEach(spark => spark.remove());
     dots.forEach(dot => { dot.connected = false; dot.el.classList.remove("connected","active"); });
       const scaleX = innerWidth / this.replay.viewport.width;
       const scaleY = innerHeight / this.replay.viewport.height;
@@ -715,19 +716,47 @@ window.neonLinksReplay = {
       this.replay.links.forEach(link => {
       const start = (link.startedAtMs - offsetMs) / speed;
       const end = (link.completedAtMs - offsetMs) / speed;
+      const source = dots.find(dot => dot.id === link.sourceId);
+      const target = dots.find(dot => dot.id === link.targetId);
+      this.sparkleAt(timeMs, start, source.x, source.y, source.color, 12, link.sourceId * 101);
+      link.points.forEach((point, index) => {
+        if (index % 2 === 0) this.sparkleAt(timeMs, (point.timeMs - offsetMs) / speed, point.x * scaleX, point.y * scaleY, source.color, 1, link.sourceId * 1000 + index);
+      });
+      this.sparkleAt(timeMs, end, target.x, target.y, target.color, 22, link.targetId * 103);
       if (timeMs < start) return;
       const progress = Math.min(1, (timeMs - start) / Math.max(1, end - start));
       const eased = options.ease === false ? progress : progress * progress * (3 - 2 * progress);
       const count = Math.max(1, Math.ceil(link.points.length * eased));
       const points = link.points.slice(0, count).map(point => ({ x:point.x * scaleX, y:point.y * scaleY }));
-      const source = dots.find(dot => dot.id === link.sourceId);
       const path = makePath(points, source.color, progress >= 1 ? "draw-path" : "ghost-path");
       if (progress >= 1) {
         dots.find(dot => dot.id === link.sourceId).el.classList.add("connected");
         dots.find(dot => dot.id === link.targetId).el.classList.add("connected");
       }
     });
+    const completionMs = (Math.max(...this.replay.links.map(link => link.completedAtMs)) - offsetMs) / speed;
+    dots.forEach((dot, index) => this.sparkleAt(timeMs, completionMs, dot.x, dot.y, "#54f7b5", 14, 5000 + index * 107));
+    game.classList.toggle("board-flash", timeMs >= completionMs && timeMs < completionMs + 800);
     locked = true;
+  },
+  sparkleAt(timeMs, eventMs, x, y, color, count, seed) {
+    const age = timeMs - eventMs;
+    if (age < 0 || age >= 760) return;
+    const progress = age / 760;
+    for (let index = 0; index < count; index++) {
+      const value = Math.sin((seed + index + 1) * 12.9898) * 43758.5453;
+      const random = value - Math.floor(value);
+      const angle = random * Math.PI * 2;
+      const distance = 12 + ((seed * 17 + index * 29) % 24);
+      const spark = document.createElement("div");
+      spark.className = "spark";
+      spark.style.left = `${x}px`; spark.style.top = `${y}px`;
+      spark.style.background = color; spark.style.boxShadow = `0 0 18px ${color}`;
+      spark.style.animation = "none";
+      spark.style.opacity = String(1 - progress);
+      spark.style.transform = `translate(${Math.cos(angle) * distance * progress}px, ${Math.sin(angle) * distance * progress}px) scale(${1 - progress * .7})`;
+      game.appendChild(spark);
+    }
   }
 };
 
