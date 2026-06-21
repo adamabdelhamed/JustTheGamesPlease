@@ -154,14 +154,44 @@ path {
 }
 
 .draw-path {
-  stroke-width:9;
+  stroke-width:8;
   opacity:.96;
+  transition:stroke-width .22s ease;
 }
 
 .ghost-path {
-  stroke-width:7;
+  stroke-width:5;
   opacity:.72;
 }
+
+.path-texture {
+  stroke:white;
+  stroke-width:2;
+  stroke-dasharray:1 13;
+  stroke-linecap:round;
+  opacity:.72;
+  filter:drop-shadow(0 0 5px currentColor);
+  animation:textureFlow .7s linear infinite;
+}
+
+@keyframes textureFlow { to { stroke-dashoffset:-28; } }
+
+.path-dematerialize { animation:dematerialize 1.15s ease-in forwards; }
+@keyframes dematerialize { to { opacity:0; stroke-dasharray:2 20; stroke-dashoffset:-80; filter:blur(4px) drop-shadow(0 0 12px currentColor); } }
+
+.dot-explode { animation:dotExplode .8s ease-out forwards !important; }
+@keyframes dotExplode { 55% { transform:translate(-50%,-50%) scale(1.65); opacity:1; } 100% { transform:translate(-50%,-50%) scale(.1); opacity:0; filter:blur(5px); } }
+
+.confetti {
+  position:absolute;
+  width:7px;
+  height:15px;
+  border-radius:2px;
+  pointer-events:none;
+  z-index:6;
+  animation:confettiFall 1.65s cubic-bezier(.15,.7,.35,1) forwards;
+}
+@keyframes confettiFall { to { transform:translate(var(--dx),var(--dy)) rotate(var(--spin)); opacity:0; } }
 
 .bad-path {
   stroke:#ff5577 !important;
@@ -516,6 +546,7 @@ function finishDraw(target) {
 
   if (ghost) ghost.remove();
   const finalPath = makePath(activePoints, source.color, "draw-path");
+  makePath(activePoints, source.color, "path-texture");
   paths.push({ source, target, points:activePoints.slice(), segments, el:finalPath });
   completedLinks++;
 
@@ -618,7 +649,7 @@ function success() {
   recordAudio('PuzzleComplete');
   saveSuccessfulRecording();
   endBurst("#54f7b5");
-  setTimeout(() => showDialog("Perfect path", "Every pair is connected without a single crossing."), 850);
+  setTimeout(() => showDialog("Perfect path", "Every pair is connected without a single crossing."), 1800);
 }
 
 function loadRecordings() {
@@ -707,20 +738,26 @@ window.neonLinksReplay = {
   seek(timeMs, options = {}) {
     if (!this.replay) return;
     svg.innerHTML = "";
-    document.querySelectorAll(".spark").forEach(spark => spark.remove());
-    dots.forEach(dot => { dot.connected = false; dot.el.classList.remove("connected","active"); });
+    document.querySelectorAll(".spark,.confetti").forEach(particle => particle.remove());
+    dots.forEach(dot => {
+      dot.connected = false;
+      dot.el.classList.remove("connected","active","dot-explode");
+      dot.el.style.opacity = ""; dot.el.style.transform = ""; dot.el.style.filter = "";
+    });
       const scaleX = innerWidth / this.replay.viewport.width;
       const scaleY = innerHeight / this.replay.viewport.height;
       const speed = options.speed || 1;
       const offsetMs = options.offsetMs || 0;
-      this.replay.links.forEach(link => {
-      const start = (link.startedAtMs - offsetMs) / speed;
-      const end = (link.completedAtMs - offsetMs) / speed;
+    this.replay.links.forEach((link, linkIndex) => {
+      const timing = options.timeline?.[linkIndex];
+      const start = timing ? timing.startMs : (link.startedAtMs - offsetMs) / speed;
+      const end = timing ? timing.endMs : (link.completedAtMs - offsetMs) / speed;
       const source = dots.find(dot => dot.id === link.sourceId);
       const target = dots.find(dot => dot.id === link.targetId);
       this.sparkleAt(timeMs, start, source.x, source.y, source.color, 12, link.sourceId * 101);
       link.points.forEach((point, index) => {
-        if (index % 2 === 0) this.sparkleAt(timeMs, (point.timeMs - offsetMs) / speed, point.x * scaleX, point.y * scaleY, source.color, 1, link.sourceId * 1000 + index);
+        const pointTime = timing ? start + (point.timeMs - link.startedAtMs) / Math.max(1, link.completedAtMs - link.startedAtMs) * (end - start) : (point.timeMs - offsetMs) / speed;
+        if (index % 2 === 0) this.sparkleAt(timeMs, pointTime, point.x * scaleX, point.y * scaleY, source.color, 1, link.sourceId * 1000 + index);
       });
       this.sparkleAt(timeMs, end, target.x, target.y, target.color, 22, link.targetId * 103);
       if (timeMs < start) return;
@@ -730,13 +767,28 @@ window.neonLinksReplay = {
       const points = link.points.slice(0, count).map(point => ({ x:point.x * scaleX, y:point.y * scaleY }));
       const path = makePath(points, source.color, progress >= 1 ? "draw-path" : "ghost-path");
       if (progress >= 1) {
+        makePath(points, source.color, "path-texture");
         dots.find(dot => dot.id === link.sourceId).el.classList.add("connected");
         dots.find(dot => dot.id === link.targetId).el.classList.add("connected");
       }
     });
-    const completionMs = (Math.max(...this.replay.links.map(link => link.completedAtMs)) - offsetMs) / speed;
+    const completionMs = options.timeline?.length ? options.timeline[options.timeline.length - 1].endMs : (Math.max(...this.replay.links.map(link => link.completedAtMs)) - offsetMs) / speed;
     dots.forEach((dot, index) => this.sparkleAt(timeMs, completionMs, dot.x, dot.y, "#54f7b5", 14, 5000 + index * 107));
     game.classList.toggle("board-flash", timeMs >= completionMs && timeMs < completionMs + 800);
+    const completionAge = timeMs - completionMs;
+    if (completionAge >= 180) {
+      svg.querySelectorAll("path").forEach(path => {
+        path.style.opacity = String(Math.max(0, 1 - (completionAge - 180) / 1050));
+        path.style.strokeDasharray = `${Math.max(2, 14 - completionAge / 90)} ${Math.min(22, 4 + completionAge / 70)}`;
+        path.style.strokeDashoffset = String(-completionAge / 12);
+      });
+      dots.forEach(dot => {
+        const p = Math.min(1, (completionAge - 180) / 800);
+        dot.el.style.opacity = String(1 - p);
+        dot.el.style.transform = `translate(-50%,-50%) scale(${1 + Math.sin(p * Math.PI) * .65 - p * .9})`;
+      });
+      this.confettiAt(timeMs, completionMs + 120);
+    }
     locked = true;
   },
   sparkleAt(timeMs, eventMs, x, y, color, count, seed) {
@@ -757,6 +809,23 @@ window.neonLinksReplay = {
       spark.style.transform = `translate(${Math.cos(angle) * distance * progress}px, ${Math.sin(angle) * distance * progress}px) scale(${1 - progress * .7})`;
       game.appendChild(spark);
     }
+  },
+  confettiAt(timeMs, eventMs) {
+    const age = timeMs - eventMs;
+    if (age < 0 || age >= 1650) return;
+    const progress = age / 1650;
+    for (let index = 0; index < 72; index++) {
+      const angle = ((index * 137.5) % 360) * Math.PI / 180;
+      const distance = 80 + (index * 47) % 240;
+      const piece = document.createElement("div");
+      piece.className = "confetti";
+      piece.style.animation = "none";
+      piece.style.left = `${innerWidth / 2}px`; piece.style.top = `${innerHeight * .45}px`;
+      piece.style.background = colors[index % colors.length];
+      piece.style.opacity = String(1 - progress);
+      piece.style.transform = `translate(${Math.cos(angle) * distance * progress}px, ${Math.sin(angle) * distance * progress + 340 * progress * progress}px) rotate(${index * 31 + progress * 540}deg)`;
+      game.appendChild(piece);
+    }
   }
 };
 
@@ -770,7 +839,19 @@ function fail(title,text) {
 
 function endBurst(color) {
   game.classList.add("board-flash");
-  dots.forEach(d => sparkle(d.x, d.y, color, 14));
+  dots.forEach(d => { sparkle(d.x, d.y, color, 22); d.el.classList.add("dot-explode"); });
+  svg.querySelectorAll("path").forEach(path => path.classList.add("path-dematerialize"));
+  for (let i = 0; i < 72; i++) {
+    const piece = document.createElement("div");
+    piece.className = "confetti";
+    piece.style.left = `${innerWidth / 2}px`; piece.style.top = `${innerHeight * .45}px`;
+    piece.style.background = colors[i % colors.length];
+    piece.style.setProperty("--dx", `${rand(-innerWidth * .48, innerWidth * .48)}px`);
+    piece.style.setProperty("--dy", `${rand(120, innerHeight * .55)}px`);
+    piece.style.setProperty("--spin", `${rand(-720,720)}deg`);
+    game.appendChild(piece);
+    setTimeout(() => piece.remove(), 1700);
+  }
   setTimeout(() => game.classList.remove("board-flash"), 800);
 }
 
