@@ -275,6 +275,11 @@ const dialogTitle = document.getElementById("dialogTitle");
 const dialogText = document.getElementById("dialogText");
 const levelLabel = document.getElementById("levelLabel");
 const difficultyEl = document.getElementById("difficulty");
+const query = new URLSearchParams(location.search);
+const devMode = query.get("dev") === "1";
+const rendererMode = query.get("renderer") === "1";
+const RECORDINGS_KEY = "neon-links-successful-replays-v1";
+let recording = null;
 
 const colors = ["#56ccff","#ff5fb7","#7cffb2","#ffd166","#a78bfa","#ff8a5b"];
 const difficultySettings = {
@@ -357,6 +362,22 @@ function newGame() {
       dots.push({ id:dots.length, pair, x:p.x, y:p.y, color:colors[pair], el, connected:false });
     }
   }
+  recording = devMode && !rendererMode ? {
+    schemaVersion:1,
+    game:"Neon Links",
+    recordedAt:new Date().toISOString(),
+    difficulty,
+    viewport:{ width:innerWidth, height:innerHeight },
+    dots:dots.map(({ id,pair,x,y,color }) => ({ id,pair,x,y,color })),
+    links:[],
+    audio:[],
+    startedAt:performance.now()
+  } : null;
+}
+
+function recordingTime() { return recording ? performance.now() - recording.startedAt : 0; }
+function recordAudio(name) {
+  if (recording) recording.audio.push({ name, timeMs:recordingTime() });
 }
 
 function makePath(points,color,cls) {
@@ -420,8 +441,10 @@ function getForgivingLanding(x,y) {
 function startDraw(dot, pointerId) {
   if (locked || dot.connected) return;
   gameAudio.play('DotGrab');
+  recordAudio('DotGrab');
   active = dot;
   activePoints = [{ x:dot.x, y:dot.y, dotId:dot.id }];
+  if (recording) recording.activeLink = { sourceId:dot.id, startedAtMs:recordingTime(), points:[{ x:dot.x, y:dot.y, timeMs:recordingTime() }] };
   crossedWhileDrawing = false;
   dot.el.classList.add("active");
   ghost = makePath(activePoints, dot.color, "ghost-path");
@@ -447,6 +470,7 @@ function pointerMove(e) {
   if (crossesExisting) crossedWhileDrawing = true;
 
   activePoints.push(point);
+  if (recording?.activeLink) recording.activeLink.points.push({ x:point.x, y:point.y, timeMs:recordingTime() });
   ghost.setAttribute("d", pathData(activePoints));
   ghost.classList.toggle("bad-path", crossedWhileDrawing);
 
@@ -466,11 +490,14 @@ function finishDraw(target) {
 
   if (!target) {
     gameAudio.play('LinkCancel');
+    recordAudio('LinkCancel');
+    if (recording) recording.activeLink = null;
     cleanupActivePath();
     return;
   }
 
   activePoints.push({ x:target.x, y:target.y, dotId:target.id });
+  if (recording?.activeLink) recording.activeLink.points.push({ x:target.x, y:target.y, dotId:target.id, timeMs:recordingTime() });
 
   if (source.id === target.id || source.pair !== target.pair || target.connected) {
     cleanupActivePath();
@@ -497,6 +524,13 @@ function finishDraw(target) {
   source.el.classList.add("connected");
   target.el.classList.add("connected");
   gameAudio.play('LinkComplete');
+  recordAudio('LinkComplete');
+  if (recording?.activeLink) {
+    recording.activeLink.targetId = target.id;
+    recording.activeLink.completedAtMs = recordingTime();
+    recording.links.push(recording.activeLink);
+    recording.activeLink = null;
+  }
   animatePath(finalPath);
   sparkle(target.x, target.y, target.color, 22);
 
@@ -513,6 +547,7 @@ function cleanupActivePath() {
   active = null;
   activePoints = [];
   crossedWhileDrawing = false;
+  if (recording) recording.activeLink = null;
 }
 
 function makeSegments(points) {
@@ -580,9 +615,121 @@ function success() {
   locked = true;
   gameAnalytics.completed("Neon Links", { difficulty: difficultyEl.value, pair_count: pairCount, links_completed: completedLinks });
   gameAudio.play('PuzzleComplete');
+  recordAudio('PuzzleComplete');
+  saveSuccessfulRecording();
   endBurst("#54f7b5");
   setTimeout(() => showDialog("Perfect path", "Every pair is connected without a single crossing."), 850);
 }
+
+function loadRecordings() {
+  try { return JSON.parse(localStorage.getItem(RECORDINGS_KEY) || "[]"); }
+  catch { return []; }
+}
+
+function saveSuccessfulRecording() {
+  if (!recording) return;
+  delete recording.startedAt;
+  delete recording.activeLink;
+  recording.durationMs = Math.max(1, ...recording.links.map(link => link.completedAtMs), ...recording.audio.map(event => event.timeMs));
+  const recordings = loadRecordings();
+  recordings.push(recording);
+  localStorage.setItem(RECORDINGS_KEY, JSON.stringify(recordings.slice(-100)));
+  recording = null;
+}
+
+function downloadRecordings() {
+  const payload = { schemaVersion:1, game:"Neon Links", exportedAt:new Date().toISOString(), replays:loadRecordings() };
+  const url = URL.createObjectURL(new Blob([JSON.stringify(payload, null, 2)], { type:"application/json" }));
+  const link = Object.assign(document.createElement("a"), { href:url, download:`neon-links-replays-${new Date().toISOString().replace(/[:.]/g,"-")}.json` });
+  link.click();
+  URL.revokeObjectURL(url);
+}
+
+if (devMode && !rendererMode) {
+  const devControls = document.createElement("div");
+  devControls.className = "game-topbar__controls";
+  for (const label of ["Download","Clear"]) {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.textContent = label;
+    button.title = `${label} recorded successful games`;
+    button.addEventListener("click", () => {
+      if (label === "Download") downloadRecordings();
+      if (label === "Clear" && confirm("Delete all recorded successful games?")) localStorage.removeItem(RECORDINGS_KEY);
+    });
+    devControls.appendChild(button);
+  }
+  document.querySelector(".game-topbar__right").appendChild(devControls);
+
+  const menu = document.createElement("div");
+  menu.style.cssText = "position:fixed;display:none;z-index:1000;padding:6px;background:#11182e;border:1px solid #56ccff;border-radius:10px;box-shadow:0 12px 35px #000;color:white";
+  for (const label of ["Download","Clear"]) {
+    const button = document.createElement("button");
+    button.textContent = label;
+    button.style.cssText = "display:block;width:100%;padding:9px 18px;background:transparent;border:0;color:white;text-align:left";
+    button.addEventListener("click", () => {
+      menu.style.display = "none";
+      if (label === "Download") downloadRecordings();
+      if (label === "Clear" && confirm("Delete all recorded successful games?")) localStorage.removeItem(RECORDINGS_KEY);
+    });
+    menu.appendChild(button);
+  }
+  document.body.appendChild(menu);
+  addEventListener("contextmenu", event => {
+    event.preventDefault();
+    menu.style.left = `${Math.min(event.clientX, innerWidth - 130)}px`;
+    menu.style.top = `${Math.min(event.clientY, innerHeight - 100)}px`;
+    menu.style.display = "block";
+  });
+  addEventListener("pointerdown", event => { if (!menu.contains(event.target)) menu.style.display = "none"; });
+}
+
+window.neonLinksReplay = {
+  load(replay) {
+    clearGame();
+    difficultyEl.value = replay.difficulty;
+    pairCount = replay.dots.length / 2;
+    completedLinks = 0;
+    levelLabel.textContent = `Pairs: ${pairCount}`;
+    replay.dots.forEach(data => {
+      const x = data.x * innerWidth / replay.viewport.width;
+      const y = data.y * innerHeight / replay.viewport.height;
+      const el = document.createElement("div");
+      el.className = "dot";
+      el.style.left = `${x}px`; el.style.top = `${y}px`; el.style.color = data.color;
+      el.style.background = `radial-gradient(circle at 35% 30%, white, ${data.color} 30%, #111 120%)`;
+      game.appendChild(el);
+      dots.push({ ...data, x, y, el, connected:false });
+    });
+    this.replay = replay;
+    this.seek(0);
+  },
+  seek(timeMs, options = {}) {
+    if (!this.replay) return;
+    svg.innerHTML = "";
+    dots.forEach(dot => { dot.connected = false; dot.el.classList.remove("connected","active"); });
+      const scaleX = innerWidth / this.replay.viewport.width;
+      const scaleY = innerHeight / this.replay.viewport.height;
+      const speed = options.speed || 1;
+      const offsetMs = options.offsetMs || 0;
+      this.replay.links.forEach(link => {
+      const start = (link.startedAtMs - offsetMs) / speed;
+      const end = (link.completedAtMs - offsetMs) / speed;
+      if (timeMs < start) return;
+      const progress = Math.min(1, (timeMs - start) / Math.max(1, end - start));
+      const eased = options.ease === false ? progress : progress * progress * (3 - 2 * progress);
+      const count = Math.max(1, Math.ceil(link.points.length * eased));
+      const points = link.points.slice(0, count).map(point => ({ x:point.x * scaleX, y:point.y * scaleY }));
+      const source = dots.find(dot => dot.id === link.sourceId);
+      const path = makePath(points, source.color, progress >= 1 ? "draw-path" : "ghost-path");
+      if (progress >= 1) {
+        dots.find(dot => dot.id === link.sourceId).el.classList.add("connected");
+        dots.find(dot => dot.id === link.targetId).el.classList.add("connected");
+      }
+    });
+    locked = true;
+  }
+};
 
 function fail(title,text) {
   locked = true;
@@ -613,7 +760,7 @@ document.getElementById("again").addEventListener("click", newGame);
 difficultyEl.addEventListener("change", newGame);
 addEventListener("resize", () => setTimeout(newGame, 120));
 
-newGame();
+if (!rendererMode) newGame();
 </script>
 </body>
 </html>
