@@ -1213,15 +1213,17 @@
   </footer>
   <script>
     const showInProgress = new URLSearchParams(location.search).get('dev') === '1';
-    document.querySelectorAll('.game-card[data-status="InProgress"]').forEach(card => {
-      if (!showInProgress) {
+    document.querySelectorAll('.game-card').forEach(card => {
+      if (card.dataset.status === 'InProgress' && !showInProgress) {
         card.remove();
         return;
       }
 
-      const destination = new URL(card.getAttribute('href'), location.href);
-      destination.searchParams.set('dev', '1');
-      card.setAttribute('href', `${destination.pathname.split('/').pop()}${destination.search}${destination.hash}`);
+      if (showInProgress) {
+        const destination = new URL(card.getAttribute('href'), location.href);
+        destination.searchParams.set('dev', '1');
+        card.setAttribute('href', `${destination.pathname.split('/').pop()}${destination.search}${destination.hash}`);
+      }
     });
 
     gameAnalytics.capture('index_page_loaded');
