@@ -36,3 +36,4 @@ Spray rug center, edge, and floor uphill from the drain; inspect depth/velocity 
 - Added a hose tool with immediate contact feedback and an authoritative field-driven glossy water surface. Source injection is isolated from transport by one fixed tick to prevent a GPU write-after-write hazard.
 - Browser validation retained 0.89997 kg of 0.89997 kg injected after 304 ticks; combined free-plus-absorbed residual was 1.85e-9 kg. No WebGPU errors were reported.
 - JavaScript syntax validation passed for every source module. Drain removal remains intentionally deferred to 011; soil, mud, and foam reactions remain in 009.
+- Follow-up correction: source previews are protected from pre-commit GPU readbacks for both soap and water; transport is deferred on any source-write tick, and carpet absorption was tuned so visible free water can accumulate before soaking in.

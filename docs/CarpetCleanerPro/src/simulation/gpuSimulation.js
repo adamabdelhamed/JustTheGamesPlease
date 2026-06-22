@@ -17,16 +17,21 @@ export function createGpuSimulation(device, diagnostics, materialDebugSink, carp
   let soapDirty = false;
   let soapVisualPending = false;
   let soapGeneration = 0;
+  let soapCommittedGeneration = 0;
   let waterDirty = false;
   let waterVisualPending = false;
   let waterGeneration = 0;
+  let waterCommittedGeneration = 0;
   let waterActiveUntilTick = 0;
+  let lastSoapRefreshTick = 0;
+  let lastWaterRefreshTick = 0;
   let carpetState = null;
   let waterInjectedThisTick = false;
+  let soapInjectedThisTick = false;
   const passes = [
-    { name: 'soap-source', encode: encoder => { if (soapSource.encode(encoder)) soapDirty = true; } },
-    { name: 'water-source', encode: encoder => { waterInjectedThisTick = waterSource.encode(encoder, waterSolver.activeIndex); if (waterInjectedThisTick) waterDirty = true; } },
-    { name: 'water-flow', encode: (encoder, tick, dt) => { if (!waterInjectedThisTick) waterSolver.encode(encoder, dt); } },
+    { name: 'soap-source', encode: encoder => { soapInjectedThisTick = soapSource.encode(encoder); if (soapInjectedThisTick) { soapCommittedGeneration += 1; soapDirty = true; } } },
+    { name: 'water-source', encode: encoder => { waterInjectedThisTick = waterSource.encode(encoder, waterSolver.activeIndex); if (waterInjectedThisTick) { waterCommittedGeneration += 1; waterDirty = true; } } },
+    { name: 'water-flow', encode: (encoder, tick, dt) => { if (!waterInjectedThisTick && !soapInjectedThisTick) waterSolver.encode(encoder, dt); } },
     { name: 'proof-field', encode: (encoder, tick) => proofField.encode(encoder, tick) }
   ];
   let checksum = 'pending';
@@ -41,6 +46,7 @@ export function createGpuSimulation(device, diagnostics, materialDebugSink, carp
     maxSubsteps: SIMULATION.maxSubsteps,
     step(tick) {
       waterInjectedThisTick = false;
+      soapInjectedThisTick = false;
       const encoder = device.createCommandEncoder({ label: `Simulation tick ${tick}` });
       for (const pass of passes) pass.encode(encoder, tick, SIMULATION.fixedStepSeconds);
       device.queue.submit([encoder.finish()]);
@@ -67,9 +73,13 @@ export function createGpuSimulation(device, diagnostics, materialDebugSink, carp
     waterSource.reset();
     soapDirty = false;
     soapGeneration = 0;
+    soapCommittedGeneration = 0;
     waterDirty = false;
     waterGeneration = 0;
+    waterCommittedGeneration = 0;
     waterActiveUntilTick = 0;
+    lastSoapRefreshTick = 0;
+    lastWaterRefreshTick = 0;
     lastChecksumTick = -1;
     checksum = await updateChecksum();
     diagnostics.setMaterialSchema(MATERIAL_FIELDS, seed);
@@ -84,15 +94,18 @@ export function createGpuSimulation(device, diagnostics, materialDebugSink, carp
     if (soapVisualPending) return;
     soapVisualPending = true;
     const requestedGeneration = soapGeneration;
+    const requestedCommittedGeneration = soapCommittedGeneration;
     try {
       const inspection = await materials.inspect('soap');
-      if (requestedGeneration === soapGeneration) soapVisualSink({ type: 'authoritative', inspection });
+      const massIsValid = Math.abs(inspection.ledger.residual) <= Math.max(1e-5, inspection.ledger.injected * 1e-4);
+      const isCurrent = massIsValid && requestedGeneration === soapGeneration && requestedCommittedGeneration === soapCommittedGeneration && soapSource.pending.size === 0;
+      if (isCurrent) soapVisualSink({ type: 'authoritative', inspection });
       diagnostics.setToolUsage({ tool: 'soap', submittedMass: soapSource.totalSubmittedMass, ledger: inspection.ledger });
       if (selectedField === 'soap') {
         materialDebugSink(inspection);
         diagnostics.setMaterialInspection(inspection);
       }
-      if (requestedGeneration === soapGeneration) soapDirty = false;
+      if (isCurrent) soapDirty = false;
     } finally {
       soapVisualPending = false;
     }
@@ -111,19 +124,25 @@ export function createGpuSimulation(device, diagnostics, materialDebugSink, carp
     if (waterVisualPending) return;
     waterVisualPending = true;
     const requestedGeneration = waterGeneration;
+    const requestedCommittedGeneration = waterCommittedGeneration;
     try {
       const [free, saturation] = await Promise.all([materials.inspect('freeWater'), materials.inspect('carpetSaturation')]);
-      if (requestedGeneration === waterGeneration) waterVisualSink({ type: 'authoritative', inspection: free });
-      if (carpetState && requestedGeneration === waterGeneration) {
+      const initial = free.ledger.initial + saturation.ledger.initial;
+      const current = free.ledger.current + saturation.ledger.current;
+      const residual = initial + free.ledger.injected - current;
+      const massIsValid = Math.abs(residual) <= Math.max(1e-5, free.ledger.injected * 1e-4);
+      const isCurrent = massIsValid && requestedGeneration === waterGeneration && requestedCommittedGeneration === waterCommittedGeneration && waterSource.pending.size === 0;
+      if (isCurrent) {
+        waterVisualSink({ type: 'authoritative', inspection: free });
+        diagnostics.setWaterUsage({ submittedMass: waterSource.totalSubmittedMass, currentMass: current, residual });
+        if (selectedField === 'freeWater') { materialDebugSink(free); diagnostics.setMaterialInspection(free); }
+        if (selectedField === 'carpetSaturation') { materialDebugSink(saturation); diagnostics.setMaterialInspection(saturation); }
+      }
+      if (carpetState && isCurrent) {
         carpetState = { ...carpetState, carpetSaturation: saturation.values };
         carpetVisualSink(carpetState);
       }
-      const initial = free.ledger.initial + saturation.ledger.initial;
-      const current = free.ledger.current + saturation.ledger.current;
-      diagnostics.setWaterUsage({ submittedMass: waterSource.totalSubmittedMass, currentMass: current, residual: initial + free.ledger.injected - current });
-      if (selectedField === 'freeWater') { materialDebugSink(free); diagnostics.setMaterialInspection(free); }
-      if (selectedField === 'carpetSaturation') { materialDebugSink(saturation); diagnostics.setMaterialInspection(saturation); }
-      if (requestedGeneration === waterGeneration) waterDirty = false;
+      if (isCurrent) waterDirty = false;
     } finally { waterVisualPending = false; }
   }
 
@@ -160,8 +179,14 @@ export function createGpuSimulation(device, diagnostics, materialDebugSink, carp
         lastChecksumTick = scheduler.tick;
         updateChecksum().then(publish);
       }
-      if (soapDirty && scheduler.tick % 12 === 0) refreshSoapVisual();
-      if ((waterDirty || scheduler.tick < waterActiveUntilTick) && scheduler.tick % 8 === 0) refreshWaterVisual();
+      if (soapDirty && scheduler.tick - lastSoapRefreshTick >= 12) {
+        lastSoapRefreshTick = scheduler.tick;
+        refreshSoapVisual();
+      }
+      if ((waterDirty || scheduler.tick < waterActiveUntilTick) && scheduler.tick - lastWaterRefreshTick >= 8) {
+        lastWaterRefreshTick = scheduler.tick;
+        refreshWaterVisual();
+      }
       publish();
     },
     async reset(seed) { await reset(seed); },
