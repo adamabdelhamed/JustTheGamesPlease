@@ -6,13 +6,15 @@ import { MATERIAL_FIELDS } from './materialSchema.js';
 import { SoapSource } from './soapSource.js';
 import { WaterSource } from './waterSource.js';
 import { WaterSolver } from './waterSolver.js';
+import { ChemistryPass } from './chemistryPass.js';
 
-export function createGpuSimulation(device, diagnostics, materialDebugSink, carpetVisualSink, soapVisualSink, waterVisualSink) {
+export function createGpuSimulation(device, diagnostics, materialDebugSink, carpetVisualSink, soapVisualSink, waterVisualSink, mixtureVisualSink) {
   const proofField = new ProofField(device, SIMULATION.proofFieldLength, SIMULATION.defaultSeed);
   const materials = new MaterialFieldSet(device, SIMULATION.defaultSeed);
   const soapSource = new SoapSource(device, materials);
   const waterSolver = new WaterSolver(device, materials);
   const waterSource = new WaterSource(device, materials, waterSolver.waterBuffers, waterSolver.velocityBuffers);
+  const chemistry = new ChemistryPass(device, materials, waterSolver);
   let selectedTool = 'soap';
   let soapDirty = false;
   let soapVisualPending = false;
@@ -25,13 +27,16 @@ export function createGpuSimulation(device, diagnostics, materialDebugSink, carp
   let waterActiveUntilTick = 0;
   let lastSoapRefreshTick = 0;
   let lastWaterRefreshTick = 0;
+  let chemistryVisualPending = false;
+  let lastChemistryRefreshTick = 0;
   let carpetState = null;
   let waterInjectedThisTick = false;
   let soapInjectedThisTick = false;
   const passes = [
     { name: 'soap-source', encode: encoder => { soapInjectedThisTick = soapSource.encode(encoder); if (soapInjectedThisTick) { soapCommittedGeneration += 1; soapDirty = true; } } },
     { name: 'water-source', encode: encoder => { waterInjectedThisTick = waterSource.encode(encoder, waterSolver.activeIndex); if (waterInjectedThisTick) { waterCommittedGeneration += 1; waterDirty = true; } } },
-    { name: 'water-flow', encode: (encoder, tick, dt) => { if (!waterInjectedThisTick && !soapInjectedThisTick) waterSolver.encode(encoder, dt); } },
+    { name: 'soil-chemistry', encode: (encoder, tick, dt) => chemistry.encode(encoder, dt, waterSolver.activeIndex) },
+    { name: 'water-flow', encode: (encoder, tick, dt) => waterSolver.encode(encoder, dt) },
     { name: 'proof-field', encode: (encoder, tick) => proofField.encode(encoder, tick) }
   ];
   let checksum = 'pending';
@@ -47,9 +52,16 @@ export function createGpuSimulation(device, diagnostics, materialDebugSink, carp
     step(tick) {
       waterInjectedThisTick = false;
       soapInjectedThisTick = false;
-      const encoder = device.createCommandEncoder({ label: `Simulation tick ${tick}` });
-      for (const pass of passes) pass.encode(encoder, tick, SIMULATION.fixedStepSeconds);
-      device.queue.submit([encoder.finish()]);
+      const sourceEncoder = device.createCommandEncoder({ label: `Simulation sources ${tick}` });
+      passes[0].encode(sourceEncoder, tick, SIMULATION.fixedStepSeconds);
+      passes[1].encode(sourceEncoder, tick, SIMULATION.fixedStepSeconds);
+      device.queue.submit([sourceEncoder.finish()]);
+      const chemistryEncoder = device.createCommandEncoder({ label: `Simulation chemistry ${tick}` });
+      passes[2].encode(chemistryEncoder, tick, SIMULATION.fixedStepSeconds);
+      device.queue.submit([chemistryEncoder.finish()]);
+      const simulationEncoder = device.createCommandEncoder({ label: `Simulation updates ${tick}` });
+      for (const pass of passes.slice(3)) pass.encode(simulationEncoder, tick, SIMULATION.fixedStepSeconds);
+      device.queue.submit([simulationEncoder.finish()]);
     }
   });
 
@@ -80,12 +92,14 @@ export function createGpuSimulation(device, diagnostics, materialDebugSink, carp
     waterActiveUntilTick = 0;
     lastSoapRefreshTick = 0;
     lastWaterRefreshTick = 0;
+    lastChemistryRefreshTick = 0;
     lastChecksumTick = -1;
     checksum = await updateChecksum();
     diagnostics.setMaterialSchema(MATERIAL_FIELDS, seed);
     await refreshCarpetVisuals(seed);
     await refreshSoapVisual();
     await refreshWaterVisual();
+    await refreshChemistryVisual();
     if (selectedField) await inspectField(selectedField);
     publish();
   }
@@ -112,12 +126,28 @@ export function createGpuSimulation(device, diagnostics, materialDebugSink, carp
   }
 
   async function refreshCarpetVisuals(seed) {
-    const [embedded, saturation] = await Promise.all([
+    const [embedded, loose, saturation] = await Promise.all([
       materials.inspect('embeddedSoil'),
+      materials.inspect('looseSoil'),
       materials.inspect('carpetSaturation')
     ]);
-    carpetState = { seed, embeddedSoil: embedded.values, carpetSaturation: saturation.values };
+    carpetState = { seed, embeddedSoil: embedded.values, looseSoil: loose.values, carpetSaturation: saturation.values };
     carpetVisualSink(carpetState);
+  }
+
+  async function refreshChemistryVisual() {
+    if (chemistryVisualPending) return;
+    chemistryVisualPending = true;
+    try {
+      const names=['freeWater','carpetSaturation','embeddedSoil','looseSoil','dissolvedSoil','sediment','soap','foam'];
+      const inspections=await Promise.all(names.map(name=>materials.inspect(name)));
+      const fields=Object.fromEntries(inspections.map(inspection=>[inspection.name,inspection.values]));
+      mixtureVisualSink(fields);
+      if(carpetState){carpetState={...carpetState,embeddedSoil:fields.embeddedSoil,looseSoil:fields.looseSoil,carpetSaturation:fields.carpetSaturation};carpetVisualSink(carpetState);}
+      const soilNames=['embeddedSoil','looseSoil','dissolvedSoil','sediment'];
+      const soilMass=inspections.filter(item=>soilNames.includes(item.name)).reduce((sum,item)=>sum+item.ledger.current,0);
+      diagnostics.setChemistry({soilMass,soapMass:inspections.find(item=>item.name==='soap').ledger.current,foamMass:inspections.find(item=>item.name==='foam').ledger.current});
+    } finally { chemistryVisualPending=false; }
   }
 
   async function refreshWaterVisual() {
@@ -187,6 +217,10 @@ export function createGpuSimulation(device, diagnostics, materialDebugSink, carp
         lastWaterRefreshTick = scheduler.tick;
         refreshWaterVisual();
       }
+      if ((soapDirty || waterDirty || scheduler.tick < waterActiveUntilTick) && scheduler.tick - lastChemistryRefreshTick >= 12) {
+        lastChemistryRefreshTick=scheduler.tick;
+        refreshChemistryVisual();
+      }
       publish();
     },
     async reset(seed) { await reset(seed); },
@@ -224,7 +258,7 @@ export function createGpuSimulation(device, diagnostics, materialDebugSink, carp
       publish();
       return results;
     },
-    async initialize() { await reset(); },
-    dispose() { proofField.dispose(); soapSource.dispose(); waterSource.dispose(); waterSolver.dispose(); materials.dispose(); }
+    async initialize() { await chemistry.assertValid(); await reset(); },
+    dispose() { proofField.dispose(); soapSource.dispose(); waterSource.dispose(); chemistry.dispose(); waterSolver.dispose(); materials.dispose(); }
   };
 }

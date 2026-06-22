@@ -26,7 +26,8 @@ export async function createWebGpuRuntime({ canvas, diagnostics, adapterInfo }) 
     inspection => content.setMaterialDebugView(inspection),
     fields => content.setCarpetFields(fields),
     update => content.updateSoapField(update),
-    update => content.updateWaterField(update)
+    update => content.updateWaterField(update),
+    fields => content.updateMixtureFields(fields)
   );
   await simulation.initialize();
   const input = createInputController({ canvas, container: document.querySelector('#game'), sceneContent: content, diagnostics });

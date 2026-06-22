@@ -7,6 +7,7 @@ import { createInputVisualizer } from './inputVisualizer.js';
 import { ConstrainedCameraRig } from '../input/constrainedCameraRig.js';
 import { createSoapVisual } from './soapVisual.js';
 import { createWaterVisual } from './waterVisual.js';
+import { createMixtureVisual } from './mixtureVisual.js';
 
 const LOOK_AT = new THREE.Vector3(0.4, 0, 0);
 
@@ -35,6 +36,8 @@ export function createCleaningBayScene(diagnosticsPanel) {
   scene.add(soapVisual.fieldMesh, soapVisual.group);
   const waterVisual = createWaterVisual(resources);
   scene.add(waterVisual.fieldMesh, waterVisual.group);
+  const mixtureVisual = createMixtureVisual(resources);
+  scene.add(mixtureVisual.mud, mixtureVisual.foam);
 
   const worldDiagnostics = createWorldDiagnostics();
   worldDiagnostics.visible = false;
@@ -70,6 +73,7 @@ export function createCleaningBayScene(diagnosticsPanel) {
       if (update.type === 'pending-source') waterVisual.addPending(update.entries);
       else waterVisual.setField(update.inspection);
     },
+    updateMixtureFields(fields) { mixtureVisual.setFields(fields); },
     setToolSelected(name) { soapVisual.setSelected(name === 'soap'); waterVisual.setSelected(name === 'water'); },
     setToolPose(pose) { soapVisual.setPose(pose); waterVisual.setPose(pose); },
     addRawInput(point) { inputVisualizer.addRaw(point); },

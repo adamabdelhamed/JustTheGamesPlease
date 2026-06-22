@@ -81,10 +81,10 @@ function applyMaterialState(pattern, fields, testStates) {
       const v = (y + 0.5) / pattern.height;
       const state = sampleState(u, v, fields, testStates);
       const offset = (y * pattern.width + x) * 4;
-      const darken = 1 - state.dirt * 0.72 - state.wet * 0.22;
-      output[offset] = clampByte(output[offset] * darken + state.dirt * 42 + state.wet * 14);
-      output[offset + 1] = clampByte(output[offset + 1] * darken + state.dirt * 29 + state.wet * 25);
-      output[offset + 2] = clampByte(output[offset + 2] * darken + state.dirt * 18 + state.wet * 32);
+      const patternVisibility = Math.max(0.015, 1 - state.dirt * 0.97);
+      output[offset] = clampByte(output[offset] * patternVisibility + state.dirt * 67 + state.wet * 10);
+      output[offset + 1] = clampByte(output[offset + 1] * patternVisibility + state.dirt * 45 + state.wet * 18);
+      output[offset + 2] = clampByte(output[offset + 2] * patternVisibility + state.dirt * 24 + state.wet * 20);
     }
   }
   return output;
@@ -106,7 +106,7 @@ function updateFibers(mesh, pattern, fields, testStates, seed) {
       const state = sampleState(u, v, fields, testStates);
       const localX = (u - 0.5) * (WORLD.rug.width - 0.14) + (jitter - 0.5) * 0.025;
       const localZ = (v - 0.5) * (WORLD.rug.depth - 0.14) + (hash(index + 91, seed) - 0.5) * 0.025;
-      const heightScale = (0.82 + jitter * 0.3) * (1 - state.compression * 0.72);
+      const heightScale = (0.82 + jitter * 0.3) * (1 - state.compression * 0.72) * (1-state.dirt*.42);
       position.set(localX, WORLD.rug.thickness / 2 + 0.035 * heightScale + 0.01, localZ);
       euler.set((hash(index + 17, seed) - 0.5) * 0.2, hash(index + 31, seed) * Math.PI, state.compression * 0.48);
       quaternion.setFromEuler(euler);
@@ -116,11 +116,11 @@ function updateFibers(mesh, pattern, fields, testStates, seed) {
       const px = Math.min(pattern.width - 1, Math.floor(u * pattern.width));
       const py = Math.min(pattern.height - 1, Math.floor(v * pattern.height));
       const offset = (py * pattern.width + px) * 4;
-      const darken = 1 - state.dirt * 0.75 - state.wet * 0.28;
+      const darken = Math.max(.025,1 - state.dirt * 0.96 - state.wet * 0.18);
       rgb.setRGB(
-        (pattern.data[offset] * darken + state.dirt * 38) / 255,
-        (pattern.data[offset + 1] * darken + state.dirt * 27) / 255,
-        (pattern.data[offset + 2] * darken + state.dirt * 17) / 255,
+        (pattern.data[offset] * darken + state.dirt * 66) / 255,
+        (pattern.data[offset + 1] * darken + state.dirt * 44) / 255,
+        (pattern.data[offset + 2] * darken + state.dirt * 24) / 255,
         THREE.SRGBColorSpace
       );
       mesh.setColorAt(index, rgb);
@@ -138,14 +138,14 @@ function sampleState(u, v, fields, testStates) {
       : band === 2 ? { dirt: 1, wet: 0.18, compression: 0.12 }
       : { dirt: 0.12, wet: 0, compression: 1 };
   }
-  if (!fields) return { dirt: 0.55, wet: 0, compression: 0 };
+  if (!fields) return { dirt: 0.98, wet: 0, compression: 0 };
   const worldX = WORLD.rug.centerX + (u - 0.5) * WORLD.rug.width;
   const worldZ = WORLD.rug.centerZ + (v - 0.5) * WORLD.rug.depth;
   const gx = Math.max(0, Math.min(SIMULATION.gridWidth - 1, Math.floor((worldX + WORLD.floor.width / 2) / WORLD.floor.width * SIMULATION.gridWidth)));
   const gy = Math.max(0, Math.min(SIMULATION.gridHeight - 1, Math.floor((worldZ + WORLD.floor.depth / 2) / WORLD.floor.depth * SIMULATION.gridHeight)));
   const index = gy * SIMULATION.gridWidth + gx;
   return {
-    dirt: Math.min(1, fields.embeddedSoil[index] / 5.2),
+    dirt: Math.min(1, (fields.embeddedSoil[index] * .58 + (fields.looseSoil?.[index] || 0) * 1.35) / 4.8),
     wet: Math.min(1, fields.carpetSaturation[index] / 18),
     compression: 0
   };

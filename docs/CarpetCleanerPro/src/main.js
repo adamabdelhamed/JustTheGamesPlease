@@ -14,6 +14,7 @@ try {
     diagnostics,
     adapterInfo: support.info
   });
+  if (new URLSearchParams(location.search).get('dev') === '1') window.__carpetCleanerRuntime = runtime;
   message.textContent = 'WebGPU runtime ready.';
   document.documentElement.classList.add('runtime-ready');
   wireDeveloperControls(runtime, diagnostics);

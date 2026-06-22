@@ -36,7 +36,7 @@ Each task must be cohesive enough to review as one engineering decision and smal
 | 006 ✓ | Buttery pointer stroke pipeline | 002, 003 |
 | 007 ✓ | Soap applicator vertical slice | 004, 005, 006 |
 | 008 âœ“ | Water, slope flow, and pooling | 004, 005, 006 |
-| 009 | Soil chemistry, mud, and foam | 007, 008 |
+| 009 âœ“ | Soil chemistry, mud, and foam | 007, 008 |
 | 010 | Rotary cleaner vertical slice | 006, 009 |
 | 011 | Drain transport and waste accounting | 008, 009 |
 | 012 | Playable loop, difficulty, progress, and completion | 010, 011 |

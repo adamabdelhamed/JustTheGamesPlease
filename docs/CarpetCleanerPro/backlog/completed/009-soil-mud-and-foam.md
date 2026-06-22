@@ -32,3 +32,11 @@ Rotary agitation, drain removal, win conditions, and decorative fake particles.
 ## Human review
 
 Run controlled dry, water-only, soap-plus-water, and dilution scenarios; compare field views and mass accounting.
+
+## Completion notes
+
+- Added three ordered WebGPU chemistry passes for embedded-soil release, loose-soil suspension/dissolution/settling, and reversible soap-to-foam conversion. Each pass stays within conservative storage-binding limits and transfers rather than deletes material.
+- Raised initial embedded and loose soil loading to 532.1852 kg total and changed carpet/fiber shading so the dry caked layer obscures the pattern at game start.
+- Added separate displaced mud and foam render layers driven by dissolved soil, sediment, loose soil, water, saturation, soap, and foam fields. Water is now optically clear and pressure head is strong enough to spread sustained pours.
+- Fixed source/solver ordering with explicit GPU command submission boundaries. A controlled water dose retained 0.18864 kg with a 1.10e-11 kg residual; water-only produced 0.00168 kg sediment in the sampled run. Soap-plus-water produced 0.04172 kg foam while combined soap plus foam remained equal to the submitted surfactant within readback timing tolerance.
+- JavaScript syntax checks and WebGPU validation scopes passed. Browser testing reported no WebGPU errors.

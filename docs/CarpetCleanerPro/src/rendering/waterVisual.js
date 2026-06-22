@@ -12,7 +12,7 @@ function createHoseRig(resources){
   const group=new THREE.Group();group.visible=false;
   const metal=new THREE.MeshStandardMaterial({color:0x536c67,metalness:.82,roughness:.2});
   const rubber=new THREE.MeshStandardMaterial({color:0x14241f,roughness:.8});
-  const water=new THREE.MeshPhysicalMaterial({color:0x8be5ff,roughness:.03,transmission:.28,transparent:true,opacity:.78,clearcoat:1,depthWrite:false});
+  const water=new THREE.MeshPhysicalMaterial({color:0xe9fbff,roughness:.015,transmission:.88,transparent:true,opacity:.48,clearcoat:1,depthWrite:false});
   const barrelG=new THREE.CylinderGeometry(.09,.13,.85,16),gripG=new THREE.BoxGeometry(.18,.48,.2),streamG=new THREE.CylinderGeometry(.035,.12,1.0,16),impactG=new THREE.RingGeometry(.08,.26,36);
   resources.push(metal,rubber,water,barrelG,gripG,streamG,impactG);
   const barrel=new THREE.Mesh(barrelG,metal);barrel.position.set(-.42,.85,0);barrel.rotation.z=Math.PI/2;
@@ -27,9 +27,9 @@ function createHoseRig(resources){
 function createWaterField(resources){
   const colorData=new Uint8Array(SIMULATION.gridWidth*SIMULATION.gridHeight*4),heightData=new Uint8Array(colorData.length),values=new Float32Array(SIMULATION.gridWidth*SIMULATION.gridHeight);
   const texture=makeTexture(new Uint8Array(4),true),height=makeTexture(new Uint8Array(4),false);
-  const material=new THREE.MeshPhysicalMaterial({map:texture,alphaMap:height,displacementMap:height,displacementScale:.075,bumpMap:height,bumpScale:.055,transparent:true,alphaTest:.008,depthWrite:false,roughness:.025,metalness:0,transmission:.34,thickness:.06,ior:1.333,clearcoat:1,clearcoatRoughness:.015,opacity:.88});
+  const material=new THREE.MeshPhysicalMaterial({map:texture,alphaMap:height,displacementMap:height,displacementScale:.075,bumpMap:height,bumpScale:.045,transparent:true,alphaTest:.006,depthWrite:false,roughness:.012,metalness:0,transmission:.82,thickness:.08,ior:1.333,clearcoat:1,clearcoatRoughness:.008,opacity:.62});
   const geometry=surfaceGeometry(),mesh=new THREE.Mesh(geometry,material);mesh.visible=false;mesh.renderOrder=11;resources.push(texture,height,material,geometry);let pending=false;
-  function pixel(i){const a=Math.min(1,values[i]/.7),o=i*4;colorData[o]=105;colorData[o+1]=205;colorData[o+2]=245;colorData[o+3]=Math.round(Math.sqrt(a)*220);const h=Math.round(Math.pow(a,.68)*255);heightData[o]=heightData[o+1]=heightData[o+2]=h;heightData[o+3]=255;return a>.002}
+  function pixel(i){const a=Math.min(1,values[i]/.7),o=i*4;colorData[o]=225;colorData[o+1]=248;colorData[o+2]=255;colorData[o+3]=Math.round(Math.sqrt(a)*150);const h=Math.round(Math.pow(a,.68)*255);heightData[o]=heightData[o+1]=heightData[o+2]=h;heightData[o+3]=255;return a>.002}
   function upload(){texture.image={data:colorData,width:SIMULATION.gridWidth,height:SIMULATION.gridHeight};texture.needsUpdate=true;height.image={data:heightData,width:SIMULATION.gridWidth,height:SIMULATION.gridHeight};height.needsUpdate=true;mesh.visible=true}
   function schedule(){if(pending)return;pending=true;requestAnimationFrame(()=>{pending=false;upload()})}
   return{mesh,setInspection(inspection){values.set(inspection.values);let visible=false;for(let i=0;i<values.length;i++)visible||=pixel(i);upload();mesh.visible=visible;},addPending(entries){for(const e of entries){values[e.index]=Math.min(100,values[e.index]+e.density);pixel(e.index)}schedule();}};

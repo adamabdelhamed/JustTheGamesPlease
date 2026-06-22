@@ -36,7 +36,7 @@ export class MaterialFieldSet {
     for (const [name, schema] of Object.entries(MATERIAL_FIELDS)) {
       const values = new Float32Array(this.cellCount * schema.components);
       if (name === 'embeddedSoil' || name === 'looseSoil') {
-        const scale = name === 'embeddedSoil' ? 4.8 : 1.35;
+        const scale = name === 'embeddedSoil' ? 8.8 : 4.4;
         for (let index = 0; index < this.cellCount; index += 1) {
           if (mask[index] !== SURFACE_MASK.carpet) continue;
           const variation = 0.62 + random() * 0.38;

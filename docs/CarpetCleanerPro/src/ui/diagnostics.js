@@ -73,6 +73,11 @@ export function createDiagnosticsPanel() {
       state.set('Water residual', `${residual.toExponential(2)} kg`);
       render(true);
     },
+    setChemistry({ soilMass, soapMass, foamMass }) {
+      state.set('Soil total', `${soilMass.toFixed(4)} kg`);
+      state.set('Soap / foam', `${soapMass.toFixed(4)} / ${foamMass.toFixed(4)} kg`);
+      render(true);
+    },
     updateFrame({ cpuMs, frameMs, renderedFrames }) {
       state.set('Renderer', 'Three.js WebGPU r180');
       state.set('CPU render', `${cpuMs.toFixed(2)} ms`);

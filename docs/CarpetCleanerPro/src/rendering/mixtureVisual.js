@@ -1,0 +1,12 @@
+import * as THREE from 'three/webgpu';
+import { SIMULATION } from '../config/gameConfig.js';
+import { WORLD, classifySurface, floorHeightAt } from '../world/worldLayout.js';
+
+export function createMixtureVisual(resources){
+  const mud=layer(resources,{color:[72,42,20],roughness:.38,opacity:.92,lift:.092,scale:.07});
+  const foam=layer(resources,{color:[238,244,214],roughness:.72,opacity:.94,lift:.108,scale:.105});
+  return{mud:mud.mesh,foam:foam.mesh,setFields(fields){const count=SIMULATION.gridWidth*SIMULATION.gridHeight;const mudValues=new Float32Array(count),foamValues=fields.foam;for(let i=0;i<count;i++){const liquid=fields.freeWater[i]+fields.carpetSaturation[i]*.18;mudValues[i]=(fields.dissolvedSoil[i]*.7+fields.sediment[i]+fields.looseSoil[i]*.12)*Math.min(1,liquid*2.4);}mud.set(mudValues,.025);foam.set(foamValues,.006);}};
+}
+function layer(resources,options){const data=new Uint8Array(SIMULATION.gridWidth*SIMULATION.gridHeight*4),heightData=new Uint8Array(data.length),texture=tex(data,true),height=tex(heightData,false);const material=new THREE.MeshPhysicalMaterial({map:texture,alphaMap:height,displacementMap:height,displacementScale:options.scale,bumpMap:height,bumpScale:options.scale*.7,transparent:true,alphaTest:.006,depthWrite:false,roughness:options.roughness,clearcoat:.55,opacity:options.opacity});const geometry=surface(options.lift),mesh=new THREE.Mesh(geometry,material);mesh.renderOrder=14;mesh.visible=false;resources.push(texture,height,material,geometry);return{mesh,set(values,normalizer){let visible=false;for(let i=0;i<values.length;i++){const a=Math.min(1,values[i]/normalizer),o=i*4;data[o]=options.color[0];data[o+1]=options.color[1];data[o+2]=options.color[2];data[o+3]=Math.round(Math.sqrt(a)*245);const h=Math.round(Math.pow(a,.58)*255);heightData[o]=heightData[o+1]=heightData[o+2]=h;heightData[o+3]=255;visible||=a>.004}texture.needsUpdate=true;height.needsUpdate=true;mesh.visible=visible;}}}
+function tex(data,srgb){const t=new THREE.DataTexture(data,SIMULATION.gridWidth,SIMULATION.gridHeight,THREE.RGBAFormat,THREE.UnsignedByteType);if(srgb)t.colorSpace=THREE.SRGBColorSpace;t.flipY=true;t.minFilter=t.magFilter=THREE.LinearFilter;t.needsUpdate=true;return t}
+function surface(lift){const g=new THREE.PlaneGeometry(WORLD.floor.width,WORLD.floor.depth,176,112),p=g.attributes.position;for(let i=0;i<p.count;i++){const x=p.getX(i),z=-p.getY(i),offset=classifySurface(x,z)==='carpet'?WORLD.rug.thickness+lift:lift*.45;p.setZ(i,floorHeightAt(x)+offset)}g.rotateX(-Math.PI/2);return g}

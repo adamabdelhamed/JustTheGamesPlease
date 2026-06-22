@@ -13,11 +13,11 @@ struct Params { width:u32, height:u32, dt:f32, cellX:f32, cellZ:f32, slope:f32, 
 @group(0) @binding(7) var<uniform> p:Params;
 fn valid(i:u32)->bool{return surface[i]!=0u;}
 fn elevation(i:u32)->f32{let x=f32(i%p.width)*p.cellX-11.0;var e=-p.slope*x;if(surface[i]==2u){e+=0.085;}if(surface[i]==3u){e-=0.12;}return e;}
-fn head(i:u32)->f32{return elevation(i)+srcWater[i]*0.001;}
+fn head(i:u32)->f32{return elevation(i)+srcWater[i]*0.014;}
 fn neighbor(i:u32,dx:i32,dy:i32)->u32{let x=i32(i%p.width)+dx;let y=i32(i/p.width)+dy;if(x<0||y<0||x>=i32(p.width)||y>=i32(p.height)){return i;}return u32(y)*p.width+u32(x);}
 fn preference(source:u32,target:u32)->f32{if(source==target||!valid(target)){return 0.0;}let sx=i32(source%p.width);let sy=i32(source/p.width);let tx=i32(target%p.width);let ty=i32(target/p.width);let dir=normalize(vec2<f32>(f32(tx-sx),f32(ty-sy)));return max(0.0,(head(source)-head(target))*38.0+dot(srcVelocity[source],dir)*0.075);}
 fn weights(i:u32)->vec4<f32>{return vec4<f32>(preference(i,neighbor(i,-1,0)),preference(i,neighbor(i,1,0)),preference(i,neighbor(i,0,-1)),preference(i,neighbor(i,0,1)));}
-fn fraction(i:u32,w:vec4<f32>)->f32{let mobility=select(0.9,0.48,surface[i]==2u);return min(0.24,(w.x+w.y+w.z+w.w)*0.11)*mobility;}
+fn fraction(i:u32,w:vec4<f32>)->f32{let mobility=select(0.96,0.62,surface[i]==2u);return min(0.31,(w.x+w.y+w.z+w.w)*0.13)*mobility;}
 fn incoming(source:u32,target:u32)->f32{let w=weights(source);let total=w.x+w.y+w.z+w.w;if(total<0.000001){return 0.0;}let chosen=select(select(w.z,w.w,target==neighbor(source,0,1)),select(w.x,w.y,target==neighbor(source,1,0)),target==neighbor(source,-1,0)||target==neighbor(source,1,0));return srcWater[source]*fraction(source,w)*chosen/total;}
 @compute @workgroup_size(64)
 fn main(@builtin(global_invocation_id) id:vec3<u32>){let i=id.x;if(i>=p.width*p.height){return;}if(!valid(i)){dstWater[i]=0.0;dstSaturation[i]=0.0;dstVelocity[i]=vec2<f32>(0.0);return;}let w=weights(i);var gathered=srcWater[i]*(1.0-fraction(i,w));let l=neighbor(i,-1,0);let r=neighbor(i,1,0);let d=neighbor(i,0,-1);let u=neighbor(i,0,1);if(l!=i){gathered+=incoming(l,i);}if(r!=i){gathered+=incoming(r,i);}if(d!=i){gathered+=incoming(d,i);}if(u!=i){gathered+=incoming(u,i);}var sat=srcSaturation[i];if(surface[i]==2u){let absorb=min(gathered,min(25.0-sat,(0.025+gathered*0.008)*p.dt));let release=min(sat,max(0.0,0.8-gathered)*p.release*p.dt);gathered=gathered-absorb+release;sat=sat+absorb-release;}let hx=head(r)-head(l);let hz=head(u)-head(d);let velocity=srcVelocity[i]*0.91-vec2<f32>(hx/max(p.cellX,0.001),hz/max(p.cellZ,0.001))*p.dt*5.5;dstWater[i]=max(0.0,gathered);dstSaturation[i]=clamp(sat,0.0,25.0);dstVelocity[i]=clamp(velocity,vec2<f32>(-8.0),vec2<f32>(8.0));}`;
