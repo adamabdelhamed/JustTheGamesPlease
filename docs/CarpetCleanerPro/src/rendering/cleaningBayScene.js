@@ -116,17 +116,49 @@ function falseColor(value, target, offset, categoricalValue) {
 }
 
 function createSlopedFloor(resources) {
-  const geometry = new THREE.PlaneGeometry(WORLD.floor.width, WORLD.floor.depth, 44, 28);
-  const positions = geometry.attributes.position;
-  for (let index = 0; index < positions.count; index += 1) positions.setZ(index, floorHeightAt(positions.getX(index)));
-  geometry.computeVertexNormals();
-  geometry.rotateX(-Math.PI / 2);
-  resources.push(geometry);
   const material = nodeMaterial(0x45514c, { roughness: 0.76, metalness: 0.02 });
   resources.push(material);
-  const mesh = new THREE.Mesh(geometry, material);
-  mesh.receiveShadow = true;
-  return mesh;
+  const group = new THREE.Group();
+  const floorLeft = -WORLD.floor.width / 2;
+  const floorRight = WORLD.floor.width / 2;
+  const floorBack = -WORLD.floor.depth / 2;
+  const floorFront = WORLD.floor.depth / 2;
+  const drainLeft = WORLD.drain.centerX - WORLD.drain.width / 2;
+  const drainRight = WORLD.drain.centerX + WORLD.drain.width / 2;
+  const drainBack = WORLD.drain.centerZ - WORLD.drain.depth / 2;
+  const drainFront = WORLD.drain.centerZ + WORLD.drain.depth / 2;
+  const sections = [
+    [floorLeft, drainLeft, floorBack, floorFront],
+    [drainRight, floorRight, floorBack, floorFront],
+    [drainLeft, drainRight, floorBack, drainBack],
+    [drainLeft, drainRight, drainFront, floorFront]
+  ];
+  for (const bounds of sections) {
+    const geometry = createSlopedPlaneGeometry(...bounds);
+    const mesh = new THREE.Mesh(geometry, material);
+    mesh.receiveShadow = true;
+    group.add(mesh);
+    resources.push(geometry);
+  }
+  return group;
+}
+
+function createSlopedPlaneGeometry(minX, maxX, minZ, maxZ) {
+  const width = maxX - minX;
+  const depth = maxZ - minZ;
+  const centerX = (minX + maxX) / 2;
+  const centerZ = (minZ + maxZ) / 2;
+  const geometry = new THREE.PlaneGeometry(width, depth, Math.max(1, Math.ceil(width * 2)), Math.max(1, Math.ceil(depth * 2)));
+  const positions = geometry.attributes.position;
+  for (let index = 0; index < positions.count; index += 1) {
+    const worldX = positions.getX(index) + centerX;
+    positions.setX(index, worldX);
+    positions.setY(index, positions.getY(index) - centerZ);
+    positions.setZ(index, floorHeightAt(worldX));
+  }
+  geometry.computeVertexNormals();
+  geometry.rotateX(-Math.PI / 2);
+  return geometry;
 }
 
 function createDrain(resources) {
@@ -138,14 +170,26 @@ function createDrain(resources) {
   const steel = nodeMaterial(0x697872, { roughness: 0.28, metalness: 0.88 });
   resources.push(dark, steel);
 
-  const cavityGeometry = new THREE.BoxGeometry(drain.width, drain.intakeDepth, drain.depth);
   const intakeGeometry = new THREE.BoxGeometry(drain.width * 0.78, drain.intakeDepth * 0.75, drain.depth * 0.94);
-  resources.push(cavityGeometry, intakeGeometry);
-  const cavity = new THREE.Mesh(cavityGeometry, steel);
-  cavity.position.y = -drain.intakeDepth / 2 - 0.03;
+  const cavitySideGeometry = new THREE.BoxGeometry(0.08, drain.intakeDepth, drain.depth);
+  const cavityEndGeometry = new THREE.BoxGeometry(drain.width, drain.intakeDepth, 0.08);
+  const cavityBottomGeometry = new THREE.BoxGeometry(drain.width, 0.08, drain.depth);
+  resources.push(intakeGeometry, cavitySideGeometry, cavityEndGeometry, cavityBottomGeometry);
   const intake = new THREE.Mesh(intakeGeometry, dark);
   intake.position.y = -drain.intakeDepth / 2 + 0.04;
-  group.add(cavity, intake);
+  const bottom = new THREE.Mesh(cavityBottomGeometry, steel);
+  bottom.position.y = -drain.intakeDepth + 0.02;
+  group.add(intake, bottom);
+  for (const side of [-1, 1]) {
+    const wall = new THREE.Mesh(cavitySideGeometry, steel);
+    wall.position.set(side * (drain.width / 2 - 0.04), -drain.intakeDepth / 2, 0);
+    group.add(wall);
+  }
+  for (const end of [-1, 1]) {
+    const wall = new THREE.Mesh(cavityEndGeometry, steel);
+    wall.position.set(0, -drain.intakeDepth / 2, end * (drain.depth / 2 - 0.04));
+    group.add(wall);
+  }
 
   const railGeometry = new THREE.BoxGeometry(0.09, 0.08, drain.depth);
   resources.push(railGeometry);

@@ -13,11 +13,11 @@ export function createCarpetSurface(resources, diagnostics) {
   group.position.set(rug.centerX, floorHeightAt(rug.centerX) + rug.thickness / 2, rug.centerZ);
   group.rotation.z = -Math.atan(WORLD.floor.slope);
 
-  const edgeMaterial = new THREE.MeshStandardMaterial({ color: 0x6e2829, roughness: 0.88, metalness: 0 });
+  const edgeMaterial = new THREE.MeshStandardMaterial({ color: 0x302a25, roughness: 1, metalness: 0 });
   const topMaterial = new THREE.MeshStandardMaterial({ roughness: 0.94, metalness: 0 });
   const fiberMaterial = new THREE.MeshStandardMaterial({ roughness: 1, metalness: 0, vertexColors: true });
-  const bodyGeometry = new THREE.BoxGeometry(rug.width, rug.thickness, rug.depth, 20, 1, 14);
-  const topGeometry = new THREE.PlaneGeometry(rug.width - 0.22, rug.depth - 0.22, 48, 32);
+  const bodyGeometry = new THREE.BoxGeometry(rug.width, rug.thickness, rug.depth, 40, 1, 26);
+  const topGeometry = new THREE.PlaneGeometry(rug.width - 0.12, rug.depth - 0.12, 48, 32);
   topGeometry.rotateX(-Math.PI / 2);
   const fiberGeometry = new THREE.ConeGeometry(0.009, 0.07, 4, 1);
   const body = new THREE.Mesh(bodyGeometry, edgeMaterial);
@@ -103,8 +103,8 @@ function updateFibers(mesh, pattern, fields, testStates, seed) {
       const index = z * FIBERS_X + x;
       const jitter = hash(index, seed);
       const state = sampleState(u, v, fields, testStates);
-      const localX = (u - 0.5) * (WORLD.rug.width - 0.28) + (jitter - 0.5) * 0.025;
-      const localZ = (v - 0.5) * (WORLD.rug.depth - 0.28) + (hash(index + 91, seed) - 0.5) * 0.025;
+      const localX = (u - 0.5) * (WORLD.rug.width - 0.14) + (jitter - 0.5) * 0.025;
+      const localZ = (v - 0.5) * (WORLD.rug.depth - 0.14) + (hash(index + 91, seed) - 0.5) * 0.025;
       const heightScale = (0.82 + jitter * 0.3) * (1 - state.compression * 0.72);
       position.set(localX, WORLD.rug.thickness / 2 + 0.035 * heightScale + 0.01, localZ);
       euler.set((hash(index + 17, seed) - 0.5) * 0.2, hash(index + 31, seed) * Math.PI, state.compression * 0.48);

@@ -44,3 +44,7 @@ Completed 2026-06-22.
 - Desktop and 900×520 landscape-mobile reviews showed sharp pattern edges and visible pile depth without canvas pixelation.
 - Steady-state CPU render submission measured approximately 0.7–1.1 ms on the validation machine with no browser warnings.
 - JavaScript syntax checks, deterministic pattern assertions, and `git diff --check` passed. The repository has no Visual Studio solution to build.
+
+### Post-review correction
+
+- Reduced rug thickness from 16 cm to 8.5 cm, changed the exposed edge to a fully rough dark binding, and extended pile coverage closer to the perimeter so the border reads as carpet construction rather than a wooden frame.

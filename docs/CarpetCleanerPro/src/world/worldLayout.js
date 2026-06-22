@@ -1,7 +1,7 @@
 export const WORLD = deepFreeze({
   units: 'meters',
   floor: { width: 22, depth: 14, slope: 0.018 },
-  rug: { centerX: -1.5, centerZ: 0, width: 10, depth: 6.4, thickness: 0.16 },
+  rug: { centerX: -1.5, centerZ: 0, width: 10, depth: 6.4, thickness: 0.085 },
   drain: { centerX: 6.25, centerZ: 0, width: 1.15, depth: 9.8, intakeDepth: 0.72 },
   room: { wallHeight: 5.5 }
 });

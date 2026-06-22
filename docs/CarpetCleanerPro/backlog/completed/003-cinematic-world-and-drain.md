@@ -43,3 +43,8 @@ Completed 2026-06-22.
 - Browser visual review passed at 1952×912 desktop and 900×520 landscape. The unobstructed view retains the full rug, floor path, and drain.
 - The compiled scene stabilized around 0.6–1.2 ms CPU render time on the validation machine and emitted no console warnings.
 - World-layout assertions, JavaScript syntax checks, and `git diff --check` passed. The repository has no Visual Studio solution to build.
+
+### Post-review correction
+
+- Replaced the continuous floor beneath the drain with four sloped floor sections surrounding a real opening.
+- Rebuilt the trench as separate walls, bottom, and a recessed dark intake so grate gaps reveal drain depth rather than concrete.
