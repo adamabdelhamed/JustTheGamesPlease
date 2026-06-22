@@ -60,6 +60,13 @@ export function createDiagnosticsPanel() {
       state.set('Input determinism', results.map(result => `${result.renderFps}:${result.samples}/${result.checksum}`).join(' | '));
       render(true);
     },
+    setToolUsage({ tool, submittedMass, ledger }) {
+      state.set('Active tool', tool);
+      state.set('Tool submitted', `${submittedMass.toFixed(5)} kg`);
+      state.set('Tool field mass', `${ledger.current.toFixed(5)} kg`);
+      state.set('Tool residual', `${ledger.residual.toExponential(2)} kg`);
+      render(true);
+    },
     updateFrame({ cpuMs, frameMs, renderedFrames }) {
       state.set('Renderer', 'Three.js WebGPU r180');
       state.set('CPU render', `${cpuMs.toFixed(2)} ms`);

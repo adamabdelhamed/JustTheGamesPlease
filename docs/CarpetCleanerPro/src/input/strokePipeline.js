@@ -11,6 +11,7 @@ export class StrokePipeline {
     this.rawEventTimes = [];
     this.outputCount = 0;
     this.lastLatencyMs = 0;
+    this.lastTerminalTime = null;
   }
 
   addSample(sample) {
@@ -36,6 +37,13 @@ export class StrokePipeline {
       this.outputCount += 1;
       this.onPose(smoothed);
       this.nextTime += RESAMPLE_INTERVAL_MS;
+    }
+    if (!latest.contact && this.previousPose?.contact && this.lastTerminalTime !== latest.time) {
+      const terminal = this.smooth(latest);
+      this.lastTerminalTime = latest.time;
+      this.lastLatencyMs = Math.max(0, now - latest.time);
+      this.outputCount += 1;
+      this.onPose(terminal);
     }
     const discardBefore = Math.max(0, this.nextTime - RESAMPLE_INTERVAL_MS * 2);
     while (this.samples.length > 2 && this.samples[1].time < discardBefore) this.samples.shift();
@@ -66,6 +74,7 @@ export class StrokePipeline {
     this.previousPose = null;
     this.outputCount = 0;
     this.lastLatencyMs = 0;
+    this.lastTerminalTime = null;
   }
 
   metrics() {
@@ -79,18 +88,23 @@ export class StrokePipeline {
 }
 
 export function runStrokePlaybackTest() {
+  return [30, 60, 120].map(renderFps => {
+    const poses = replayRecordedStroke(renderFps);
+    return { renderFps, samples: poses.length, checksum: poseChecksum(poses) };
+  });
+}
+
+export function replayRecordedStroke(renderFps) {
   const recorded = [
     sample(0, -4.5, -2.2, true), sample(18, -3.8, -1.5, true), sample(47, -2.1, 0.2, true),
     sample(79, 0.4, 1.8, true), sample(116, 2.8, 0.6, true), sample(154, 4.6, -1.9, true), sample(180, 4.6, -1.9, false)
   ];
-  return [30, 60, 120].map(renderFps => {
-    const poses = [];
-    const pipeline = new StrokePipeline(pose => poses.push(pose));
-    recorded.forEach(item => pipeline.addSample(item));
-    const frameMs = 1000 / renderFps;
-    for (let time = 0; time <= 220 + frameMs; time += frameMs) pipeline.advanceTo(time);
-    return { renderFps, samples: poses.length, checksum: poseChecksum(poses) };
-  });
+  const poses = [];
+  const pipeline = new StrokePipeline(pose => poses.push(pose));
+  recorded.forEach(item => pipeline.addSample(item));
+  const frameMs = 1000 / renderFps;
+  for (let time = 0; time <= 220 + frameMs; time += frameMs) pipeline.advanceTo(time);
+  return poses;
 }
 
 function sample(time, x, z, contact) { return { time, x, y: 0, z, pressure: contact ? 0.65 : 0, contact, source: 'fixture' }; }

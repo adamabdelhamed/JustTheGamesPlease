@@ -3,11 +3,18 @@ import { FixedStepScheduler } from './fixedStepScheduler.js';
 import { ProofField } from './proofField.js';
 import { MaterialFieldSet } from './materialFieldSet.js';
 import { MATERIAL_FIELDS } from './materialSchema.js';
+import { SoapSource } from './soapSource.js';
 
-export function createGpuSimulation(device, diagnostics, materialDebugSink, carpetVisualSink) {
+export function createGpuSimulation(device, diagnostics, materialDebugSink, carpetVisualSink, soapVisualSink) {
   const proofField = new ProofField(device, SIMULATION.proofFieldLength, SIMULATION.defaultSeed);
   const materials = new MaterialFieldSet(device, SIMULATION.defaultSeed);
-  const passes = [{ name: 'proof-field', encode: (encoder, tick) => proofField.encode(encoder, tick) }];
+  const soapSource = new SoapSource(device, materials);
+  let soapDirty = false;
+  let soapVisualPending = false;
+  const passes = [
+    { name: 'soap-source', encode: encoder => { if (soapSource.encode(encoder)) soapDirty = true; } },
+    { name: 'proof-field', encode: (encoder, tick) => proofField.encode(encoder, tick) }
+  ];
   let checksum = 'pending';
   let checksumRequest = 0;
   let appliedChecksumRequest = 0;
@@ -40,12 +47,32 @@ export function createGpuSimulation(device, diagnostics, materialDebugSink, carp
     scheduler.reset();
     proofField.reset(seed);
     materials.reset(seed);
+    soapSource.reset();
+    soapDirty = false;
     lastChecksumTick = -1;
     checksum = await updateChecksum();
     diagnostics.setMaterialSchema(MATERIAL_FIELDS, seed);
     await refreshCarpetVisuals(seed);
+    await refreshSoapVisual();
     if (selectedField) await inspectField(selectedField);
     publish();
+  }
+
+  async function refreshSoapVisual() {
+    if (soapVisualPending) return;
+    soapVisualPending = true;
+    try {
+      const inspection = await materials.inspect('soap');
+      soapVisualSink(inspection);
+      diagnostics.setToolUsage({ tool: 'soap', submittedMass: soapSource.totalSubmittedMass, ledger: inspection.ledger });
+      if (selectedField === 'soap') {
+        materialDebugSink(inspection);
+        diagnostics.setMaterialInspection(inspection);
+      }
+      soapDirty = false;
+    } finally {
+      soapVisualPending = false;
+    }
   }
 
   async function refreshCarpetVisuals(seed) {
@@ -89,10 +116,12 @@ export function createGpuSimulation(device, diagnostics, materialDebugSink, carp
         lastChecksumTick = scheduler.tick;
         updateChecksum().then(publish);
       }
+      if (soapDirty && scheduler.tick % 12 === 0) refreshSoapVisual();
       publish();
     },
     async reset(seed) { await reset(seed); },
     inspectField,
+    applyToolPose(pose) { soapSource.enqueue(pose); },
     setPaused(paused) { scheduler.paused = paused; publish(); },
     singleStep() { scheduler.singleStep(); updateChecksum().then(publish); publish(); },
     async runDeterminismTest() {
@@ -112,6 +141,6 @@ export function createGpuSimulation(device, diagnostics, materialDebugSink, carp
       return results;
     },
     async initialize() { await reset(); },
-    dispose() { proofField.dispose(); materials.dispose(); }
+    dispose() { proofField.dispose(); soapSource.dispose(); materials.dispose(); }
   };
 }

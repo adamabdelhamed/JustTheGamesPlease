@@ -24,10 +24,15 @@ export async function createWebGpuRuntime({ canvas, diagnostics, adapterInfo }) 
     renderer.backend.device,
     diagnostics,
     inspection => content.setMaterialDebugView(inspection),
-    fields => content.setCarpetFields(fields)
+    fields => content.setCarpetFields(fields),
+    inspection => content.setSoapField(inspection)
   );
   await simulation.initialize();
   const input = createInputController({ canvas, container: document.querySelector('#game'), sceneContent: content, diagnostics });
+  input.onPose(pose => {
+    simulation.applyToolPose(pose);
+    content.setToolPose(pose);
+  });
   let animationFrame = 0;
   let disposed = false;
   let startedAt = performance.now();
@@ -92,6 +97,7 @@ export async function createWebGpuRuntime({ canvas, diagnostics, adapterInfo }) 
     input,
     setGeometryDiagnostics(visible) { content.setDiagnosticsVisible(visible); },
     setCarpetTestStates(visible) { content.setCarpetTestStates(visible); },
+    selectTool(name) { content.setToolSelected(name); },
     projectScreenToWorkPlane(normalizedX, normalizedY, target) {
       return content.projectScreenToWorkPlane(normalizedX, normalizedY, target);
     },

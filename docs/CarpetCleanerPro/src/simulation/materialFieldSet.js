@@ -67,6 +67,18 @@ export class MaterialFieldSet {
     return Object.fromEntries([...this.ledger].map(([name, values]) => [name, { ...values }]));
   }
 
+  getBuffer(name) {
+    const buffer = this.buffers.get(name);
+    if (!buffer) throw new Error(`Unknown material buffer: ${name}`);
+    return buffer;
+  }
+
+  recordInjected(name, massKg) {
+    const ledger = this.ledger.get(name);
+    if (!ledger) throw new Error(`Unknown material ledger: ${name}`);
+    ledger.injected += massKg;
+  }
+
   dispose() {
     for (const buffer of this.buffers.values()) buffer.destroy();
     this.surfaceMaskBuffer.destroy();

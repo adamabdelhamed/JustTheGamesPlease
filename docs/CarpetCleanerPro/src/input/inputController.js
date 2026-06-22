@@ -2,7 +2,11 @@ import { StrokePipeline, runStrokePlaybackTest } from './strokePipeline.js';
 
 export function createInputController({ canvas, container, sceneContent, diagnostics }) {
   const rawPoints = [];
-  const pipeline = new StrokePipeline(pose => sceneContent.addInputPose(pose));
+  const poseListeners = [];
+  const pipeline = new StrokePipeline(pose => {
+    sceneContent.addInputPose(pose);
+    poseListeners.forEach(listener => listener(pose));
+  });
   const pointer = { id: null, down: false };
   const left = { x: 0, y: 0, active: false, ended: true };
   const right = { x: 0, y: 0 };
@@ -107,6 +111,7 @@ export function createInputController({ canvas, container, sceneContent, diagnos
     },
     setDiagnosticsVisible(visible) { sceneContent.setInputDiagnosticsVisible(visible); },
     runPlaybackTest() { return runStrokePlaybackTest(); },
+    onPose(listener) { poseListeners.push(listener); return () => { const index = poseListeners.indexOf(listener); if (index >= 0) poseListeners.splice(index, 1); }; },
     cancel() {
       if (pointer.down) {
         pointer.down = false; pointer.id = null;

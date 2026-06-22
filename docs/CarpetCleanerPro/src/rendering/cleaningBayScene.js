@@ -5,6 +5,7 @@ import { SIMULATION } from '../config/gameConfig.js';
 import { createCarpetSurface } from './carpetSurface.js';
 import { createInputVisualizer } from './inputVisualizer.js';
 import { ConstrainedCameraRig } from '../input/constrainedCameraRig.js';
+import { createSoapVisual } from './soapVisual.js';
 
 const LOOK_AT = new THREE.Vector3(0.4, 0, 0);
 
@@ -29,6 +30,8 @@ export function createCleaningBayScene(diagnosticsPanel) {
   scene.add(materialDebug.mesh);
   const inputVisualizer = createInputVisualizer(resources);
   scene.add(inputVisualizer.group);
+  const soapVisual = createSoapVisual(resources);
+  scene.add(soapVisual.fieldMesh, soapVisual.group);
 
   const worldDiagnostics = createWorldDiagnostics();
   worldDiagnostics.visible = false;
@@ -56,6 +59,9 @@ export function createCleaningBayScene(diagnosticsPanel) {
     setCarpetFields(fields) { carpet.setFields(fields); },
     setCarpetTestStates(enabled) { carpet.setTestStates(enabled); },
     setMaterialDebugView(inspection) { materialDebug.setInspection(inspection); },
+    setSoapField(inspection) { soapVisual.setField(inspection); },
+    setToolSelected(name) { soapVisual.setSelected(name === 'soap'); },
+    setToolPose(pose) { soapVisual.setPose(pose); },
     addRawInput(point) { inputVisualizer.addRaw(point); },
     addInputPose(pose) { inputVisualizer.addPose(pose); },
     setInputDiagnosticsVisible(visible) { inputVisualizer.setVisible(visible); },
@@ -71,9 +77,11 @@ export function createCleaningBayScene(diagnosticsPanel) {
     cameraState() { return cameraRig.snapshot(); },
     projectScreenToWorkPlane(normalizedX, normalizedY, target = new THREE.Vector3()) {
       raycaster.setFromCamera(new THREE.Vector2(normalizedX, normalizedY), camera);
-      return raycaster.ray.intersectPlane(workPlane, target);
+      const hit = raycaster.ray.intersectPlane(workPlane, target);
+      if (hit && classifySurface(hit.x, hit.z) === 'carpet') hit.y += WORLD.rug.thickness;
+      return hit;
     },
-    update() {},
+    update(elapsedSeconds) { soapVisual.update(elapsedSeconds); },
     dispose() {
       for (const resource of resources) resource.dispose();
       worldDiagnostics.traverse(object => {

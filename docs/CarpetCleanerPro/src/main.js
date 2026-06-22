@@ -17,11 +17,24 @@ try {
   message.textContent = 'WebGPU runtime ready.';
   document.documentElement.classList.add('runtime-ready');
   wireDeveloperControls(runtime, diagnostics);
+  wireToolControls(runtime);
 } catch (error) {
   document.documentElement.classList.add('unsupported');
   message.textContent = error.message;
   diagnostics.fail(error.code ? error.code.toUpperCase() : 'DEVICE ERROR');
   console.error(error);
+}
+
+function wireToolControls(activeRuntime) {
+  const soap = document.querySelector('#soapTool');
+  function selectSoap() {
+    soap.classList.add('selected');
+    soap.setAttribute('aria-pressed', 'true');
+    activeRuntime.selectTool('soap');
+  }
+  soap.addEventListener('click', selectSoap);
+  addEventListener('keydown', event => { if (event.key === '1') selectSoap(); });
+  selectSoap();
 }
 
 addEventListener('pagehide', () => runtime?.dispose(), { once: true });
