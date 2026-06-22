@@ -2,6 +2,7 @@ import * as THREE from 'three/webgpu';
 import { createCleaningBayScene } from './cleaningBayScene.js';
 import { createGpuSimulation } from '../simulation/gpuSimulation.js';
 import { WORLD } from '../world/worldLayout.js';
+import { createInputController } from '../input/inputController.js';
 
 const MAX_DPR = 2;
 
@@ -26,6 +27,7 @@ export async function createWebGpuRuntime({ canvas, diagnostics, adapterInfo }) 
     fields => content.setCarpetFields(fields)
   );
   await simulation.initialize();
+  const input = createInputController({ canvas, container: document.querySelector('#game'), sceneContent: content, diagnostics });
   let animationFrame = 0;
   let disposed = false;
   let startedAt = performance.now();
@@ -54,6 +56,7 @@ export async function createWebGpuRuntime({ canvas, diagnostics, adapterInfo }) 
   async function frame(now) {
     if (disposed) return;
     resize();
+    input.update(now);
     const elapsedSeconds = Math.min(1, (now - previousFrame) / 1000);
     simulation.advance(elapsedSeconds);
     const renderInterval = renderCap > 0 ? 1000 / renderCap : 0;
@@ -86,6 +89,7 @@ export async function createWebGpuRuntime({ canvas, diagnostics, adapterInfo }) 
 
   return {
     simulation,
+    input,
     setGeometryDiagnostics(visible) { content.setDiagnosticsVisible(visible); },
     setCarpetTestStates(visible) { content.setCarpetTestStates(visible); },
     projectScreenToWorkPlane(normalizedX, normalizedY, target) {
@@ -98,6 +102,7 @@ export async function createWebGpuRuntime({ canvas, diagnostics, adapterInfo }) 
       cancelAnimationFrame(animationFrame);
       content.dispose();
       simulation.dispose();
+      input.dispose();
       renderer.dispose();
       diagnostics.setStatus('STOPPED');
     }

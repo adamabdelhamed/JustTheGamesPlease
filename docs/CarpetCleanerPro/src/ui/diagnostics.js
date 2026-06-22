@@ -49,6 +49,17 @@ export function createDiagnosticsPanel() {
       state.set('Pile state', testStates ? '4-region diagnostic' : 'authoritative fields');
       render(true);
     },
+    setInputMetrics({ rawEventRate, outputCount, latencyMs, latencyBudgetMs, source, camera }) {
+      state.set('Input source', source);
+      state.set('Input raw / poses', `${rawEventRate} Hz / ${formatNumber(outputCount)}`);
+      state.set('Input latency', `${latencyMs.toFixed(1)} ms / ≤${latencyBudgetMs} ms smoothing`);
+      state.set('Camera ellipse', `${camera.azimuthDegrees.toFixed(1)}° / ${camera.distance.toFixed(1)} m`);
+      render();
+    },
+    setInputTestResult(results) {
+      state.set('Input determinism', results.map(result => `${result.renderFps}:${result.samples}/${result.checksum}`).join(' | '));
+      render(true);
+    },
     updateFrame({ cpuMs, frameMs, renderedFrames }) {
       state.set('Renderer', 'Three.js WebGPU r180');
       state.set('CPU render', `${cpuMs.toFixed(2)} ms`);

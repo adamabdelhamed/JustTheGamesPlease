@@ -3,6 +3,8 @@ import { color } from 'three/tsl';
 import { WORLD, classifySurface, floorHeightAt } from '../world/worldLayout.js';
 import { SIMULATION } from '../config/gameConfig.js';
 import { createCarpetSurface } from './carpetSurface.js';
+import { createInputVisualizer } from './inputVisualizer.js';
+import { ConstrainedCameraRig } from '../input/constrainedCameraRig.js';
 
 const LOOK_AT = new THREE.Vector3(0.4, 0, 0);
 
@@ -15,6 +17,7 @@ export function createCleaningBayScene(diagnosticsPanel) {
   const raycaster = new THREE.Raycaster();
   const workPlane = new THREE.Plane(new THREE.Vector3(WORLD.floor.slope, 1, 0).normalize(), 0);
   const resources = [];
+  const cameraRig = new ConstrainedCameraRig();
 
   const floor = createSlopedFloor(resources);
   scene.add(floor);
@@ -24,6 +27,8 @@ export function createCleaningBayScene(diagnosticsPanel) {
   scene.add(createRoomShell(resources));
   const materialDebug = createMaterialDebugOverlay(resources);
   scene.add(materialDebug.mesh);
+  const inputVisualizer = createInputVisualizer(resources);
+  scene.add(inputVisualizer.group);
 
   const worldDiagnostics = createWorldDiagnostics();
   worldDiagnostics.visible = false;
@@ -31,10 +36,14 @@ export function createCleaningBayScene(diagnosticsPanel) {
   addLighting(scene);
 
   function resize(width, height) {
-    const aspect = width / height;
-    const narrowAdjustment = Math.max(0, 1.55 - aspect);
-    camera.position.set(11 + narrowAdjustment * 3.5, 13 + narrowAdjustment * 3, 16.5 + narrowAdjustment * 4);
-    camera.aspect = aspect;
+    cameraRig.resize(width / height);
+    updateCameraPose();
+  }
+
+  function updateCameraPose() {
+    const pose = cameraRig.pose(LOOK_AT);
+    camera.position.set(pose.x, pose.y, pose.z);
+    camera.aspect = cameraRig.aspect;
     camera.lookAt(LOOK_AT);
     camera.updateProjectionMatrix();
   }
@@ -47,6 +56,19 @@ export function createCleaningBayScene(diagnosticsPanel) {
     setCarpetFields(fields) { carpet.setFields(fields); },
     setCarpetTestStates(enabled) { carpet.setTestStates(enabled); },
     setMaterialDebugView(inspection) { materialDebug.setInspection(inspection); },
+    addRawInput(point) { inputVisualizer.addRaw(point); },
+    addInputPose(pose) { inputVisualizer.addPose(pose); },
+    setInputDiagnosticsVisible(visible) { inputVisualizer.setVisible(visible); },
+    resetInputDiagnostics() { inputVisualizer.reset(); },
+    applyCameraControl(orbit, zoom, dt) {
+      cameraRig.applyStick(orbit, zoom, dt);
+      updateCameraPose();
+    },
+    nudgeCamera(deltaX, deltaY) {
+      cameraRig.applyPointer(deltaX, deltaY);
+      updateCameraPose();
+    },
+    cameraState() { return cameraRig.snapshot(); },
     projectScreenToWorkPlane(normalizedX, normalizedY, target = new THREE.Vector3()) {
       raycaster.setFromCamera(new THREE.Vector2(normalizedX, normalizedY), camera);
       return raycaster.ray.intersectPlane(workPlane, target);

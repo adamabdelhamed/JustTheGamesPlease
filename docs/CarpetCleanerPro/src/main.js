@@ -63,4 +63,10 @@ function wireDeveloperControls(activeRuntime, panel) {
     event.currentTarget.setAttribute('aria-pressed', String(visible));
     activeRuntime.setCarpetTestStates(visible);
   });
+  document.querySelector('#inputDiagnostics').addEventListener('click', event => {
+    const visible = event.currentTarget.getAttribute('aria-pressed') !== 'true';
+    event.currentTarget.setAttribute('aria-pressed', String(visible));
+    activeRuntime.input.setDiagnosticsVisible(visible);
+  });
+  document.querySelector('#inputTest').addEventListener('click', () => panel.setInputTestResult(activeRuntime.input.runPlaybackTest()));
 }

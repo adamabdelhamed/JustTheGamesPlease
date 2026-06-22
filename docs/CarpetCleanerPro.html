@@ -16,6 +16,7 @@
   </script>
   <script src="lib/analytics.js"></script>
   <link rel="stylesheet" href="lib/top-bar/top-bar.css?v=20260618-2">
+  <link rel="stylesheet" href="lib/controller/controller.css">
   <link rel="stylesheet" href="CarpetCleanerPro/game.css">
 </head>
 <body>
@@ -47,6 +48,8 @@
         <button type="button" id="simTest">TEST 30/60/120</button>
         <button type="button" id="geometryDiagnostics" aria-pressed="false">WORLD OVERLAY</button>
         <button type="button" id="carpetStates" aria-pressed="false">CARPET TEST STATES</button>
+        <button type="button" id="inputDiagnostics" aria-pressed="true">INPUT OVERLAY</button>
+        <button type="button" id="inputTest">TEST INPUT 30/60/120</button>
       </div>
       <label class="render-cap">Render cap
         <select id="renderCap"><option value="0">Display</option><option value="30">30 FPS</option><option value="60">60 FPS</option><option value="120">120 FPS</option></select>
@@ -58,9 +61,12 @@
         <select id="worldSeed"><option value="1831565813">Seed A</option><option value="305419896">Seed B</option><option value="3735928558">Seed C</option></select>
       </label>
     </aside>
+    <div class="joystick left" id="leftStick" aria-label="Tool control joystick"><div class="stick-ring"><div class="stick-knob"><span>TOOL</span></div></div></div>
+    <div class="joystick right" id="rightStick" aria-label="Camera control joystick"><div class="stick-ring"><div class="stick-knob"><span>VIEW</span></div></div></div>
   </main>
   <script src="lib/top-bar/top-bar.js?v=20260618-2"></script>
   <script src="lib/audio/audio.js?v=20260618-2"></script>
+  <script src="lib/controller/controller.js"></script>
   <script type="module" src="CarpetCleanerPro/src/main.js?v=20260622-1"></script>
 </body>
 </html>
