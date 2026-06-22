@@ -67,6 +67,12 @@ export function createDiagnosticsPanel() {
       state.set('Tool residual', `${ledger.residual.toExponential(2)} kg`);
       render(true);
     },
+    setWaterUsage({ submittedMass, currentMass, residual }) {
+      state.set('Water submitted', `${submittedMass.toFixed(5)} kg`);
+      state.set('Water free + absorbed', `${currentMass.toFixed(5)} kg`);
+      state.set('Water residual', `${residual.toExponential(2)} kg`);
+      render(true);
+    },
     updateFrame({ cpuMs, frameMs, renderedFrames }) {
       state.set('Renderer', 'Three.js WebGPU r180');
       state.set('CPU render', `${cpuMs.toFixed(2)} ms`);

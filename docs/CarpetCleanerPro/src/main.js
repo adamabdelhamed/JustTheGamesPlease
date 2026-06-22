@@ -26,15 +26,19 @@ try {
 }
 
 function wireToolControls(activeRuntime) {
-  const soap = document.querySelector('#soapTool');
-  function selectSoap() {
-    soap.classList.add('selected');
-    soap.setAttribute('aria-pressed', 'true');
-    activeRuntime.selectTool('soap');
+  const tools = { soap: document.querySelector('#soapTool'), water: document.querySelector('#waterTool') };
+  function selectTool(name) {
+    for (const [toolName, button] of Object.entries(tools)) {
+      const selected = toolName === name;
+      button.classList.toggle('selected', selected);
+      button.setAttribute('aria-pressed', String(selected));
+    }
+    activeRuntime.selectTool(name);
   }
-  soap.addEventListener('click', selectSoap);
-  addEventListener('keydown', event => { if (event.key === '1') selectSoap(); });
-  selectSoap();
+  tools.soap.addEventListener('click', () => selectTool('soap'));
+  tools.water.addEventListener('click', () => selectTool('water'));
+  addEventListener('keydown', event => { if (event.key === '1') selectTool('soap'); if (event.key === '2') selectTool('water'); });
+  selectTool('soap');
 }
 
 addEventListener('pagehide', () => runtime?.dispose(), { once: true });

@@ -9,13 +9,16 @@ export class MaterialFieldSet {
     this.device = device;
     this.cellCount = SIMULATION.gridWidth * SIMULATION.gridHeight;
     this.buffers = new Map();
+    this.primaryBuffers = new Map();
     this.ledger = new Map();
     for (const [name, schema] of Object.entries(MATERIAL_FIELDS)) {
-      this.buffers.set(name, device.createBuffer({
+      const buffer = device.createBuffer({
         label: `Material field: ${name}`,
         size: this.cellCount * schema.components * FLOAT_BYTES,
         usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST | GPUBufferUsage.COPY_SRC
-      }));
+      });
+      this.buffers.set(name, buffer);
+      this.primaryBuffers.set(name, buffer);
     }
     this.surfaceMaskBuffer = device.createBuffer({
       label: 'Immutable surface classification mask',
@@ -41,7 +44,9 @@ export class MaterialFieldSet {
           values[index] = scale * variation * patch;
         }
       }
-      this.device.queue.writeBuffer(this.buffers.get(name), 0, values);
+      const primary = this.primaryBuffers.get(name);
+      this.buffers.set(name, primary);
+      this.device.queue.writeBuffer(primary, 0, values);
       const initial = schema.conserved ? totalQuantity(values, schema.components) : 0;
       this.ledger.set(name, { initial, injected: 0, drained: 0, extracted: 0, current: initial, residual: 0 });
     }
@@ -79,8 +84,15 @@ export class MaterialFieldSet {
     ledger.injected += massKg;
   }
 
+  setBuffer(name, buffer) {
+    if (!this.buffers.has(name)) throw new Error(`Unknown material buffer: ${name}`);
+    this.buffers.set(name, buffer);
+  }
+
+  getSurfaceMaskBuffer() { return this.surfaceMaskBuffer; }
+
   dispose() {
-    for (const buffer of this.buffers.values()) buffer.destroy();
+    for (const buffer of this.primaryBuffers.values()) buffer.destroy();
     this.surfaceMaskBuffer.destroy();
   }
 }

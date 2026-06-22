@@ -4,16 +4,29 @@ import { ProofField } from './proofField.js';
 import { MaterialFieldSet } from './materialFieldSet.js';
 import { MATERIAL_FIELDS } from './materialSchema.js';
 import { SoapSource } from './soapSource.js';
+import { WaterSource } from './waterSource.js';
+import { WaterSolver } from './waterSolver.js';
 
-export function createGpuSimulation(device, diagnostics, materialDebugSink, carpetVisualSink, soapVisualSink) {
+export function createGpuSimulation(device, diagnostics, materialDebugSink, carpetVisualSink, soapVisualSink, waterVisualSink) {
   const proofField = new ProofField(device, SIMULATION.proofFieldLength, SIMULATION.defaultSeed);
   const materials = new MaterialFieldSet(device, SIMULATION.defaultSeed);
   const soapSource = new SoapSource(device, materials);
+  const waterSolver = new WaterSolver(device, materials);
+  const waterSource = new WaterSource(device, materials, waterSolver.waterBuffers, waterSolver.velocityBuffers);
+  let selectedTool = 'soap';
   let soapDirty = false;
   let soapVisualPending = false;
   let soapGeneration = 0;
+  let waterDirty = false;
+  let waterVisualPending = false;
+  let waterGeneration = 0;
+  let waterActiveUntilTick = 0;
+  let carpetState = null;
+  let waterInjectedThisTick = false;
   const passes = [
     { name: 'soap-source', encode: encoder => { if (soapSource.encode(encoder)) soapDirty = true; } },
+    { name: 'water-source', encode: encoder => { waterInjectedThisTick = waterSource.encode(encoder, waterSolver.activeIndex); if (waterInjectedThisTick) waterDirty = true; } },
+    { name: 'water-flow', encode: (encoder, tick, dt) => { if (!waterInjectedThisTick) waterSolver.encode(encoder, dt); } },
     { name: 'proof-field', encode: (encoder, tick) => proofField.encode(encoder, tick) }
   ];
   let checksum = 'pending';
@@ -27,8 +40,9 @@ export function createGpuSimulation(device, diagnostics, materialDebugSink, carp
     fixedStepSeconds: SIMULATION.fixedStepSeconds,
     maxSubsteps: SIMULATION.maxSubsteps,
     step(tick) {
+      waterInjectedThisTick = false;
       const encoder = device.createCommandEncoder({ label: `Simulation tick ${tick}` });
-      for (const pass of passes) pass.encode(encoder, tick);
+      for (const pass of passes) pass.encode(encoder, tick, SIMULATION.fixedStepSeconds);
       device.queue.submit([encoder.finish()]);
     }
   });
@@ -48,14 +62,20 @@ export function createGpuSimulation(device, diagnostics, materialDebugSink, carp
     scheduler.reset();
     proofField.reset(seed);
     materials.reset(seed);
+    waterSolver.reset();
     soapSource.reset();
+    waterSource.reset();
     soapDirty = false;
     soapGeneration = 0;
+    waterDirty = false;
+    waterGeneration = 0;
+    waterActiveUntilTick = 0;
     lastChecksumTick = -1;
     checksum = await updateChecksum();
     diagnostics.setMaterialSchema(MATERIAL_FIELDS, seed);
     await refreshCarpetVisuals(seed);
     await refreshSoapVisual();
+    await refreshWaterVisual();
     if (selectedField) await inspectField(selectedField);
     publish();
   }
@@ -83,7 +103,28 @@ export function createGpuSimulation(device, diagnostics, materialDebugSink, carp
       materials.inspect('embeddedSoil'),
       materials.inspect('carpetSaturation')
     ]);
-    carpetVisualSink({ seed, embeddedSoil: embedded.values, carpetSaturation: saturation.values });
+    carpetState = { seed, embeddedSoil: embedded.values, carpetSaturation: saturation.values };
+    carpetVisualSink(carpetState);
+  }
+
+  async function refreshWaterVisual() {
+    if (waterVisualPending) return;
+    waterVisualPending = true;
+    const requestedGeneration = waterGeneration;
+    try {
+      const [free, saturation] = await Promise.all([materials.inspect('freeWater'), materials.inspect('carpetSaturation')]);
+      if (requestedGeneration === waterGeneration) waterVisualSink({ type: 'authoritative', inspection: free });
+      if (carpetState && requestedGeneration === waterGeneration) {
+        carpetState = { ...carpetState, carpetSaturation: saturation.values };
+        carpetVisualSink(carpetState);
+      }
+      const initial = free.ledger.initial + saturation.ledger.initial;
+      const current = free.ledger.current + saturation.ledger.current;
+      diagnostics.setWaterUsage({ submittedMass: waterSource.totalSubmittedMass, currentMass: current, residual: initial + free.ledger.injected - current });
+      if (selectedField === 'freeWater') { materialDebugSink(free); diagnostics.setMaterialInspection(free); }
+      if (selectedField === 'carpetSaturation') { materialDebugSink(saturation); diagnostics.setMaterialInspection(saturation); }
+      if (requestedGeneration === waterGeneration) waterDirty = false;
+    } finally { waterVisualPending = false; }
   }
 
   async function inspectField(name) {
@@ -120,17 +161,26 @@ export function createGpuSimulation(device, diagnostics, materialDebugSink, carp
         updateChecksum().then(publish);
       }
       if (soapDirty && scheduler.tick % 12 === 0) refreshSoapVisual();
+      if ((waterDirty || scheduler.tick < waterActiveUntilTick) && scheduler.tick % 8 === 0) refreshWaterVisual();
       publish();
     },
     async reset(seed) { await reset(seed); },
     inspectField,
     applyToolPose(pose) {
-      const footprint = soapSource.enqueue(pose);
+      const source = selectedTool === 'water' ? waterSource : soapSource;
+      const footprint = source.enqueue(pose);
       if (footprint.entries.length > 0) {
-        soapGeneration += 1;
-        soapVisualSink({ type: 'pending-source', entries: footprint.entries });
+        if (selectedTool === 'water') {
+          waterGeneration += 1;
+          waterActiveUntilTick = scheduler.tick + 300;
+          waterVisualSink({ type: 'pending-source', entries: footprint.entries });
+        } else {
+          soapGeneration += 1;
+          soapVisualSink({ type: 'pending-source', entries: footprint.entries });
+        }
       }
     },
+    selectTool(name) { selectedTool = name === 'water' ? 'water' : 'soap'; },
     setPaused(paused) { scheduler.paused = paused; publish(); },
     singleStep() { scheduler.singleStep(); updateChecksum().then(publish); publish(); },
     async runDeterminismTest() {
@@ -150,6 +200,6 @@ export function createGpuSimulation(device, diagnostics, materialDebugSink, carp
       return results;
     },
     async initialize() { await reset(); },
-    dispose() { proofField.dispose(); soapSource.dispose(); materials.dispose(); }
+    dispose() { proofField.dispose(); soapSource.dispose(); waterSource.dispose(); waterSolver.dispose(); materials.dispose(); }
   };
 }

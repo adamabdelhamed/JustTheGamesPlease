@@ -6,6 +6,7 @@ import { createCarpetSurface } from './carpetSurface.js';
 import { createInputVisualizer } from './inputVisualizer.js';
 import { ConstrainedCameraRig } from '../input/constrainedCameraRig.js';
 import { createSoapVisual } from './soapVisual.js';
+import { createWaterVisual } from './waterVisual.js';
 
 const LOOK_AT = new THREE.Vector3(0.4, 0, 0);
 
@@ -32,6 +33,8 @@ export function createCleaningBayScene(diagnosticsPanel) {
   scene.add(inputVisualizer.group);
   const soapVisual = createSoapVisual(resources);
   scene.add(soapVisual.fieldMesh, soapVisual.group);
+  const waterVisual = createWaterVisual(resources);
+  scene.add(waterVisual.fieldMesh, waterVisual.group);
 
   const worldDiagnostics = createWorldDiagnostics();
   worldDiagnostics.visible = false;
@@ -63,8 +66,12 @@ export function createCleaningBayScene(diagnosticsPanel) {
       if (update.type === 'pending-source') soapVisual.addPending(update.entries);
       else soapVisual.setField(update.inspection);
     },
-    setToolSelected(name) { soapVisual.setSelected(name === 'soap'); },
-    setToolPose(pose) { soapVisual.setPose(pose); },
+    updateWaterField(update) {
+      if (update.type === 'pending-source') waterVisual.addPending(update.entries);
+      else waterVisual.setField(update.inspection);
+    },
+    setToolSelected(name) { soapVisual.setSelected(name === 'soap'); waterVisual.setSelected(name === 'water'); },
+    setToolPose(pose) { soapVisual.setPose(pose); waterVisual.setPose(pose); },
     addRawInput(point) { inputVisualizer.addRaw(point); },
     addInputPose(pose) { inputVisualizer.addPose(pose); },
     setInputDiagnosticsVisible(visible) { inputVisualizer.setVisible(visible); },
@@ -84,7 +91,7 @@ export function createCleaningBayScene(diagnosticsPanel) {
       if (hit && classifySurface(hit.x, hit.z) === 'carpet') hit.y += WORLD.rug.thickness;
       return hit;
     },
-    update(elapsedSeconds) { soapVisual.update(elapsedSeconds); },
+    update(elapsedSeconds) { soapVisual.update(elapsedSeconds); waterVisual.update(elapsedSeconds); },
     dispose() {
       for (const resource of resources) resource.dispose();
       worldDiagnostics.traverse(object => {
