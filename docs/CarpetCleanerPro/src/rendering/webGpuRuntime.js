@@ -1,5 +1,6 @@
 import * as THREE from 'three/webgpu';
 import { createDiagnosticScene } from './diagnosticScene.js';
+import { createGpuSimulation } from '../simulation/gpuSimulation.js';
 
 const MAX_DPR = 2;
 
@@ -17,6 +18,8 @@ export async function createWebGpuRuntime({ canvas, diagnostics, adapterInfo }) 
   }
 
   const content = createDiagnosticScene();
+  const simulation = createGpuSimulation(renderer.backend.device, diagnostics);
+  await simulation.initialize();
   let animationFrame = 0;
   let disposed = false;
   let startedAt = performance.now();
@@ -25,6 +28,8 @@ export async function createWebGpuRuntime({ canvas, diagnostics, adapterInfo }) 
   let observedDpr = 0;
   let observedWidth = 0;
   let observedHeight = 0;
+  let renderCap = 0;
+  let lastRenderedAt = 0;
 
   function resize() {
     const width = Math.max(1, canvas.clientWidth);
@@ -44,6 +49,14 @@ export async function createWebGpuRuntime({ canvas, diagnostics, adapterInfo }) 
   async function frame(now) {
     if (disposed) return;
     resize();
+    const elapsedSeconds = Math.min(1, (now - previousFrame) / 1000);
+    simulation.advance(elapsedSeconds);
+    const renderInterval = renderCap > 0 ? 1000 / renderCap : 0;
+    if (renderInterval > 0 && now - lastRenderedAt + 0.1 < renderInterval) {
+      previousFrame = now;
+      animationFrame = requestAnimationFrame(frame);
+      return;
+    }
     content.update((now - startedAt) / 1000);
     const cpuStart = performance.now();
     await renderer.renderAsync(content.scene, content.camera);
@@ -51,6 +64,7 @@ export async function createWebGpuRuntime({ canvas, diagnostics, adapterInfo }) 
     renderedFrames += 1;
     diagnostics.updateFrame({ cpuMs, frameMs: now - previousFrame, renderedFrames });
     previousFrame = now;
+    lastRenderedAt = now;
     animationFrame = requestAnimationFrame(frame);
   }
 
@@ -65,11 +79,14 @@ export async function createWebGpuRuntime({ canvas, diagnostics, adapterInfo }) 
   animationFrame = requestAnimationFrame(frame);
 
   return {
+    simulation,
+    setRenderCap(fps) { renderCap = Number(fps) || 0; },
     dispose() {
       if (disposed) return;
       disposed = true;
       cancelAnimationFrame(animationFrame);
       content.dispose();
+      simulation.dispose();
       renderer.dispose();
       diagnostics.setStatus('STOPPED');
     }

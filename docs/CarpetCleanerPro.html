@@ -40,6 +40,15 @@
     <aside class="diagnostics" id="diagnostics" hidden aria-label="Developer diagnostics">
       <div><b>WEBGPU DIAGNOSTICS</b><span id="diagStatus">STARTING</span></div>
       <dl id="diagValues"></dl>
+      <div class="simulation-controls">
+        <button type="button" id="simPause">PAUSE</button>
+        <button type="button" id="simStep">STEP</button>
+        <button type="button" id="simReset">RESET</button>
+        <button type="button" id="simTest">TEST 30/60/120</button>
+      </div>
+      <label class="render-cap">Render cap
+        <select id="renderCap"><option value="0">Display</option><option value="30">30 FPS</option><option value="60">60 FPS</option><option value="120">120 FPS</option></select>
+      </label>
     </aside>
   </main>
   <script src="lib/top-bar/top-bar.js?v=20260618-2"></script>

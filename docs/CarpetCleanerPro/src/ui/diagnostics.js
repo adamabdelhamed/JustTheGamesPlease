@@ -41,6 +41,18 @@ export function createDiagnosticsPanel() {
       state.set('Frame', `${frameMs.toFixed(2)} ms`);
       state.set('Frames', formatNumber(renderedFrames));
       render();
+    },
+    setSimulation({ paused, tick, checksum, droppedSeconds, passNames }) {
+      state.set('Simulation', paused ? 'PAUSED' : 'RUNNING');
+      state.set('Tick', formatNumber(tick));
+      state.set('Checksum', checksum);
+      state.set('Dropped time', `${droppedSeconds.toFixed(3)} s`);
+      state.set('Compute passes', passNames.join(' → '));
+      render();
+    },
+    setTestResult(results) {
+      state.set('Determinism', results.map(result => `${result.renderFps}:${result.tick}/${result.checksum}`).join(' | '));
+      render(true);
     }
   };
 }
