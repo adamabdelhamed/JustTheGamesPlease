@@ -36,16 +36,16 @@ function createApplicatorRig(resources) {
   const spout = new THREE.Mesh(spoutGeometry, metal);
   const stream = new THREE.Mesh(streamGeometry, soap);
   const impact = new THREE.Mesh(impactGeometry, impactMaterial);
-  bottle.position.set(-0.35, 1.05, 0);
+  bottle.position.set(-0.73, 1.05, 0);
   bottle.rotation.z = -0.48;
   liquid.position.copy(bottle.position);
   liquid.rotation.copy(bottle.rotation);
-  neck.position.set(0.02, 0.79, 0);
+  neck.position.set(-0.36, 0.79, 0);
   neck.rotation.z = -0.48;
-  spout.position.set(0.15, 0.62, 0);
+  spout.position.set(-0.23, 0.62, 0);
   spout.rotation.z = Math.PI / 2;
-  stream.position.set(0.38, 0.3, 0);
-  impact.position.set(0.38, 0.025, 0);
+  stream.position.set(0, 0.3, 0);
+  impact.position.set(0, 0.025, 0);
   impact.rotation.x = Math.PI / 2;
   bottle.castShadow = liquid.castShadow = neck.castShadow = spout.castShadow = true;
   group.add(bottle, liquid, neck, spout, stream, impact);
@@ -78,18 +78,42 @@ function createApplicatorRig(resources) {
 function createSoapField(resources) {
   const texture = new THREE.DataTexture(new Uint8Array(4), 1, 1, THREE.RGBAFormat, THREE.UnsignedByteType);
   texture.colorSpace = THREE.SRGBColorSpace;
+  texture.flipY = true;
   texture.minFilter = texture.magFilter = THREE.LinearFilter;
   texture.needsUpdate = true;
-  const material = new THREE.MeshPhysicalMaterial({ map: texture, transparent: true, depthWrite: false, roughness: 0.08, metalness: 0, clearcoat: 1, clearcoatRoughness: 0.03, opacity: 0.92 });
+  const heightTexture = new THREE.DataTexture(new Uint8Array(4), 1, 1, THREE.RGBAFormat, THREE.UnsignedByteType);
+  heightTexture.flipY = true;
+  heightTexture.minFilter = heightTexture.magFilter = THREE.LinearFilter;
+  heightTexture.needsUpdate = true;
+  const material = new THREE.MeshPhysicalMaterial({
+    map: texture,
+    alphaMap: heightTexture,
+    displacementMap: heightTexture,
+    displacementScale: 0.115,
+    bumpMap: heightTexture,
+    bumpScale: 0.09,
+    transparent: true,
+    alphaTest: 0.012,
+    depthWrite: false,
+    roughness: 0.055,
+    metalness: 0,
+    clearcoat: 1,
+    clearcoatRoughness: 0.025,
+    transmission: 0.16,
+    thickness: 0.09,
+    ior: 1.38,
+    opacity: 0.96
+  });
   const geometry = createSurfaceGeometry();
   const mesh = new THREE.Mesh(geometry, material);
   mesh.visible = false;
   mesh.renderOrder = 12;
-  resources.push(texture, material, geometry);
+  resources.push(texture, heightTexture, material, geometry);
   return {
     mesh,
     setInspection(inspection) {
       const data = new Uint8Array(SIMULATION.gridWidth * SIMULATION.gridHeight * 4);
+      const heightData = new Uint8Array(SIMULATION.gridWidth * SIMULATION.gridHeight * 4);
       let visible = false;
       for (let index = 0; index < inspection.values.length; index += 1) {
         const amount = Math.min(1, inspection.values[index] / 0.08);
@@ -98,17 +122,24 @@ function createSoapField(resources) {
         data[offset + 1] = 255;
         data[offset + 2] = 205;
         data[offset + 3] = Math.round(Math.sqrt(amount) * 242);
+        const gelHeight = Math.round(Math.pow(amount, 0.62) * 255);
+        heightData[offset] = gelHeight;
+        heightData[offset + 1] = gelHeight;
+        heightData[offset + 2] = gelHeight;
+        heightData[offset + 3] = 255;
         visible ||= amount > 0.003;
       }
       texture.image = { data, width: SIMULATION.gridWidth, height: SIMULATION.gridHeight };
       texture.needsUpdate = true;
+      heightTexture.image = { data: heightData, width: SIMULATION.gridWidth, height: SIMULATION.gridHeight };
+      heightTexture.needsUpdate = true;
       mesh.visible = visible;
     }
   };
 }
 
 function createSurfaceGeometry() {
-  const geometry = new THREE.PlaneGeometry(WORLD.floor.width, WORLD.floor.depth, 88, 56);
+  const geometry = new THREE.PlaneGeometry(WORLD.floor.width, WORLD.floor.depth, 176, 112);
   const positions = geometry.attributes.position;
   for (let index = 0; index < positions.count; index += 1) {
     const x = positions.getX(index);

@@ -45,3 +45,9 @@ Completed 2026-06-22.
 - Unit validation confirmed footprint cell mass sums to requested mass within `1e-18 kg` and outside-world poses produce no entries or mass.
 - Fixed terminal pose handling so pointer release/cancel always stops the active pour and contact state.
 - Browser validation emitted no console warnings. JavaScript syntax, conservation, invalid-surface, release, and cadence tests passed.
+
+### Post-review correction
+
+- Corrected the simulation-grid V axis for soap, material diagnostics, and carpet field sampling so rendered accumulation matches world-space deposition.
+- Shifted the applicator assembly so the nozzle, stream, impact ring, and authoritative deposition pose share the same contact point.
+- Replaced the flat soap overlay with a concentration-driven displaced gel surface using alpha, bump, transmission, thickness, IOR, and clearcoat maps sourced from the soap field.

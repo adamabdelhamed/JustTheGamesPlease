@@ -50,6 +50,7 @@ export function createCarpetSurface(resources, diagnostics) {
     } else {
       topMaterial.map = new THREE.DataTexture(visual, basePattern.width, basePattern.height, THREE.RGBAFormat, THREE.UnsignedByteType);
       topMaterial.map.colorSpace = THREE.SRGBColorSpace;
+      topMaterial.map.flipY = true;
       topMaterial.map.anisotropy = 16;
       topMaterial.map.needsUpdate = true;
       resources.push(topMaterial.map);

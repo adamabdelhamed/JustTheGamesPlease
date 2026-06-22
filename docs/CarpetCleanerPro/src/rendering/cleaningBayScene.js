@@ -96,6 +96,7 @@ function createMaterialDebugOverlay(resources) {
   const pixels = new Uint8Array(4);
   const texture = new THREE.DataTexture(pixels, 1, 1, THREE.RGBAFormat, THREE.UnsignedByteType);
   texture.colorSpace = THREE.SRGBColorSpace;
+  texture.flipY = true;
   texture.magFilter = THREE.LinearFilter;
   texture.minFilter = THREE.LinearFilter;
   texture.needsUpdate = true;
