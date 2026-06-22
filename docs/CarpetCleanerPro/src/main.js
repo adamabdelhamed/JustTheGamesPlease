@@ -58,4 +58,9 @@ function wireDeveloperControls(activeRuntime, panel) {
     event.currentTarget.setAttribute('aria-pressed', String(visible));
     activeRuntime.setGeometryDiagnostics(visible);
   });
+  document.querySelector('#carpetStates').addEventListener('click', event => {
+    const visible = event.currentTarget.getAttribute('aria-pressed') !== 'true';
+    event.currentTarget.setAttribute('aria-pressed', String(visible));
+    activeRuntime.setCarpetTestStates(visible);
+  });
 }

@@ -4,7 +4,7 @@ import { ProofField } from './proofField.js';
 import { MaterialFieldSet } from './materialFieldSet.js';
 import { MATERIAL_FIELDS } from './materialSchema.js';
 
-export function createGpuSimulation(device, diagnostics, materialDebugSink) {
+export function createGpuSimulation(device, diagnostics, materialDebugSink, carpetVisualSink) {
   const proofField = new ProofField(device, SIMULATION.proofFieldLength, SIMULATION.defaultSeed);
   const materials = new MaterialFieldSet(device, SIMULATION.defaultSeed);
   const passes = [{ name: 'proof-field', encode: (encoder, tick) => proofField.encode(encoder, tick) }];
@@ -43,8 +43,17 @@ export function createGpuSimulation(device, diagnostics, materialDebugSink) {
     lastChecksumTick = -1;
     checksum = await updateChecksum();
     diagnostics.setMaterialSchema(MATERIAL_FIELDS, seed);
+    await refreshCarpetVisuals(seed);
     if (selectedField) await inspectField(selectedField);
     publish();
+  }
+
+  async function refreshCarpetVisuals(seed) {
+    const [embedded, saturation] = await Promise.all([
+      materials.inspect('embeddedSoil'),
+      materials.inspect('carpetSaturation')
+    ]);
+    carpetVisualSink({ seed, embeddedSoil: embedded.values, carpetSaturation: saturation.values });
   }
 
   async function inspectField(name) {

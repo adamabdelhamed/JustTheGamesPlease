@@ -2,10 +2,11 @@ import * as THREE from 'three/webgpu';
 import { color } from 'three/tsl';
 import { WORLD, classifySurface, floorHeightAt } from '../world/worldLayout.js';
 import { SIMULATION } from '../config/gameConfig.js';
+import { createCarpetSurface } from './carpetSurface.js';
 
 const LOOK_AT = new THREE.Vector3(0.4, 0, 0);
 
-export function createCleaningBayScene() {
+export function createCleaningBayScene(diagnosticsPanel) {
   const scene = new THREE.Scene();
   scene.background = new THREE.Color(0x07100e);
   scene.fog = new THREE.Fog(0x07100e, 20, 38);
@@ -17,15 +18,16 @@ export function createCleaningBayScene() {
 
   const floor = createSlopedFloor(resources);
   scene.add(floor);
-  scene.add(createRug(resources));
+  const carpet = createCarpetSurface(resources, diagnosticsPanel);
+  scene.add(carpet.group);
   scene.add(createDrain(resources));
   scene.add(createRoomShell(resources));
   const materialDebug = createMaterialDebugOverlay(resources);
   scene.add(materialDebug.mesh);
 
-  const diagnostics = createWorldDiagnostics();
-  diagnostics.visible = false;
-  scene.add(diagnostics);
+  const worldDiagnostics = createWorldDiagnostics();
+  worldDiagnostics.visible = false;
+  scene.add(worldDiagnostics);
   addLighting(scene);
 
   function resize(width, height) {
@@ -41,7 +43,9 @@ export function createCleaningBayScene() {
     scene,
     camera,
     resize,
-    setDiagnosticsVisible(visible) { diagnostics.visible = visible; },
+    setDiagnosticsVisible(visible) { worldDiagnostics.visible = visible; },
+    setCarpetFields(fields) { carpet.setFields(fields); },
+    setCarpetTestStates(enabled) { carpet.setTestStates(enabled); },
     setMaterialDebugView(inspection) { materialDebug.setInspection(inspection); },
     projectScreenToWorkPlane(normalizedX, normalizedY, target = new THREE.Vector3()) {
       raycaster.setFromCamera(new THREE.Vector2(normalizedX, normalizedY), camera);
@@ -50,7 +54,7 @@ export function createCleaningBayScene() {
     update() {},
     dispose() {
       for (const resource of resources) resource.dispose();
-      diagnostics.traverse(object => {
+      worldDiagnostics.traverse(object => {
         object.geometry?.dispose();
         object.material?.dispose();
       });
@@ -123,27 +127,6 @@ function createSlopedFloor(resources) {
   const mesh = new THREE.Mesh(geometry, material);
   mesh.receiveShadow = true;
   return mesh;
-}
-
-function createRug(resources) {
-  const rug = WORLD.rug;
-  const material = nodeMaterial(0x852f2d, { roughness: 0.91, metalness: 0 });
-  const borderMaterial = nodeMaterial(0xd2a85e, { roughness: 0.82, metalness: 0 });
-  resources.push(material, borderMaterial);
-  const group = new THREE.Group();
-  group.position.set(rug.centerX, floorHeightAt(rug.centerX) + rug.thickness / 2, rug.centerZ);
-  group.rotation.z = -Math.atan(WORLD.floor.slope);
-  const bodyGeometry = new THREE.BoxGeometry(rug.width, rug.thickness, rug.depth, 20, 1, 14);
-  const insetGeometry = new THREE.BoxGeometry(rug.width - 0.55, 0.035, rug.depth - 0.55);
-  resources.push(bodyGeometry, insetGeometry);
-  const body = new THREE.Mesh(bodyGeometry, material);
-  body.castShadow = true;
-  body.receiveShadow = true;
-  const inset = new THREE.Mesh(insetGeometry, borderMaterial);
-  inset.position.y = rug.thickness / 2 + 0.015;
-  inset.castShadow = true;
-  group.add(body, inset);
-  return group;
 }
 
 function createDrain(resources) {

@@ -42,6 +42,13 @@ export function createDiagnosticsPanel() {
       state.set('Drain intake', `${drain.width}×${drain.depth}×${drain.intakeDepth}`);
       render(true);
     },
+    setCarpetQuality({ family, checksum, fiberCount, triangles, testStates }) {
+      state.set('Carpet pattern', `${family} / ${checksum}`);
+      state.set('Pile instances', formatNumber(fiberCount));
+      state.set('Pile triangles', formatNumber(triangles));
+      state.set('Pile state', testStates ? '4-region diagnostic' : 'authoritative fields');
+      render(true);
+    },
     updateFrame({ cpuMs, frameMs, renderedFrames }) {
       state.set('Renderer', 'Three.js WebGPU r180');
       state.set('CPU render', `${cpuMs.toFixed(2)} ms`);

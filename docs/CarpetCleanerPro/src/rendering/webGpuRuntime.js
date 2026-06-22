@@ -18,8 +18,13 @@ export async function createWebGpuRuntime({ canvas, diagnostics, adapterInfo }) 
     throw new Error('The WebGPU device could not be initialized by the renderer. Check GPU drivers and browser GPU settings.', { cause });
   }
 
-  const content = createCleaningBayScene();
-  const simulation = createGpuSimulation(renderer.backend.device, diagnostics, inspection => content.setMaterialDebugView(inspection));
+  const content = createCleaningBayScene(diagnostics);
+  const simulation = createGpuSimulation(
+    renderer.backend.device,
+    diagnostics,
+    inspection => content.setMaterialDebugView(inspection),
+    fields => content.setCarpetFields(fields)
+  );
   await simulation.initialize();
   let animationFrame = 0;
   let disposed = false;
@@ -82,6 +87,7 @@ export async function createWebGpuRuntime({ canvas, diagnostics, adapterInfo }) 
   return {
     simulation,
     setGeometryDiagnostics(visible) { content.setDiagnosticsVisible(visible); },
+    setCarpetTestStates(visible) { content.setCarpetTestStates(visible); },
     projectScreenToWorkPlane(normalizedX, normalizedY, target) {
       return content.projectScreenToWorkPlane(normalizedX, normalizedY, target);
     },
