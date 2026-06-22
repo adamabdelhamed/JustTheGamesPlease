@@ -38,7 +38,8 @@ function wireDeveloperControls(activeRuntime, panel) {
     pause.textContent = nextPaused ? 'RESUME' : 'PAUSE';
   });
   document.querySelector('#simStep').addEventListener('click', () => activeRuntime.simulation.singleStep());
-  document.querySelector('#simReset').addEventListener('click', () => activeRuntime.simulation.reset());
+  const seed = document.querySelector('#worldSeed');
+  document.querySelector('#simReset').addEventListener('click', () => activeRuntime.simulation.reset(Number(seed.value)));
   document.querySelector('#simTest').addEventListener('click', async event => {
     const button = event.currentTarget;
     button.disabled = true;
@@ -50,6 +51,8 @@ function wireDeveloperControls(activeRuntime, panel) {
     pause.textContent = 'RESUME';
   });
   document.querySelector('#renderCap').addEventListener('change', event => activeRuntime.setRenderCap(event.target.value));
+  document.querySelector('#materialField').addEventListener('change', event => activeRuntime.simulation.inspectField(event.target.value));
+  seed.addEventListener('change', event => activeRuntime.simulation.reset(Number(event.target.value)));
   document.querySelector('#geometryDiagnostics').addEventListener('click', event => {
     const visible = event.currentTarget.getAttribute('aria-pressed') !== 'true';
     event.currentTarget.setAttribute('aria-pressed', String(visible));

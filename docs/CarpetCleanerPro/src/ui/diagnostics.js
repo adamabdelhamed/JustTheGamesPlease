@@ -60,6 +60,29 @@ export function createDiagnosticsPanel() {
     setTestResult(results) {
       state.set('Determinism', results.map(result => `${result.renderFps}:${result.tick}/${result.checksum}`).join(' | '));
       render(true);
+    },
+    setMaterialSchema(fields, seed) {
+      state.set('Seed', `0x${(seed >>> 0).toString(16).padStart(8, '0')}`);
+      state.set('Material fields', Object.keys(fields).length.toString());
+      render(true);
+    },
+    setMaterialInspection({ name, schema, checksum, ledger }) {
+      state.set('Field view', name);
+      state.set('Field units/range', `${schema.units} [${schema.minimum}, ${schema.maximum}]`);
+      state.set('Field checksum', checksum);
+      state.set('Field owner', schema.ownership || 'Immutable world topology');
+      if (ledger) {
+        state.set('Mass initial/current', `${ledger.initial.toFixed(5)} / ${ledger.current.toFixed(5)} kg`);
+        state.set('In / drain / extract', `${ledger.injected.toFixed(3)} / ${ledger.drained.toFixed(3)} / ${ledger.extracted.toFixed(3)}`);
+        state.set('Mass residual', `${ledger.residual.toExponential(2)} kg`);
+      } else {
+        state.delete('Mass initial/current'); state.delete('In / drain / extract'); state.delete('Mass residual');
+      }
+      render(true);
+    },
+    clearMaterialInspection() {
+      for (const key of ['Field view', 'Field units/range', 'Field checksum', 'Field owner', 'Mass initial/current', 'In / drain / extract', 'Mass residual']) state.delete(key);
+      render(true);
     }
   };
 }

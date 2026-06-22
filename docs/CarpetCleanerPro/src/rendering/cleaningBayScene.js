@@ -1,6 +1,7 @@
 import * as THREE from 'three/webgpu';
 import { color } from 'three/tsl';
-import { WORLD, floorHeightAt } from '../world/worldLayout.js';
+import { WORLD, classifySurface, floorHeightAt } from '../world/worldLayout.js';
+import { SIMULATION } from '../config/gameConfig.js';
 
 const LOOK_AT = new THREE.Vector3(0.4, 0, 0);
 
@@ -19,6 +20,8 @@ export function createCleaningBayScene() {
   scene.add(createRug(resources));
   scene.add(createDrain(resources));
   scene.add(createRoomShell(resources));
+  const materialDebug = createMaterialDebugOverlay(resources);
+  scene.add(materialDebug.mesh);
 
   const diagnostics = createWorldDiagnostics();
   diagnostics.visible = false;
@@ -39,6 +42,7 @@ export function createCleaningBayScene() {
     camera,
     resize,
     setDiagnosticsVisible(visible) { diagnostics.visible = visible; },
+    setMaterialDebugView(inspection) { materialDebug.setInspection(inspection); },
     projectScreenToWorkPlane(normalizedX, normalizedY, target = new THREE.Vector3()) {
       raycaster.setFromCamera(new THREE.Vector2(normalizedX, normalizedY), camera);
       return raycaster.ray.intersectPlane(workPlane, target);
@@ -52,6 +56,59 @@ export function createCleaningBayScene() {
       });
     }
   };
+}
+
+function createMaterialDebugOverlay(resources) {
+  const pixels = new Uint8Array(4);
+  const texture = new THREE.DataTexture(pixels, 1, 1, THREE.RGBAFormat, THREE.UnsignedByteType);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  texture.magFilter = THREE.LinearFilter;
+  texture.minFilter = THREE.LinearFilter;
+  texture.needsUpdate = true;
+  const material = new THREE.MeshBasicMaterial({ map: texture, transparent: true, opacity: 0.78, depthWrite: false });
+  const geometry = new THREE.PlaneGeometry(WORLD.floor.width, WORLD.floor.depth, 44, 28);
+  const positions = geometry.attributes.position;
+  for (let index = 0; index < positions.count; index += 1) {
+    const x = positions.getX(index);
+    const worldZ = -positions.getY(index);
+    const lift = classifySurface(x, worldZ) === 'carpet' ? WORLD.rug.thickness + 0.055 : 0.025;
+    positions.setZ(index, floorHeightAt(x) + lift);
+  }
+  geometry.rotateX(-Math.PI / 2);
+  const mesh = new THREE.Mesh(geometry, material);
+  mesh.visible = false;
+  mesh.renderOrder = 20;
+  resources.push(texture, material, geometry);
+
+  return {
+    mesh,
+    setInspection(inspection) {
+      if (!inspection) { mesh.visible = false; return; }
+      const { values, schema } = inspection;
+      const data = new Uint8Array(SIMULATION.gridWidth * SIMULATION.gridHeight * 4);
+      for (let index = 0; index < SIMULATION.gridWidth * SIMULATION.gridHeight; index += 1) {
+        const value = schema.components === 2
+          ? Math.hypot(values[index * 2], values[index * 2 + 1])
+          : values[index];
+        const normalized = schema.minimum < 0
+          ? Math.min(1, Math.abs(value) / Math.max(Math.abs(schema.minimum), schema.maximum))
+          : Math.min(1, Math.max(0, (value - schema.minimum) / (schema.maximum - schema.minimum || 1)));
+        const offset = index * 4;
+        falseColor(normalized, data, offset, inspection.name === 'surfaceMask' ? value / 3 : null);
+      }
+      texture.image = { data, width: SIMULATION.gridWidth, height: SIMULATION.gridHeight };
+      texture.needsUpdate = true;
+      mesh.visible = true;
+    }
+  };
+}
+
+function falseColor(value, target, offset, categoricalValue) {
+  const t = categoricalValue ?? value;
+  target[offset] = Math.round(255 * Math.max(0, Math.min(1, 1.5 * t - 0.25)));
+  target[offset + 1] = Math.round(255 * Math.max(0, Math.min(1, 1.5 - Math.abs(t - 0.5) * 3)));
+  target[offset + 2] = Math.round(255 * Math.max(0, Math.min(1, 1.25 - 1.5 * t)));
+  target[offset + 3] = 220;
 }
 
 function createSlopedFloor(resources) {

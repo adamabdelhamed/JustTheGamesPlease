@@ -19,7 +19,7 @@ export async function createWebGpuRuntime({ canvas, diagnostics, adapterInfo }) 
   }
 
   const content = createCleaningBayScene();
-  const simulation = createGpuSimulation(renderer.backend.device, diagnostics);
+  const simulation = createGpuSimulation(renderer.backend.device, diagnostics, inspection => content.setMaterialDebugView(inspection));
   await simulation.initialize();
   let animationFrame = 0;
   let disposed = false;

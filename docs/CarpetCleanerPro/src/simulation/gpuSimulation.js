@@ -1,14 +1,19 @@
 import { SIMULATION } from '../config/gameConfig.js';
 import { FixedStepScheduler } from './fixedStepScheduler.js';
 import { ProofField } from './proofField.js';
+import { MaterialFieldSet } from './materialFieldSet.js';
+import { MATERIAL_FIELDS } from './materialSchema.js';
 
-export function createGpuSimulation(device, diagnostics) {
+export function createGpuSimulation(device, diagnostics, materialDebugSink) {
   const proofField = new ProofField(device, SIMULATION.proofFieldLength, SIMULATION.defaultSeed);
+  const materials = new MaterialFieldSet(device, SIMULATION.defaultSeed);
   const passes = [{ name: 'proof-field', encode: (encoder, tick) => proofField.encode(encoder, tick) }];
   let checksum = 'pending';
   let checksumRequest = 0;
   let appliedChecksumRequest = 0;
   let lastChecksumTick = -1;
+  let selectedField = '';
+  let inspectionRequest = 0;
 
   const scheduler = new FixedStepScheduler({
     fixedStepSeconds: SIMULATION.fixedStepSeconds,
@@ -30,13 +35,31 @@ export function createGpuSimulation(device, diagnostics) {
     return value;
   }
 
-  async function reset() {
+  async function reset(seed = SIMULATION.defaultSeed) {
     await device.queue.onSubmittedWorkDone();
     scheduler.reset();
-    proofField.reset(SIMULATION.defaultSeed);
+    proofField.reset(seed);
+    materials.reset(seed);
     lastChecksumTick = -1;
     checksum = await updateChecksum();
+    diagnostics.setMaterialSchema(MATERIAL_FIELDS, seed);
+    if (selectedField) await inspectField(selectedField);
     publish();
+  }
+
+  async function inspectField(name) {
+    selectedField = name;
+    const request = ++inspectionRequest;
+    if (!name) {
+      materialDebugSink(null);
+      diagnostics.clearMaterialInspection();
+      return null;
+    }
+    const inspection = await materials.inspect(name);
+    if (request !== inspectionRequest) return null;
+    materialDebugSink(inspection);
+    diagnostics.setMaterialInspection(inspection);
+    return inspection;
   }
 
   function publish() {
@@ -59,7 +82,8 @@ export function createGpuSimulation(device, diagnostics) {
       }
       publish();
     },
-    async reset() { await reset(); },
+    async reset(seed) { await reset(seed); },
+    inspectField,
     setPaused(paused) { scheduler.paused = paused; publish(); },
     singleStep() { scheduler.singleStep(); updateChecksum().then(publish); publish(); },
     async runDeterminismTest() {
@@ -79,6 +103,6 @@ export function createGpuSimulation(device, diagnostics) {
       return results;
     },
     async initialize() { await reset(); },
-    dispose() { proofField.dispose(); }
+    dispose() { proofField.dispose(); materials.dispose(); }
   };
 }

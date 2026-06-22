@@ -31,7 +31,7 @@ Each task must be cohesive enough to review as one engineering decision and smal
 | 001 ✓ | WebGPU runtime shell and diagnostics | — |
 | 002 ✓ | Fixed-step simulation framework | 001 |
 | 003 ✓ | Cinematic room, floor, rug, and drain | 001 |
-| 004 | Authoritative material fields and accounting | 002 |
+| 004 ✓ | Authoritative material fields and accounting | 002 |
 | 005 | Procedural carpet fibers and patterns | 003, 004 |
 | 006 | Buttery pointer stroke pipeline | 002, 003 |
 | 007 | Soap applicator vertical slice | 004, 005, 006 |
