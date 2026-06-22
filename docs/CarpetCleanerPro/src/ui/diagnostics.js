@@ -35,6 +35,13 @@ export function createDiagnosticsPanel() {
       state.set('DPR', dpr.toFixed(2));
       render(true);
     },
+    setWorld({ floor, rug, drain }) {
+      state.set('World units', 'meters');
+      state.set('Floor / slope', `${floor.width}×${floor.depth} / ${(floor.slope * 100).toFixed(1)}%`);
+      state.set('Rug', `${rug.width}×${rug.depth}`);
+      state.set('Drain intake', `${drain.width}×${drain.depth}×${drain.intakeDepth}`);
+      render(true);
+    },
     updateFrame({ cpuMs, frameMs, renderedFrames }) {
       state.set('Renderer', 'Three.js WebGPU r180');
       state.set('CPU render', `${cpuMs.toFixed(2)} ms`);

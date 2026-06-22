@@ -50,4 +50,9 @@ function wireDeveloperControls(activeRuntime, panel) {
     pause.textContent = 'RESUME';
   });
   document.querySelector('#renderCap').addEventListener('change', event => activeRuntime.setRenderCap(event.target.value));
+  document.querySelector('#geometryDiagnostics').addEventListener('click', event => {
+    const visible = event.currentTarget.getAttribute('aria-pressed') !== 'true';
+    event.currentTarget.setAttribute('aria-pressed', String(visible));
+    activeRuntime.setGeometryDiagnostics(visible);
+  });
 }

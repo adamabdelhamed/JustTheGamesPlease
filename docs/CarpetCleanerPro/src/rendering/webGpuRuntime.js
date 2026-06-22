@@ -1,6 +1,7 @@
 import * as THREE from 'three/webgpu';
-import { createDiagnosticScene } from './diagnosticScene.js';
+import { createCleaningBayScene } from './cleaningBayScene.js';
 import { createGpuSimulation } from '../simulation/gpuSimulation.js';
+import { WORLD } from '../world/worldLayout.js';
 
 const MAX_DPR = 2;
 
@@ -17,7 +18,7 @@ export async function createWebGpuRuntime({ canvas, diagnostics, adapterInfo }) 
     throw new Error('The WebGPU device could not be initialized by the renderer. Check GPU drivers and browser GPU settings.', { cause });
   }
 
-  const content = createDiagnosticScene();
+  const content = createCleaningBayScene();
   const simulation = createGpuSimulation(renderer.backend.device, diagnostics);
   await simulation.initialize();
   let animationFrame = 0;
@@ -41,8 +42,7 @@ export async function createWebGpuRuntime({ canvas, diagnostics, adapterInfo }) 
     observedDpr = dpr;
     renderer.setPixelRatio(dpr);
     renderer.setSize(width, height, false);
-    content.camera.aspect = width / height;
-    content.camera.updateProjectionMatrix();
+    content.resize(width, height);
     diagnostics.setViewport({ width, height, dpr });
   }
 
@@ -69,6 +69,7 @@ export async function createWebGpuRuntime({ canvas, diagnostics, adapterInfo }) 
   }
 
   diagnostics.setAdapter(adapterInfo);
+  diagnostics.setWorld(WORLD);
   diagnostics.setStatus('RUNNING');
   const device = renderer.backend?.device;
   if (device?.lost) {
@@ -80,6 +81,10 @@ export async function createWebGpuRuntime({ canvas, diagnostics, adapterInfo }) 
 
   return {
     simulation,
+    setGeometryDiagnostics(visible) { content.setDiagnosticsVisible(visible); },
+    projectScreenToWorkPlane(normalizedX, normalizedY, target) {
+      return content.projectScreenToWorkPlane(normalizedX, normalizedY, target);
+    },
     setRenderCap(fps) { renderCap = Number(fps) || 0; },
     dispose() {
       if (disposed) return;
