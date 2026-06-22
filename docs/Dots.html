@@ -176,11 +176,11 @@ path {
 
 @keyframes textureFlow { to { stroke-dashoffset:-28; } }
 
-.path-dematerialize { animation:dematerialize 1.15s ease-in forwards; }
-@keyframes dematerialize { to { opacity:0; stroke-dasharray:2 20; stroke-dashoffset:-80; filter:blur(4px) drop-shadow(0 0 12px currentColor); } }
+.path-dematerialize { animation:dematerialize 1.05s linear forwards; }
+@keyframes dematerialize { to { opacity:0; stroke-dasharray:2 22; stroke-dashoffset:-102; filter:blur(4px) drop-shadow(0 0 12px currentColor); } }
 
-.dot-explode { animation:dotExplode .8s ease-out forwards !important; }
-@keyframes dotExplode { 55% { transform:translate(-50%,-50%) scale(1.65); opacity:1; } 100% { transform:translate(-50%,-50%) scale(.1); opacity:0; filter:blur(5px); } }
+.dot-explode { animation:dotExplode .8s linear forwards !important; }
+@keyframes dotExplode { 50% { transform:translate(-50%,-50%) scale(1.2); opacity:.5; } 100% { transform:translate(-50%,-50%) scale(.1); opacity:0; } }
 
 .confetti {
   position:absolute;
@@ -189,9 +189,12 @@ path {
   border-radius:2px;
   pointer-events:none;
   z-index:6;
-  animation:confettiFall 1.65s cubic-bezier(.15,.7,.35,1) forwards;
+  animation:confettiFall 1.65s linear forwards;
 }
-@keyframes confettiFall { to { transform:translate(var(--dx),var(--dy)) rotate(var(--spin)); opacity:0; } }
+@keyframes confettiFall {
+  50% { transform:translate(var(--mid-x),var(--mid-y)) rotate(var(--mid-spin)); opacity:.5; }
+  100% { transform:translate(var(--dx),var(--dy)) rotate(var(--spin)); opacity:0; }
+}
 
 .bad-path {
   stroke:#ff5577 !important;
@@ -297,7 +300,7 @@ path {
 <script src="lib/audio/audio.js"></script>
 <script>
 gameAudio.playSharedMusic(['Music']);
-gameAudio.preload(['DotGrab','LinkCancel','LinkComplete','WrongLink','PuzzleComplete']);
+gameAudio.preload(['DotGrab','DrawLoop','LinkCancel','LinkComplete','WrongLink','PuzzleComplete']);
 const game = document.getElementById("game");
 const svg = document.getElementById("svg");
 const overlay = document.getElementById("overlay");
@@ -322,6 +325,7 @@ let paths = [];
 let active = null;
 let activePoints = [];
 let ghost = null;
+let drawLoop = null;
 let locked = false;
 let crossedWhileDrawing = false;
 let completedLinks = 0;
@@ -333,6 +337,7 @@ function rand(min,max) { return Math.random() * (max - min) + min; }
 function distance(a,b) { return Math.hypot(a.x - b.x, a.y - b.y); }
 
 function clearGame() {
+  stopDrawLoop();
   dots.forEach(d => d.el.remove());
   dots = [];
   paths = [];
@@ -471,6 +476,8 @@ function getForgivingLanding(x,y) {
 function startDraw(dot, pointerId) {
   if (locked || dot.connected) return;
   gameAudio.play('DotGrab');
+  stopDrawLoop();
+  drawLoop = gameAudio.loopGapless('DrawLoop');
   recordAudio('DotGrab');
   active = dot;
   activePoints = [{ x:dot.x, y:dot.y, dotId:dot.id }];
@@ -514,6 +521,7 @@ function pointerUp(e) {
 
 function finishDraw(target) {
   if (!active || locked) return;
+  stopDrawLoop();
 
   const source = active;
   source.el.classList.remove("active");
@@ -573,6 +581,7 @@ function finishDraw(target) {
 }
 
 function cleanupActivePath() {
+  stopDrawLoop();
   if (ghost) ghost.remove();
   ghost = null;
   active = null;
@@ -652,6 +661,12 @@ function success() {
   setTimeout(() => showDialog("Perfect path", "Every pair is connected without a single crossing."), 1800);
 }
 
+function stopDrawLoop() {
+  if (!drawLoop) return;
+  drawLoop.stop();
+  drawLoop = null;
+}
+
 function loadRecordings() {
   try { return JSON.parse(localStorage.getItem(RECORDINGS_KEY) || "[]"); }
   catch { return []; }
@@ -715,7 +730,34 @@ if (devMode && !rendererMode) {
   addEventListener("pointerdown", event => { if (!menu.contains(event.target)) menu.style.display = "none"; });
 }
 
+function validateReplay(replay) {
+  const errors = [];
+  if (!replay || !Array.isArray(replay.dots) || !Array.isArray(replay.links)) return { isValid:false, errors:["Replay structure is invalid."] };
+  const replayDots = replay.dots.map(dot => ({ ...dot, connected:false }));
+  const validatedPaths = [];
+  replay.links.forEach((link, linkIndex) => {
+    const source = replayDots.find(dot => dot.id === link.sourceId);
+    const target = replayDots.find(dot => dot.id === link.targetId);
+    const label = `Stroke ${linkIndex + 1}`;
+    if (!source || !target) { errors.push(`${label} references a missing dot.`); return; }
+    if (source.id === target.id || source.pair !== target.pair || target.connected || source.connected) errors.push(`${label} does not connect an available matching pair.`);
+    if (!Array.isArray(link.points) || link.points.length < 2) { errors.push(`${label} has no drawable path.`); return; }
+    const first = link.points[0];
+    const last = link.points[link.points.length - 1];
+    if (!samePoint(first, source) || !samePoint(last, target)) errors.push(`${label} does not begin and end on its intended dots.`);
+    const nextSegments = makeSegments(link.points);
+    if (validatedPaths.some(path => path.segments.some(existing => nextSegments.some(next => segmentsIntersect(next.a, next.b, existing.a, existing.b)))))
+      errors.push(`${label} crosses an existing connection.`);
+    source.connected = true;
+    target.connected = true;
+    validatedPaths.push({ segments:nextSegments });
+  });
+  if (replayDots.some(dot => !dot.connected)) errors.push("The replay does not complete every pair.");
+  return { isValid:errors.length === 0, errors };
+}
+
 window.neonLinksReplay = {
+  validate(replay) { return validateReplay(replay); },
   load(replay) {
     clearGame();
     difficultyEl.value = replay.difficulty;
@@ -737,8 +779,9 @@ window.neonLinksReplay = {
   },
   seek(timeMs, options = {}) {
     if (!this.replay) return;
-    svg.innerHTML = "";
-    document.querySelectorAll(".spark,.confetti").forEach(particle => particle.remove());
+      svg.innerHTML = "";
+      document.querySelectorAll(".spark,.confetti").forEach(particle => particle.remove());
+      overlay.classList.remove("show");
     dots.forEach(dot => {
       dot.connected = false;
       dot.el.classList.remove("connected","active","dot-explode");
@@ -839,19 +882,29 @@ function fail(title,text) {
 
 function endBurst(color) {
   game.classList.add("board-flash");
-  dots.forEach(d => { sparkle(d.x, d.y, color, 22); d.el.classList.add("dot-explode"); });
-  svg.querySelectorAll("path").forEach(path => path.classList.add("path-dematerialize"));
-  for (let i = 0; i < 72; i++) {
-    const piece = document.createElement("div");
-    piece.className = "confetti";
-    piece.style.left = `${innerWidth / 2}px`; piece.style.top = `${innerHeight * .45}px`;
-    piece.style.background = colors[i % colors.length];
-    piece.style.setProperty("--dx", `${rand(-innerWidth * .48, innerWidth * .48)}px`);
-    piece.style.setProperty("--dy", `${rand(120, innerHeight * .55)}px`);
-    piece.style.setProperty("--spin", `${rand(-720,720)}deg`);
-    game.appendChild(piece);
-    setTimeout(() => piece.remove(), 1700);
-  }
+  dots.forEach(d => sparkle(d.x, d.y, color, 14));
+  setTimeout(() => {
+    svg.querySelectorAll("path").forEach(path => path.classList.add("path-dematerialize"));
+    dots.forEach(d => d.el.classList.add("dot-explode"));
+  }, 180);
+  setTimeout(() => {
+    for (let i = 0; i < 72; i++) {
+      const angle = ((i * 137.5) % 360) * Math.PI / 180;
+      const distance = 80 + (i * 47) % 240;
+      const piece = document.createElement("div");
+      piece.className = "confetti";
+      piece.style.left = `${innerWidth / 2}px`; piece.style.top = `${innerHeight * .45}px`;
+      piece.style.background = colors[i % colors.length];
+      piece.style.setProperty("--dx", `${Math.cos(angle) * distance}px`);
+      piece.style.setProperty("--dy", `${Math.sin(angle) * distance + 340}px`);
+      piece.style.setProperty("--spin", `${i * 31 + 540}deg`);
+      piece.style.setProperty("--mid-x", `${Math.cos(angle) * distance * .5}px`);
+      piece.style.setProperty("--mid-y", `${Math.sin(angle) * distance * .5 + 85}px`);
+      piece.style.setProperty("--mid-spin", `${(i * 31 + 540) * .5}deg`);
+      game.appendChild(piece);
+      setTimeout(() => piece.remove(), 1700);
+    }
+  }, 120);
   setTimeout(() => game.classList.remove("board-flash"), 800);
 }
 
