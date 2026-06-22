@@ -28,7 +28,7 @@ Each task must be cohesive enough to review as one engineering decision and smal
 
 | ID | Outcome | Depends on |
 |---|---|---|
-| 001 | WebGPU runtime shell and diagnostics | — |
+| 001 ✓ | WebGPU runtime shell and diagnostics | — |
 | 002 | Fixed-step simulation framework | 001 |
 | 003 | Cinematic room, floor, rug, and drain | 001 |
 | 004 | Authoritative material fields and accounting | 002 |
@@ -42,4 +42,3 @@ Each task must be cohesive enough to review as one engineering decision and smal
 | 012 | Playable loop, difficulty, progress, and completion | 010, 011 |
 | 013 | Audio, haptics, analytics, and polish | 12 |
 | 014 | Performance budgets and release hardening | 12, 13 |
-

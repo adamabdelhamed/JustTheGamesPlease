@@ -5,13 +5,22 @@
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
   <title>Carpet Cleaner Pro</title>
   <meta name="theme-color" content="#09100e">
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js",
+        "three/webgpu": "https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.webgpu.js",
+        "three/tsl": "https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.tsl.js"
+      }
+    }
+  </script>
   <script src="lib/analytics.js"></script>
   <link rel="stylesheet" href="lib/top-bar/top-bar.css?v=20260618-2">
   <link rel="stylesheet" href="CarpetCleanerPro/game.css">
 </head>
 <body>
   <main id="game" aria-label="Carpet Cleaner Pro game area">
-    <canvas id="scene" aria-hidden="true"></canvas>
+    <canvas id="scene" aria-label="WebGPU diagnostic scene"></canvas>
     <header data-game-topbar data-contained data-mobile-compact>
       <div class="game-topbar__identity">
         <h1>CARPET CLEANER <b>PRO</b></h1>
@@ -19,7 +28,7 @@
       </div>
       <div class="game-topbar__right"><div class="game-topbar__utilities" data-game-topbar-utilities></div></div>
     </header>
-    <section class="placeholder" aria-live="polite">
+    <section class="placeholder" id="statusCard" aria-live="polite">
       <span class="eyebrow">WEBGPU SIMULATION LAB</span>
       <h2>Deep clean.<br><b>Down to every fiber.</b></h2>
       <p id="capability">Checking GPU capabilities…</p>
@@ -28,9 +37,13 @@
       </div>
       <strong>IN DEVELOPMENT</strong>
     </section>
+    <aside class="diagnostics" id="diagnostics" hidden aria-label="Developer diagnostics">
+      <div><b>WEBGPU DIAGNOSTICS</b><span id="diagStatus">STARTING</span></div>
+      <dl id="diagValues"></dl>
+    </aside>
   </main>
   <script src="lib/top-bar/top-bar.js?v=20260618-2"></script>
   <script src="lib/audio/audio.js?v=20260618-2"></script>
-  <script type="module" src="CarpetCleanerPro/src/main.js"></script>
+  <script type="module" src="CarpetCleanerPro/src/main.js?v=20260622-1"></script>
 </body>
 </html>
