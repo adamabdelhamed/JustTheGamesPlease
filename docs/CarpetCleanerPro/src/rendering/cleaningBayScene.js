@@ -59,7 +59,10 @@ export function createCleaningBayScene(diagnosticsPanel) {
     setCarpetFields(fields) { carpet.setFields(fields); },
     setCarpetTestStates(enabled) { carpet.setTestStates(enabled); },
     setMaterialDebugView(inspection) { materialDebug.setInspection(inspection); },
-    setSoapField(inspection) { soapVisual.setField(inspection); },
+    updateSoapField(update) {
+      if (update.type === 'pending-source') soapVisual.addPending(update.entries);
+      else soapVisual.setField(update.inspection);
+    },
     setToolSelected(name) { soapVisual.setSelected(name === 'soap'); },
     setToolPose(pose) { soapVisual.setPose(pose); },
     addRawInput(point) { inputVisualizer.addRaw(point); },

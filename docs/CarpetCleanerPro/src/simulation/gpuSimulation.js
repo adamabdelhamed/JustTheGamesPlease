@@ -11,6 +11,7 @@ export function createGpuSimulation(device, diagnostics, materialDebugSink, carp
   const soapSource = new SoapSource(device, materials);
   let soapDirty = false;
   let soapVisualPending = false;
+  let soapGeneration = 0;
   const passes = [
     { name: 'soap-source', encode: encoder => { if (soapSource.encode(encoder)) soapDirty = true; } },
     { name: 'proof-field', encode: (encoder, tick) => proofField.encode(encoder, tick) }
@@ -49,6 +50,7 @@ export function createGpuSimulation(device, diagnostics, materialDebugSink, carp
     materials.reset(seed);
     soapSource.reset();
     soapDirty = false;
+    soapGeneration = 0;
     lastChecksumTick = -1;
     checksum = await updateChecksum();
     diagnostics.setMaterialSchema(MATERIAL_FIELDS, seed);
@@ -61,15 +63,16 @@ export function createGpuSimulation(device, diagnostics, materialDebugSink, carp
   async function refreshSoapVisual() {
     if (soapVisualPending) return;
     soapVisualPending = true;
+    const requestedGeneration = soapGeneration;
     try {
       const inspection = await materials.inspect('soap');
-      soapVisualSink(inspection);
+      if (requestedGeneration === soapGeneration) soapVisualSink({ type: 'authoritative', inspection });
       diagnostics.setToolUsage({ tool: 'soap', submittedMass: soapSource.totalSubmittedMass, ledger: inspection.ledger });
       if (selectedField === 'soap') {
         materialDebugSink(inspection);
         diagnostics.setMaterialInspection(inspection);
       }
-      soapDirty = false;
+      if (requestedGeneration === soapGeneration) soapDirty = false;
     } finally {
       soapVisualPending = false;
     }
@@ -121,7 +124,13 @@ export function createGpuSimulation(device, diagnostics, materialDebugSink, carp
     },
     async reset(seed) { await reset(seed); },
     inspectField,
-    applyToolPose(pose) { soapSource.enqueue(pose); },
+    applyToolPose(pose) {
+      const footprint = soapSource.enqueue(pose);
+      if (footprint.entries.length > 0) {
+        soapGeneration += 1;
+        soapVisualSink({ type: 'pending-source', entries: footprint.entries });
+      }
+    },
     setPaused(paused) { scheduler.paused = paused; publish(); },
     singleStep() { scheduler.singleStep(); updateChecksum().then(publish); publish(); },
     async runDeterminismTest() {

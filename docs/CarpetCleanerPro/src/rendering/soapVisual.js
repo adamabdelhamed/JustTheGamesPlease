@@ -10,6 +10,7 @@ export function createSoapVisual(resources) {
     fieldMesh: field.mesh,
     setPose(pose) { rig.setPose(pose); },
     setField(inspection) { field.setInspection(inspection); },
+    addPending(entries) { field.addPending(entries); },
     setSelected(selected) { rig.setSelected(selected); },
     update(timeSeconds) { rig.update(timeSeconds); }
   };
@@ -109,31 +110,59 @@ function createSoapField(resources) {
   mesh.visible = false;
   mesh.renderOrder = 12;
   resources.push(texture, heightTexture, material, geometry);
+  const values = new Float32Array(SIMULATION.gridWidth * SIMULATION.gridHeight);
+  const colorData = new Uint8Array(SIMULATION.gridWidth * SIMULATION.gridHeight * 4);
+  const heightData = new Uint8Array(SIMULATION.gridWidth * SIMULATION.gridHeight * 4);
+  let uploadPending = false;
+
+  function updatePixel(index) {
+    const amount = Math.min(1, values[index] / 0.08);
+    const offset = index * 4;
+    colorData[offset] = 94;
+    colorData[offset + 1] = 255;
+    colorData[offset + 2] = 205;
+    colorData[offset + 3] = Math.round(Math.sqrt(amount) * 242);
+    const gelHeight = Math.round(Math.pow(amount, 0.62) * 255);
+    heightData[offset] = gelHeight;
+    heightData[offset + 1] = gelHeight;
+    heightData[offset + 2] = gelHeight;
+    heightData[offset + 3] = 255;
+    return amount > 0.003;
+  }
+
+  function scheduleUpload() {
+    if (uploadPending) return;
+    uploadPending = true;
+    requestAnimationFrame(() => {
+      uploadPending = false;
+      texture.image = { data: colorData, width: SIMULATION.gridWidth, height: SIMULATION.gridHeight };
+      texture.needsUpdate = true;
+      heightTexture.image = { data: heightData, width: SIMULATION.gridWidth, height: SIMULATION.gridHeight };
+      heightTexture.needsUpdate = true;
+      mesh.visible = true;
+    });
+  }
+
   return {
     mesh,
     setInspection(inspection) {
-      const data = new Uint8Array(SIMULATION.gridWidth * SIMULATION.gridHeight * 4);
-      const heightData = new Uint8Array(SIMULATION.gridWidth * SIMULATION.gridHeight * 4);
+      values.set(inspection.values);
       let visible = false;
       for (let index = 0; index < inspection.values.length; index += 1) {
-        const amount = Math.min(1, inspection.values[index] / 0.08);
-        const offset = index * 4;
-        data[offset] = 94;
-        data[offset + 1] = 255;
-        data[offset + 2] = 205;
-        data[offset + 3] = Math.round(Math.sqrt(amount) * 242);
-        const gelHeight = Math.round(Math.pow(amount, 0.62) * 255);
-        heightData[offset] = gelHeight;
-        heightData[offset + 1] = gelHeight;
-        heightData[offset + 2] = gelHeight;
-        heightData[offset + 3] = 255;
-        visible ||= amount > 0.003;
+        visible ||= updatePixel(index);
       }
-      texture.image = { data, width: SIMULATION.gridWidth, height: SIMULATION.gridHeight };
+      texture.image = { data: colorData, width: SIMULATION.gridWidth, height: SIMULATION.gridHeight };
       texture.needsUpdate = true;
       heightTexture.image = { data: heightData, width: SIMULATION.gridWidth, height: SIMULATION.gridHeight };
       heightTexture.needsUpdate = true;
       mesh.visible = visible;
+    },
+    addPending(entries) {
+      for (const entry of entries) {
+        values[entry.index] = Math.min(8, values[entry.index] + entry.density);
+        updatePixel(entry.index);
+      }
+      scheduleUpload();
     }
   };
 }

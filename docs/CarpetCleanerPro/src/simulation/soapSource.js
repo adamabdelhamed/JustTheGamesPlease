@@ -44,11 +44,11 @@ export class SoapSource {
   }
 
   enqueue(pose) {
-    if (!pose.contact) return 0;
+    if (!pose.contact) return { entries: [], massKg: 0 };
     const footprint = createSoapFootprint(pose);
     for (const entry of footprint.entries) this.pending.set(entry.index, (this.pending.get(entry.index) || 0) + entry.density);
     this.pendingMass += footprint.massKg;
-    return footprint.massKg;
+    return footprint;
   }
 
   encode(encoder) {

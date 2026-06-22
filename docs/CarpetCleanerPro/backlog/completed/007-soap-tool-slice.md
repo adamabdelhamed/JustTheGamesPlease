@@ -51,3 +51,4 @@ Completed 2026-06-22.
 - Corrected the simulation-grid V axis for soap, material diagnostics, and carpet field sampling so rendered accumulation matches world-space deposition.
 - Shifted the applicator assembly so the nozzle, stream, impact ring, and authoritative deposition pose share the same contact point.
 - Replaced the flat soap overlay with a concentration-driven displaced gel surface using alpha, bump, transmission, thickness, IOR, and clearcoat maps sourced from the soap field.
+- Removed readback latency from active pouring: queued source footprints now update the gel on the next animation frame, while generation-checked GPU readback reconciles the final authoritative state without stale visual rollbacks.
