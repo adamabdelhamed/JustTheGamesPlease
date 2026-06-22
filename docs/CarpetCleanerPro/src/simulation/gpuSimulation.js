@@ -7,6 +7,7 @@ import { SoapSource } from './soapSource.js';
 import { WaterSource } from './waterSource.js';
 import { WaterSolver } from './waterSolver.js';
 import { ChemistryPass } from './chemistryPass.js';
+import { RotarySource } from './rotarySource.js';
 
 export function createGpuSimulation(device, diagnostics, materialDebugSink, carpetVisualSink, soapVisualSink, waterVisualSink, mixtureVisualSink) {
   const proofField = new ProofField(device, SIMULATION.proofFieldLength, SIMULATION.defaultSeed);
@@ -15,6 +16,7 @@ export function createGpuSimulation(device, diagnostics, materialDebugSink, carp
   const waterSolver = new WaterSolver(device, materials);
   const waterSource = new WaterSource(device, materials, waterSolver.waterBuffers, waterSolver.velocityBuffers);
   const chemistry = new ChemistryPass(device, materials, waterSolver);
+  const rotarySource = new RotarySource(device, materials, waterSolver);
   let selectedTool = 'soap';
   let soapDirty = false;
   let soapVisualPending = false;
@@ -29,12 +31,14 @@ export function createGpuSimulation(device, diagnostics, materialDebugSink, carp
   let lastWaterRefreshTick = 0;
   let chemistryVisualPending = false;
   let lastChemistryRefreshTick = 0;
+  let rotaryActiveUntilTick = 0;
   let carpetState = null;
   let waterInjectedThisTick = false;
   let soapInjectedThisTick = false;
   const passes = [
     { name: 'soap-source', encode: encoder => { soapInjectedThisTick = soapSource.encode(encoder); if (soapInjectedThisTick) { soapCommittedGeneration += 1; soapDirty = true; } } },
     { name: 'water-source', encode: encoder => { waterInjectedThisTick = waterSource.encode(encoder, waterSolver.activeIndex); if (waterInjectedThisTick) { waterCommittedGeneration += 1; waterDirty = true; } } },
+    { name: 'rotary-agitation', encode: encoder => { if(rotarySource.encode(encoder,waterSolver.activeIndex)){rotaryActiveUntilTick=scheduler.tick+240;waterDirty=true;diagnostics.setRotaryUsage({strength:1,total:rotarySource.totalAgitation});} } },
     { name: 'soil-chemistry', encode: (encoder, tick, dt) => chemistry.encode(encoder, dt, waterSolver.activeIndex) },
     { name: 'water-flow', encode: (encoder, tick, dt) => waterSolver.encode(encoder, dt) },
     { name: 'proof-field', encode: (encoder, tick) => proofField.encode(encoder, tick) }
@@ -55,12 +59,13 @@ export function createGpuSimulation(device, diagnostics, materialDebugSink, carp
       const sourceEncoder = device.createCommandEncoder({ label: `Simulation sources ${tick}` });
       passes[0].encode(sourceEncoder, tick, SIMULATION.fixedStepSeconds);
       passes[1].encode(sourceEncoder, tick, SIMULATION.fixedStepSeconds);
+      passes[2].encode(sourceEncoder, tick, SIMULATION.fixedStepSeconds);
       device.queue.submit([sourceEncoder.finish()]);
       const chemistryEncoder = device.createCommandEncoder({ label: `Simulation chemistry ${tick}` });
-      passes[2].encode(chemistryEncoder, tick, SIMULATION.fixedStepSeconds);
+      passes[3].encode(chemistryEncoder, tick, SIMULATION.fixedStepSeconds);
       device.queue.submit([chemistryEncoder.finish()]);
       const simulationEncoder = device.createCommandEncoder({ label: `Simulation updates ${tick}` });
-      for (const pass of passes.slice(3)) pass.encode(simulationEncoder, tick, SIMULATION.fixedStepSeconds);
+      for (const pass of passes.slice(4)) pass.encode(simulationEncoder, tick, SIMULATION.fixedStepSeconds);
       device.queue.submit([simulationEncoder.finish()]);
     }
   });
@@ -83,6 +88,7 @@ export function createGpuSimulation(device, diagnostics, materialDebugSink, carp
     waterSolver.reset();
     soapSource.reset();
     waterSource.reset();
+    rotarySource.reset();
     soapDirty = false;
     soapGeneration = 0;
     soapCommittedGeneration = 0;
@@ -93,6 +99,7 @@ export function createGpuSimulation(device, diagnostics, materialDebugSink, carp
     lastSoapRefreshTick = 0;
     lastWaterRefreshTick = 0;
     lastChemistryRefreshTick = 0;
+    rotaryActiveUntilTick = 0;
     lastChecksumTick = -1;
     checksum = await updateChecksum();
     diagnostics.setMaterialSchema(MATERIAL_FIELDS, seed);
@@ -217,7 +224,7 @@ export function createGpuSimulation(device, diagnostics, materialDebugSink, carp
         lastWaterRefreshTick = scheduler.tick;
         refreshWaterVisual();
       }
-      if ((soapDirty || waterDirty || scheduler.tick < waterActiveUntilTick) && scheduler.tick - lastChemistryRefreshTick >= 12) {
+      if ((soapDirty || waterDirty || scheduler.tick < waterActiveUntilTick || scheduler.tick < rotaryActiveUntilTick) && scheduler.tick - lastChemistryRefreshTick >= 12) {
         lastChemistryRefreshTick=scheduler.tick;
         refreshChemistryVisual();
       }
@@ -226,6 +233,7 @@ export function createGpuSimulation(device, diagnostics, materialDebugSink, carp
     async reset(seed) { await reset(seed); },
     inspectField,
     applyToolPose(pose) {
+      if(selectedTool==='rotary'){const agitation=rotarySource.enqueue(pose);if(agitation.entries.length){rotaryActiveUntilTick=scheduler.tick+240;diagnostics.setRotaryUsage({strength:agitation.strength,total:rotarySource.totalAgitation});}return;}
       const source = selectedTool === 'water' ? waterSource : soapSource;
       const footprint = source.enqueue(pose);
       if (footprint.entries.length > 0) {
@@ -239,7 +247,7 @@ export function createGpuSimulation(device, diagnostics, materialDebugSink, carp
         }
       }
     },
-    selectTool(name) { selectedTool = name === 'water' ? 'water' : 'soap'; },
+    selectTool(name) { selectedTool = ['soap','water','rotary'].includes(name) ? name : 'soap'; },
     setPaused(paused) { scheduler.paused = paused; publish(); },
     singleStep() { scheduler.singleStep(); updateChecksum().then(publish); publish(); },
     async runDeterminismTest() {
@@ -259,6 +267,6 @@ export function createGpuSimulation(device, diagnostics, materialDebugSink, carp
       return results;
     },
     async initialize() { await chemistry.assertValid(); await reset(); },
-    dispose() { proofField.dispose(); soapSource.dispose(); waterSource.dispose(); chemistry.dispose(); waterSolver.dispose(); materials.dispose(); }
+    dispose() { proofField.dispose(); soapSource.dispose(); waterSource.dispose(); rotarySource.dispose(); chemistry.dispose(); waterSolver.dispose(); materials.dispose(); }
   };
 }

@@ -27,7 +27,7 @@ try {
 }
 
 function wireToolControls(activeRuntime) {
-  const tools = { soap: document.querySelector('#soapTool'), water: document.querySelector('#waterTool') };
+  const tools = { soap: document.querySelector('#soapTool'), water: document.querySelector('#waterTool'), rotary: document.querySelector('#rotaryTool') };
   function selectTool(name) {
     for (const [toolName, button] of Object.entries(tools)) {
       const selected = toolName === name;
@@ -38,7 +38,8 @@ function wireToolControls(activeRuntime) {
   }
   tools.soap.addEventListener('click', () => selectTool('soap'));
   tools.water.addEventListener('click', () => selectTool('water'));
-  addEventListener('keydown', event => { if (event.key === '1') selectTool('soap'); if (event.key === '2') selectTool('water'); });
+  tools.rotary.addEventListener('click', () => selectTool('rotary'));
+  addEventListener('keydown', event => { if (event.key === '1') selectTool('soap'); if (event.key === '2') selectTool('water'); if (event.key === '3') selectTool('rotary'); });
   selectTool('soap');
 }
 

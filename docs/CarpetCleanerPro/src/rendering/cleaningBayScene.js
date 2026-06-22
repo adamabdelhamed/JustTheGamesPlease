@@ -8,6 +8,7 @@ import { ConstrainedCameraRig } from '../input/constrainedCameraRig.js';
 import { createSoapVisual } from './soapVisual.js';
 import { createWaterVisual } from './waterVisual.js';
 import { createMixtureVisual } from './mixtureVisual.js';
+import { createRotaryVisual } from './rotaryVisual.js';
 
 const LOOK_AT = new THREE.Vector3(0.4, 0, 0);
 
@@ -38,6 +39,8 @@ export function createCleaningBayScene(diagnosticsPanel) {
   scene.add(waterVisual.fieldMesh, waterVisual.group);
   const mixtureVisual = createMixtureVisual(resources);
   scene.add(mixtureVisual.mud, mixtureVisual.foam);
+  const rotaryVisual = createRotaryVisual(resources);
+  scene.add(rotaryVisual.group);
 
   const worldDiagnostics = createWorldDiagnostics();
   worldDiagnostics.visible = false;
@@ -74,8 +77,8 @@ export function createCleaningBayScene(diagnosticsPanel) {
       else waterVisual.setField(update.inspection);
     },
     updateMixtureFields(fields) { mixtureVisual.setFields(fields); },
-    setToolSelected(name) { soapVisual.setSelected(name === 'soap'); waterVisual.setSelected(name === 'water'); },
-    setToolPose(pose) { soapVisual.setPose(pose); waterVisual.setPose(pose); },
+    setToolSelected(name) { soapVisual.setSelected(name === 'soap'); waterVisual.setSelected(name === 'water'); rotaryVisual.setSelected(name === 'rotary'); },
+    setToolPose(pose) { soapVisual.setPose(pose); waterVisual.setPose(pose); rotaryVisual.setPose(pose); },
     addRawInput(point) { inputVisualizer.addRaw(point); },
     addInputPose(pose) { inputVisualizer.addPose(pose); },
     setInputDiagnosticsVisible(visible) { inputVisualizer.setVisible(visible); },
@@ -95,7 +98,7 @@ export function createCleaningBayScene(diagnosticsPanel) {
       if (hit && classifySurface(hit.x, hit.z) === 'carpet') hit.y += WORLD.rug.thickness;
       return hit;
     },
-    update(elapsedSeconds) { soapVisual.update(elapsedSeconds); waterVisual.update(elapsedSeconds); },
+    update(elapsedSeconds) { soapVisual.update(elapsedSeconds); waterVisual.update(elapsedSeconds); rotaryVisual.update(elapsedSeconds); },
     dispose() {
       for (const resource of resources) resource.dispose();
       worldDiagnostics.traverse(object => {

@@ -78,6 +78,11 @@ export function createDiagnosticsPanel() {
       state.set('Soap / foam', `${soapMass.toFixed(4)} / ${foamMass.toFixed(4)} kg`);
       render(true);
     },
+    setRotaryUsage({ strength, total }) {
+      state.set('Rotary contact', strength.toFixed(2));
+      state.set('Rotary agitation', total.toFixed(2));
+      render(true);
+    },
     updateFrame({ cpuMs, frameMs, renderedFrames }) {
       state.set('Renderer', 'Three.js WebGPU r180');
       state.set('CPU render', `${cpuMs.toFixed(2)} ms`);
