@@ -9,6 +9,7 @@
 <link rel="manifest" href="manifests/links.webmanifest">
 <meta name="theme-color" content="#05071c"><meta name="mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="Neon Links">
 <script src="lib/analytics.js"></script>
+<script src="lib/recording/recording.js"></script>
 <style>
 :root {
   --bg0:#070a12;
@@ -311,7 +312,6 @@ const difficultyEl = document.getElementById("difficulty");
 const query = new URLSearchParams(location.search);
 const devMode = query.get("dev") === "1";
 const rendererMode = query.get("renderer") === "1";
-const RECORDINGS_KEY = "neon-links-successful-replays-v1";
 let recording = null;
 
 const colors = ["#56ccff","#ff5fb7","#7cffb2","#ffd166","#a78bfa","#ff8a5b"];
@@ -397,7 +397,7 @@ function newGame() {
       dots.push({ id:dots.length, pair, x:p.x, y:p.y, color:colors[pair], el, connected:false });
     }
   }
-  recording = devMode && !rendererMode ? {
+  recording = gameRecording.devMode && !gameRecording.rendererMode ? {
     schemaVersion:1,
     game:"Neon Links",
     recordedAt:new Date().toISOString(),
@@ -667,67 +667,13 @@ function stopDrawLoop() {
   drawLoop = null;
 }
 
-function loadRecordings() {
-  try { return JSON.parse(localStorage.getItem(RECORDINGS_KEY) || "[]"); }
-  catch { return []; }
-}
-
 function saveSuccessfulRecording() {
   if (!recording) return;
   delete recording.startedAt;
   delete recording.activeLink;
   recording.durationMs = Math.max(1, ...recording.links.map(link => link.completedAtMs), ...recording.audio.map(event => event.timeMs));
-  const recordings = loadRecordings();
-  recordings.push(recording);
-  localStorage.setItem(RECORDINGS_KEY, JSON.stringify(recordings.slice(-100)));
+  gameRecording.saveSolution("Neon Links", recording);
   recording = null;
-}
-
-function downloadRecordings() {
-  const payload = { schemaVersion:1, game:"Neon Links", exportedAt:new Date().toISOString(), replays:loadRecordings() };
-  const url = URL.createObjectURL(new Blob([JSON.stringify(payload, null, 2)], { type:"application/json" }));
-  const link = Object.assign(document.createElement("a"), { href:url, download:`neon-links-replays-${new Date().toISOString().replace(/[:.]/g,"-")}.json` });
-  link.click();
-  URL.revokeObjectURL(url);
-}
-
-if (devMode && !rendererMode) {
-  const devControls = document.createElement("div");
-  devControls.className = "game-topbar__controls";
-  for (const label of ["Download","Clear"]) {
-    const button = document.createElement("button");
-    button.type = "button";
-    button.textContent = label;
-    button.title = `${label} recorded successful games`;
-    button.addEventListener("click", () => {
-      if (label === "Download") downloadRecordings();
-      if (label === "Clear" && confirm("Delete all recorded successful games?")) localStorage.removeItem(RECORDINGS_KEY);
-    });
-    devControls.appendChild(button);
-  }
-  document.querySelector(".game-topbar__right").appendChild(devControls);
-
-  const menu = document.createElement("div");
-  menu.style.cssText = "position:fixed;display:none;z-index:1000;padding:6px;background:#11182e;border:1px solid #56ccff;border-radius:10px;box-shadow:0 12px 35px #000;color:white";
-  for (const label of ["Download","Clear"]) {
-    const button = document.createElement("button");
-    button.textContent = label;
-    button.style.cssText = "display:block;width:100%;padding:9px 18px;background:transparent;border:0;color:white;text-align:left";
-    button.addEventListener("click", () => {
-      menu.style.display = "none";
-      if (label === "Download") downloadRecordings();
-      if (label === "Clear" && confirm("Delete all recorded successful games?")) localStorage.removeItem(RECORDINGS_KEY);
-    });
-    menu.appendChild(button);
-  }
-  document.body.appendChild(menu);
-  addEventListener("contextmenu", event => {
-    event.preventDefault();
-    menu.style.left = `${Math.min(event.clientX, innerWidth - 130)}px`;
-    menu.style.top = `${Math.min(event.clientY, innerHeight - 100)}px`;
-    menu.style.display = "block";
-  });
-  addEventListener("pointerdown", event => { if (!menu.contains(event.target)) menu.style.display = "none"; });
 }
 
 function validateReplay(replay) {
@@ -871,6 +817,64 @@ window.neonLinksReplay = {
     }
   }
 };
+
+function replayDuration(replay) {
+  if (!replay.links.length) return 1000;
+  return Math.max(...replay.links.map(link => link.completedAtMs)) + 1900;
+}
+
+function scoreReplay(replay) {
+  const diagonal = Math.max(1, Math.hypot(replay.viewport.width, replay.viewport.height));
+  const pathLength = replay.links.reduce((sum, link) => sum + link.points.slice(1).reduce((linkSum, point, index) => {
+    const previous = link.points[index];
+    return linkSum + Math.hypot(point.x - previous.x, point.y - previous.y);
+  }, 0), 0);
+  const duration = replay.durationMs || Math.max(1, ...replay.links.map(link => link.completedAtMs));
+  return pathLength / diagonal * 100 + 100000 / Math.max(1, duration);
+}
+
+function optimizeReplay(replay) {
+  const optimized = structuredClone(replay);
+  let cursor = 250;
+  optimized.links.forEach(link => {
+    const source = optimized.dots.find(dot => dot.id === link.sourceId);
+    const target = optimized.dots.find(dot => dot.id === link.targetId);
+    const points = link.points.filter((_, index) => index === 0 || index === link.points.length - 1 || index % 2 === 0);
+    points[0] = { ...points[0], x:source.x, y:source.y };
+    points[points.length - 1] = { ...points[points.length - 1], x:target.x, y:target.y };
+    const duration = Math.max(320, Math.min(900, link.completedAtMs - link.startedAtMs));
+    link.startedAtMs = cursor;
+    link.completedAtMs = cursor + duration;
+    points.forEach((point, index) => {
+      point.timeMs = link.startedAtMs + (points.length <= 1 ? 0 : index / (points.length - 1)) * duration;
+    });
+    link.points = points;
+    cursor = link.completedAtMs + 180;
+  });
+  return validateReplay(optimized).isValid ? optimized : replay;
+}
+
+gameRecording.registerGame({
+  name:"Neon Links",
+  slug:"neon-links",
+  page:"Dots.html",
+  scoreSolution:scoreReplay,
+  optimizeSolution:optimizeReplay,
+  validateSolution:validateReplay,
+  loadSolution(solution) { window.neonLinksReplay.load(solution); },
+  seek(timeMs, options) { window.neonLinksReplay.seek(timeMs, options); },
+  getDurationMs:replayDuration,
+  getAudioEvents(solution) {
+    const events = [];
+    solution.links.forEach(link => {
+      events.push({ name:"DotGrab", timeMs:link.startedAtMs });
+      events.push({ name:"DrawLoop", timeMs:link.startedAtMs, durationMs:link.completedAtMs - link.startedAtMs });
+      events.push({ name:"LinkComplete", timeMs:link.completedAtMs });
+    });
+    if (solution.links.length) events.push({ name:"PuzzleComplete", timeMs:Math.max(...solution.links.map(link => link.completedAtMs)) });
+    return events;
+  }
+});
 
 function fail(title,text) {
   locked = true;
