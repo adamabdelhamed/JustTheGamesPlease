@@ -3,6 +3,7 @@ import { gunFamily, multiplierFamily, orbFamily, trackFamily, type GunId, type M
 import { bindSquadInput } from "./input";
 import { SquadModel } from "./squad";
 import { AutoAimControlState, selectAutoAimOffset } from "./autoAim";
+import { applyPortraitStage } from "./viewport";
 
 interface Enemy { lane: 0 | 1; x: number; y: number; health: number; rowId: number }
 interface Projectile { lane: 0 | 1; x: number; y: number; damage: number; speed: number; radius: number; color: string; trail: string }
@@ -19,10 +20,14 @@ const resultTitle = document.querySelector<HTMLElement>("#result-title")!;
 const resultDetail = document.querySelector<HTMLElement>("#result-detail")!;
 const error = document.querySelector<HTMLElement>("#error")!;
 const developerTools = document.querySelector<HTMLElement>("#developer-tools")!;
+const gameElement = document.querySelector<HTMLElement>("#game")!;
 developerTools.hidden = new URLSearchParams(location.search).get("dev") !== "1";
+applyPortraitStage(gameElement, trackFamily.members.electricCauseway.viewport);
 
 try {
   const renderer = await NeonPrimitiveRenderer.create(canvas);
+  const viewport = trackFamily.members.electricCauseway.viewport;
+  renderer.setLogicalSize(viewport.logicalWidth, viewport.logicalHeight);
   let activeTrack: TrackMember | null = null;
   let startedAt = 0;
   let lastFrame = performance.now();
@@ -42,7 +47,7 @@ try {
   const aimControl = new AutoAimControlState();
   let victory: NeonVictoryExperience | null = null;
 
-  const scale = () => Math.min(devicePixelRatio || 1, 2);
+  const scale = () => 1;
   const laneX = (lane: number) => canvas.width * (lane === 0 ? .39 : .61);
   const playerY = () => canvas.height * .82;
 
@@ -181,6 +186,8 @@ try {
       squad.autoAim(offset, canvas.width * .22, laneX);
     }
     squad.update(delta);
+    gameElement.dataset.squadLane = String(squad.lane);
+    gameElement.dataset.squadAim = squad.aimOffset.toFixed(2);
 
     cooldown -= delta;
     if (cooldown <= 0) fire();

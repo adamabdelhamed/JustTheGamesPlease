@@ -31,6 +31,13 @@ export interface TrackMember {
   durationSeconds: number;
   startingGun: GunId;
   startingGunLevel: 1 | 2 | 3;
+  viewport: {
+    orientation: "portrait";
+    aspectWidth: number;
+    aspectHeight: number;
+    logicalWidth: number;
+    logicalHeight: number;
+  };
   environment: {
     floorColor: NeonColorName;
     crackColor: NeonColorName;
@@ -55,6 +62,13 @@ export class TrackFamilyDefinition extends FamilyDefinition<Record<string, Track
       durationSeconds: 26,
       startingGun: "pulsePistol",
       startingGunLevel: 1,
+      viewport: {
+        orientation: "portrait",
+        aspectWidth: 9,
+        aspectHeight: 16,
+        logicalWidth: 450,
+        logicalHeight: 800,
+      },
       environment: {
         floorColor: "deepBlue",
         crackColor: "cyan",
@@ -96,6 +110,8 @@ export class TrackFamilyDefinition extends FamilyDefinition<Record<string, Track
   validate(): void {
     for (const [id, track] of Object.entries(this.members)) {
       this.require(track.durationSeconds > 0, `${id} duration must be positive.`);
+      this.require(track.viewport.orientation === "portrait" && track.viewport.aspectHeight > track.viewport.aspectWidth, `${id} must use its declared portrait viewport.`);
+      this.require(track.viewport.logicalWidth > 0 && track.viewport.logicalHeight > 0, `${id} logical viewport must be positive.`);
       this.require(track.enemySchedule.every(event => event.atSeconds < track.durationSeconds), `${id} has an enemy after the finish.`);
       this.require(track.pickupSchedule.every(event => event.atSeconds < track.durationSeconds), `${id} has a pickup after the finish.`);
       this.require(track.multiplierSchedule.every(event => event.atSeconds < track.durationSeconds), `${id} has a multiplier after the finish.`);

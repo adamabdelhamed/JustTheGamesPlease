@@ -135,6 +135,7 @@ var NeonPrimitiveRenderer = class _NeonPrimitiveRenderer {
   #sceneBuffer;
   #primitiveBuffer;
   #bindGroup;
+  #logicalSize = null;
   constructor(canvas2, device, context, format) {
     this.canvas = canvas2;
     this.device = device;
@@ -173,6 +174,12 @@ var NeonPrimitiveRenderer = class _NeonPrimitiveRenderer {
     const format = navigator.gpu.getPreferredCanvasFormat();
     context.configure({ device, format, alphaMode: "premultiplied" });
     return new _NeonPrimitiveRenderer(canvas2, device, context, format);
+  }
+  setLogicalSize(width, height) {
+    this.#logicalSize = { width, height };
+    this.canvas.width = width;
+    this.canvas.height = height;
+    return this;
   }
   render(primitives, timeSeconds = 0) {
     this.#resize();
@@ -217,6 +224,11 @@ var NeonPrimitiveRenderer = class _NeonPrimitiveRenderer {
     this.device.queue.submit([encoder.finish()]);
   }
   #resize() {
+    if (this.#logicalSize) {
+      if (this.canvas.width !== this.#logicalSize.width) this.canvas.width = this.#logicalSize.width;
+      if (this.canvas.height !== this.#logicalSize.height) this.canvas.height = this.#logicalSize.height;
+      return;
+    }
     const ratio = Math.min(devicePixelRatio || 1, 2);
     const width = Math.max(1, Math.floor(this.canvas.clientWidth * ratio));
     const height = Math.max(1, Math.floor(this.canvas.clientHeight * ratio));
@@ -396,6 +408,13 @@ var TrackFamilyDefinition = class extends FamilyDefinition {
       durationSeconds: 26,
       startingGun: "pulsePistol",
       startingGunLevel: 1,
+      viewport: {
+        orientation: "portrait",
+        aspectWidth: 9,
+        aspectHeight: 16,
+        logicalWidth: 450,
+        logicalHeight: 800
+      },
       environment: {
         floorColor: "deepBlue",
         crackColor: "cyan",
@@ -435,6 +454,8 @@ var TrackFamilyDefinition = class extends FamilyDefinition {
   validate() {
     for (const [id, track] of Object.entries(this.members)) {
       this.require(track.durationSeconds > 0, `${id} duration must be positive.`);
+      this.require(track.viewport.orientation === "portrait" && track.viewport.aspectHeight > track.viewport.aspectWidth, `${id} must use its declared portrait viewport.`);
+      this.require(track.viewport.logicalWidth > 0 && track.viewport.logicalHeight > 0, `${id} logical viewport must be positive.`);
       this.require(track.enemySchedule.every((event) => event.atSeconds < track.durationSeconds), `${id} has an enemy after the finish.`);
       this.require(track.pickupSchedule.every((event) => event.atSeconds < track.durationSeconds), `${id} has a pickup after the finish.`);
       this.require(track.multiplierSchedule.every((event) => event.atSeconds < track.durationSeconds), `${id} has a multiplier after the finish.`);
@@ -479,6 +500,18 @@ var multiplierFamily = new MultiplierFamilyDefinition();
 
 // projects/NeonSwarm/src/input.ts
 function bindSquadInput(container, joystick, callbacks) {
+  let pointerId = null;
+  let pointerStartedX = 0;
+  let pointerMoved = false;
+  const applyPointer = (clientX) => {
+    const bounds = container.getBoundingClientRect();
+    const normalized = Math.max(0, Math.min(1, (clientX - bounds.left) / bounds.width));
+    const lane = normalized < 0.5 ? 0 : 1;
+    if (lane !== callbacks.lane()) callbacks.setLane(lane);
+    const laneStart = lane === 0 ? 0 : 0.5;
+    const withinLane = (normalized - laneStart) / 0.5;
+    callbacks.setAim((withinLane - 0.5) * 2);
+  };
   addEventListener("keydown", (event) => {
     if (event.key === "a" || event.key === "A" || event.key === "ArrowLeft") callbacks.setLane(0);
     if (event.key === "d" || event.key === "D" || event.key === "ArrowRight") callbacks.setLane(1);
@@ -486,27 +519,66 @@ function bindSquadInput(container, joystick, callbacks) {
   container.addEventListener("pointerdown", (event) => {
     const target = event.target;
     if (target.closest(joystick) || target.closest("button,input,select,a")) return;
-    callbacks.setLane(event.clientX < innerWidth / 2 ? 0 : 1);
+    pointerId = event.pointerId;
+    pointerStartedX = event.clientX;
+    pointerMoved = false;
+    container.setPointerCapture?.(pointerId);
+    applyPointer(event.clientX);
   });
-  window.gameController?.createJoystick({
-    element: joystick,
-    container,
-    radius: 54,
-    orientationLayout: { portrait: { x: 82, yFromBottom: 88 }, landscape: { x: 88, yFromBottom: 82 } },
-    recenterRadius: { portrait: 130, landscape: 150 }
-  }).onChange((input) => {
-    const magnitude = Math.abs(input.x);
-    if (magnitude >= 0.95) {
-      const requested = input.x < 0 ? 0 : 1;
-      if (requested !== callbacks.lane()) callbacks.setLane(requested);
-      callbacks.setAim(0);
-    } else if (magnitude <= 0.5) {
-      callbacks.setAim(input.x / 0.5);
-    } else {
-      callbacks.setAim(Math.sign(input.x));
-    }
-    if (input.magnitude === 0) callbacks.releaseAim();
+  container.addEventListener("pointermove", (event) => {
+    if (event.pointerId !== pointerId) return;
+    pointerMoved ||= Math.abs(event.clientX - pointerStartedX) > 3;
+    applyPointer(event.clientX);
   });
+  const endPointer = (event) => {
+    if (event.pointerId !== pointerId) return;
+    if (!pointerMoved) applyPointer(event.clientX);
+    pointerId = null;
+    callbacks.releaseAim();
+  };
+  container.addEventListener("pointerup", endPointer);
+  container.addEventListener("pointercancel", endPointer);
+  container.addEventListener("lostpointercapture", () => {
+    pointerId = null;
+    callbacks.releaseAim();
+  });
+  if (matchMedia("(pointer: coarse)").matches) {
+    const element = container.querySelector(joystick);
+    const knob = element?.querySelector(".stick-knob");
+    let joystickPointer = null;
+    const applyJoystick = (event) => {
+      if (!element) return;
+      const bounds = element.getBoundingClientRect();
+      const radius = bounds.width / 2;
+      const raw = (event.clientX - (bounds.left + radius)) / radius;
+      const x = Math.max(-1, Math.min(1, raw));
+      if (knob) knob.style.transform = `translate(calc(-50% + ${x * radius * 0.62}px),-50%)`;
+      const magnitude = Math.abs(x);
+      if (magnitude >= 0.95) {
+        const requested = x < 0 ? 0 : 1;
+        if (requested !== callbacks.lane()) callbacks.setLane(requested);
+        callbacks.setAim(0);
+      } else if (magnitude <= 0.5) callbacks.setAim(x / 0.5);
+      else callbacks.setAim(Math.sign(x));
+    };
+    element?.addEventListener("pointerdown", (event) => {
+      event.stopPropagation();
+      joystickPointer = event.pointerId;
+      element.setPointerCapture(event.pointerId);
+      applyJoystick(event);
+    });
+    element?.addEventListener("pointermove", (event) => {
+      if (event.pointerId === joystickPointer) applyJoystick(event);
+    });
+    const endJoystick = (event) => {
+      if (event.pointerId !== joystickPointer) return;
+      joystickPointer = null;
+      if (knob) knob.style.transform = "translate(-50%,-50%)";
+      callbacks.releaseAim();
+    };
+    element?.addEventListener("pointerup", endJoystick);
+    element?.addEventListener("pointercancel", endJoystick);
+  }
 }
 
 // projects/NeonSwarm/src/squad.ts
@@ -587,6 +659,11 @@ function selectAutoAimOffset(targets, laneCenter, currentOffset = 0) {
   return selected.x - laneCenter;
 }
 
+// projects/NeonSwarm/src/viewport.ts
+function applyPortraitStage(stage, policy) {
+  stage.style.setProperty("--stage-aspect", `${policy.aspectWidth} / ${policy.aspectHeight}`);
+}
+
 // projects/NeonSwarm/test-pages/gun-family/manual.ts
 var canvas = document.querySelector("#game-canvas");
 var error = document.querySelector("#error");
@@ -597,8 +674,11 @@ var scoreReadout = document.querySelector("#score-readout");
 var specReadout = document.querySelector("#spec-readout");
 var formationSize = document.querySelector("#formation-size");
 var formationRows = document.querySelector("#formation-rows");
+var gameElement = document.querySelector("#game");
+applyPortraitStage(gameElement, { aspectWidth: 9, aspectHeight: 16 });
 try {
   const renderer = await NeonPrimitiveRenderer.create(canvas);
+  renderer.setLogicalSize(450, 800);
   const guns = gunFamily.members;
   const orb = orbFamily.members.basicOrb;
   const enemies = [];
@@ -623,7 +703,7 @@ try {
   };
   const laneX = (lane) => canvas.width * (lane === 0 ? 0.38 : 0.62);
   const playerY = () => canvas.height * 0.82;
-  const scale = () => Math.min(devicePixelRatio || 1, 2);
+  const scale = () => 1;
   for (const [id, gun] of Object.entries(guns)) {
     gunSelect.add(new Option(gun.label, id));
   }
@@ -831,6 +911,8 @@ try {
       squad.autoAim(offset, canvas.width * 0.22, laneX);
     }
     squad.update(delta);
+    gameElement.dataset.squadLane = String(squad.lane);
+    gameElement.dataset.squadAim = squad.aimOffset.toFixed(2);
     for (const projectile of [...projectiles]) {
       projectile.x += projectile.vx * delta;
       projectile.y -= projectile.speed * delta;

@@ -335,6 +335,7 @@ var NeonPrimitiveRenderer = class _NeonPrimitiveRenderer {
   #sceneBuffer;
   #primitiveBuffer;
   #bindGroup;
+  #logicalSize = null;
   constructor(canvas, device, context, format) {
     this.canvas = canvas;
     this.device = device;
@@ -373,6 +374,12 @@ var NeonPrimitiveRenderer = class _NeonPrimitiveRenderer {
     const format = navigator.gpu.getPreferredCanvasFormat();
     context.configure({ device, format, alphaMode: "premultiplied" });
     return new _NeonPrimitiveRenderer(canvas, device, context, format);
+  }
+  setLogicalSize(width, height) {
+    this.#logicalSize = { width, height };
+    this.canvas.width = width;
+    this.canvas.height = height;
+    return this;
   }
   render(primitives, timeSeconds = 0) {
     this.#resize();
@@ -417,6 +424,11 @@ var NeonPrimitiveRenderer = class _NeonPrimitiveRenderer {
     this.device.queue.submit([encoder.finish()]);
   }
   #resize() {
+    if (this.#logicalSize) {
+      if (this.canvas.width !== this.#logicalSize.width) this.canvas.width = this.#logicalSize.width;
+      if (this.canvas.height !== this.#logicalSize.height) this.canvas.height = this.#logicalSize.height;
+      return;
+    }
     const ratio = Math.min(devicePixelRatio || 1, 2);
     const width = Math.max(1, Math.floor(this.canvas.clientWidth * ratio));
     const height = Math.max(1, Math.floor(this.canvas.clientHeight * ratio));

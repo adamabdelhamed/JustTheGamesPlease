@@ -3,6 +3,7 @@ import { gunFamily, multiplierFamily, orbFamily, type GunLevel, type GunMember, 
 import { bindSquadInput } from "../../src/input";
 import { SquadModel } from "../../src/squad";
 import { AutoAimControlState, selectAutoAimOffset } from "../../src/autoAim";
+import { applyPortraitStage } from "../../src/viewport";
 
 interface Enemy {
   id: number;
@@ -71,9 +72,12 @@ const scoreReadout = document.querySelector<HTMLElement>("#score-readout")!;
 const specReadout = document.querySelector<HTMLElement>("#spec-readout")!;
 const formationSize = document.querySelector<HTMLInputElement>("#formation-size")!;
 const formationRows = document.querySelector<HTMLSelectElement>("#formation-rows")!;
+const gameElement = document.querySelector<HTMLElement>("#game")!;
+applyPortraitStage(gameElement, { aspectWidth: 9, aspectHeight: 16 });
 
 try {
   const renderer = await NeonPrimitiveRenderer.create(canvas);
+  renderer.setLogicalSize(450, 800);
   const guns: Record<string, GunMember> = gunFamily.members;
   const orb = orbFamily.members.basicOrb;
   const enemies: Enemy[] = [];
@@ -99,7 +103,7 @@ try {
 
   const laneX = (lane: number) => canvas.width * (lane === 0 ? 0.38 : 0.62);
   const playerY = () => canvas.height * 0.82;
-  const scale = () => Math.min(devicePixelRatio || 1, 2);
+  const scale = () => 1;
 
   for (const [id, gun] of Object.entries(guns)) {
     gunSelect.add(new Option(gun.label, id));
@@ -315,6 +319,8 @@ try {
       squad.autoAim(offset, canvas.width * .22, laneX);
     }
     squad.update(delta);
+    gameElement.dataset.squadLane = String(squad.lane);
+    gameElement.dataset.squadAim = squad.aimOffset.toFixed(2);
 
     for (const projectile of [...projectiles]) {
       projectile.x += projectile.vx * delta;
