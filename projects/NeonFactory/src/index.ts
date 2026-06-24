@@ -12,3 +12,7 @@ export {
   type TestPageSnapshot,
   type TestStatus,
 } from "./test-harness";
+export {
+  NeonVictoryExperience,
+  type NeonVictoryOptions,
+} from "./victory";

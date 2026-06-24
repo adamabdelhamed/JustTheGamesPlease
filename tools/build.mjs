@@ -48,12 +48,29 @@ await build({
 });
 
 await mkdir(resolve(docs, "NeonSwarm"), { recursive: true });
-await mkdir(resolve(docs, "NeonSwarm/specs"), { recursive: true });
+await mkdir(resolve(docs, "NeonSwarm/tests/gun-family"), { recursive: true });
 await Promise.all([
   cp(resolve(root, "projects/NeonSwarm/public/index.html"), resolve(docs, "NeonSwarm.html")),
   cp(resolve(root, "projects/NeonSwarm/public/game.css"), resolve(docs, "NeonSwarm/game.css")),
-  cp(resolve(root, "projects/NeonSwarm/CombatDefinition/GunFamily.json"), resolve(docs, "NeonSwarm/specs/GunFamily.json")),
-  cp(resolve(root, "projects/NeonSwarm/CombatDefinition/OrbFamily.json"), resolve(docs, "NeonSwarm/specs/OrbFamily.json")),
+  cp(resolve(root, "projects/NeonSwarm/test-pages/index.html"), resolve(docs, "NeonSwarm/tests/index.html")),
+  cp(resolve(root, "projects/NeonSwarm/test-pages/index.css"), resolve(docs, "NeonSwarm/tests/index.css")),
+  cp(resolve(root, "projects/NeonSwarm/test-pages/gun-family/manual.html"), resolve(docs, "NeonSwarm/tests/gun-family/manual.html")),
+  cp(resolve(root, "projects/NeonSwarm/test-pages/gun-family/manual.css"), resolve(docs, "NeonSwarm/tests/gun-family/manual.css")),
+  cp(resolve(root, "projects/NeonSwarm/test-pages/gun-family/smoke.html"), resolve(docs, "NeonSwarm/tests/gun-family/smoke.html")),
+  cp(resolve(root, "projects/NeonSwarm/test-pages/gun-family/smoke.css"), resolve(docs, "NeonSwarm/tests/gun-family/smoke.css")),
+]);
+
+await Promise.all([
+  build({
+    entryPoints: [resolve(root, "projects/NeonSwarm/test-pages/gun-family/manual.ts")],
+    outfile: resolve(docs, "NeonSwarm/tests/gun-family/manual.js"),
+    bundle: true, format: "esm", platform: "browser", target: "es2022", sourcemap: true,
+  }),
+  build({
+    entryPoints: [resolve(root, "projects/NeonSwarm/test-pages/gun-family/smoke.ts")],
+    outfile: resolve(docs, "NeonSwarm/tests/gun-family/smoke.js"),
+    bundle: true, format: "esm", platform: "browser", target: "es2022", sourcemap: true,
+  }),
 ]);
 
 console.log("Built NeonFactory and NeonSwarm into docs.");

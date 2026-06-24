@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Neon Swarm Test Center</title>
+  <link rel="stylesheet" href="index.css">
+</head>
+<body>
+  <main id="test-center" hidden>
+    <header>
+      <div>
+        <span class="eyebrow">NEON SWARM · DEVELOPER</span>
+        <h1>Test Center</h1>
+        <p>Manual labs and automated suites organized by game subsystem.</p>
+      </div>
+      <a class="back" href="../../NeonSwarm.html?dev=1">Back to Tracks</a>
+    </header>
+    <section>
+      <h2>Combat</h2>
+      <article>
+        <div><span class="family">GUN FAMILY</span><h3>Forward projectile weapons</h3></div>
+        <nav>
+          <a href="gun-family/manual.html?dev=1"><strong>Manual Lab</strong><span>Spawn enemies, pickups, and tune visual behavior.</span></a>
+          <a href="gun-family/smoke.html?dev=1"><strong>Smoke Suite</strong><span>All guns defeat the weakest orb before contact.</span></a>
+        </nav>
+      </article>
+    </section>
+  </main>
+  <section id="dev-required" class="dev-required" hidden>
+    <h1>Developer mode required</h1>
+    <p>Open this page from the game with <code>?dev=1</code>.</p>
+  </section>
+  <script>
+    const developer = new URLSearchParams(location.search).get('dev') === '1';
+    document.querySelector('#test-center').hidden = !developer;
+    document.querySelector('#dev-required').hidden = developer;
+  </script>
+</body>
+</html>

@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+  <title>Neon Swarm · Gun Family Test</title>
+  <meta name="theme-color" content="#05071c">
+  <script src="../../../lib/analytics.js"></script>
+  <link rel="stylesheet" href="../../../lib/top-bar/top-bar.css">
+  <link rel="stylesheet" href="../../../lib/controller/controller.css">
+  <link rel="stylesheet" href="manual.css">
+</head>
+<body>
+  <main id="game" aria-label="Gun family lane runner test page">
+    <canvas id="game-canvas"></canvas>
+    <header data-game-topbar data-contained>
+      <div class="game-topbar__identity">
+        <h1>GUN FAMILY <b>LAB</b></h1>
+        <p class="game-topbar__instructions" id="status">Move with A/D or arrows. Guns auto-fire. Catch pickups in either lane.</p>
+      </div>
+      <div class="game-topbar__right">
+        <div class="game-topbar__controls">
+          <span id="weapon-readout">Loading specs…</span>
+          <span id="score-readout">Kills 0</span>
+        </div>
+        <div class="game-topbar__utilities" data-game-topbar-utilities></div>
+      </div>
+    </header>
+    <aside class="lab-panel" aria-label="Manual test controls">
+      <h2>Manual controls</h2>
+      <label>Gun pickup
+        <select id="gun-select"></select>
+      </label>
+      <label>Level
+        <select id="level-select"><option>1</option><option>2</option><option>3</option></select>
+      </label>
+      <div class="button-row">
+        <button type="button" data-spawn-pickup="0">Pickup left</button>
+        <button type="button" data-spawn-pickup="1">Pickup right</button>
+      </div>
+      <div class="button-row">
+        <button type="button" data-spawn-enemy="0">Enemy left</button>
+        <button type="button" data-spawn-enemy="1">Enemy right</button>
+      </div>
+      <button type="button" id="spawn-wave">Spawn wave</button>
+      <button type="button" id="clear-stage">Clear stage</button>
+      <dl id="spec-readout"></dl>
+      <p class="spec-note">Balance comes from the typed <code>GunFamily.ts</code> and <code>OrbFamily.ts</code> public APIs.</p>
+    </aside>
+    <div id="joystick" aria-hidden="true"><span class="stick-ring"></span><span class="stick-knob"></span></div>
+    <section id="error" role="alert" hidden></section>
+  </main>
+  <script src="../../../lib/top-bar/top-bar.js"></script>
+  <script src="../../../lib/audio/audio.js"></script>
+  <script src="../../../lib/controller/controller.js"></script>
+  <script>gameAudio.preload(['Primary','Primary_Alt1','Primary_Alt2','Primary_Alt3','Pickup','Hit','EnemyDestroyed']);</script>
+  <script type="module" src="manual.js"></script>
+</body>
+</html>

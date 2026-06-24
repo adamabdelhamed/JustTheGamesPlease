@@ -2,17 +2,17 @@
 
 This folder's contents represent the heart and soul of the Neon Swarm game.
 
-Each implemented game concept has its own `*Family.json` contract. Family files are runtime data, not documentation: all balance, power, timing, movement, collision, and visual intensity tunables for that concept belong in its JSON file rather than TypeScript.
+Each implemented game concept has its own typed `*Family.ts` contract. Family modules are runtime APIs, not documentation: all balance, power, timing, movement, collision, material, and visual intensity tunables for that concept belong in its definition rather than gameplay implementation code.
 
-Keep family implementations reusable and data-driven. A family owns shared mechanics; its members primarily select declarative values and named behaviors. Optional escape hatches are allowed, but they must layer onto the family engine rather than create parallel one-off systems.
+Definitions should extend the shared `FamilyDefinition` base, export their public types, validate themselves during construction, and export one validated family instance. Use literal unions and `satisfies` so invalid behavior ids, colors, and member shapes fail TypeScript compilation.
 
 `Spec-Ideas.json` is retained as design input only. It is not a runtime contract and must not be imported by game code.
 
 When adding or changing a family:
 
-- Keep the file independently understandable and valid JSON.
-- Copy it into the built site's `NeonSwarm/specs` folder.
-- Validate required fields at runtime and fail with a useful visible error.
+- Keep the module independently understandable and strongly typed.
+- Import NeonFactory's first-class visual tokens instead of duplicating raw colors where practical.
+- Validate value ranges in the family class and fail with a useful error.
 - Add or update a manual test page for the family.
 - Do not duplicate balance constants in TypeScript.
 

@@ -5,6 +5,9 @@ var neonPalette = {
   green: "#7fffc2",
   gold: "#ffd45c",
   violet: "#a987ff",
+  orange: "#ff8a45",
+  red: "#ff5577",
+  deepBlue: "#287dff",
   whiteHot: "#f4fbff"
 };
 var glowPresets = {

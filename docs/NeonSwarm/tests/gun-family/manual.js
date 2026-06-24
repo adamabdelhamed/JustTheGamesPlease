@@ -227,63 +227,6 @@ var NeonPrimitiveRenderer = class _NeonPrimitiveRenderer {
   }
 };
 
-// projects/NeonFactory/src/victory.ts
-var NeonVictoryExperience = class {
-  startedAt;
-  durationMs;
-  options;
-  constructor(options, startedAt = performance.now()) {
-    this.options = options;
-    this.startedAt = startedAt;
-    this.durationMs = options.durationMs ?? 4200;
-  }
-  get complete() {
-    return performance.now() - this.startedAt >= this.durationMs;
-  }
-  primitives(now = performance.now()) {
-    const elapsed = Math.max(0, now - this.startedAt);
-    const progress = Math.min(1, elapsed / this.durationMs);
-    const count = this.options.particleCount ?? 90;
-    const colors = [neonPalette.cyan, neonPalette.pink, neonPalette.gold, neonPalette.green, neonPalette.violet, neonPalette.orange];
-    const primitives = [];
-    for (let index = 0; index < count; index++) {
-      const seed = index * 91.73;
-      const delay = index % 12 * 0.035;
-      const local = Math.max(0, Math.min(1, progress * 1.35 - delay));
-      if (local <= 0) continue;
-      const angle = seed % 360 / 180 * Math.PI;
-      const speed = 0.22 + index * 37 % 100 / 260;
-      const drift = Math.sin(seed) * this.options.width * 0.06 * local;
-      const x = this.options.centerX + Math.cos(angle) * this.options.width * speed * local + drift;
-      const y = this.options.centerY + Math.sin(angle) * this.options.height * speed * local + this.options.height * 0.42 * local * local;
-      const fade = Math.max(0, 1 - local * 0.72);
-      const size = 2.5 + index % 5;
-      primitives.push({
-        x,
-        y,
-        width: size,
-        height: size * (1.8 + index % 3),
-        color: colors[index % colors.length],
-        secondaryColor: colors[(index + 2) % colors.length],
-        glow: 0.55,
-        intensity: fade,
-        shape: index % 4 === 0 ? "spark" : "bolt"
-      });
-    }
-    primitives.push({
-      x: this.options.centerX,
-      y: this.options.centerY,
-      width: 80 + progress * 180,
-      color: neonPalette.cyan,
-      secondaryColor: neonPalette.violet,
-      glow: 0.55 * (1 - progress),
-      intensity: Math.max(0, 1 - progress),
-      shape: "ring"
-    });
-    return primitives;
-  }
-};
-
 // projects/NeonSwarm/CombatDefinition/FamilyDefinition.ts
 var FamilyDefinition = class {
   require(condition, message) {
@@ -496,77 +439,95 @@ var TrackFamilyDefinition = class extends FamilyDefinition {
 };
 var trackFamily = new TrackFamilyDefinition();
 
-// projects/NeonSwarm/src/main.ts
+// projects/NeonSwarm/test-pages/gun-family/manual.ts
 var canvas = document.querySelector("#game-canvas");
-var trackSelect = document.querySelector("#track-select");
-var trackList = document.querySelector("#track-list");
-var status = document.querySelector("#status");
-var runStatus = document.querySelector("#run-status");
-var result = document.querySelector("#result");
-var resultTitle = document.querySelector("#result-title");
-var resultDetail = document.querySelector("#result-detail");
 var error = document.querySelector("#error");
-var developerTools = document.querySelector("#developer-tools");
-developerTools.hidden = new URLSearchParams(location.search).get("dev") !== "1";
+var gunSelect = document.querySelector("#gun-select");
+var levelSelect = document.querySelector("#level-select");
+var weaponReadout = document.querySelector("#weapon-readout");
+var scoreReadout = document.querySelector("#score-readout");
+var specReadout = document.querySelector("#spec-readout");
 try {
   const renderer = await NeonPrimitiveRenderer.create(canvas);
-  let activeTrack = null;
-  let startedAt = 0;
-  let lastFrame = performance.now();
+  const guns = gunFamily.members;
+  const orb = orbFamily.members.basicOrb;
+  const enemies = [];
+  const projectiles = [];
+  const pickups = [];
+  const effects = [];
   let playerLane = 0;
-  let gunId = "pulsePistol";
-  let gunLevel = 1;
+  let equippedGunId = "pulsePistol";
+  let equippedLevel = 1;
   let cooldown = 0;
-  let nextEnemy = 0;
-  let nextPickup = 0;
-  let breaches = 0;
-  let enemies = [];
-  let projectiles = [];
-  let pickups = [];
-  let victory = null;
-  const scale = () => Math.min(devicePixelRatio || 1, 2);
-  const laneX = (lane) => canvas.width * (lane === 0 ? 0.39 : 0.61);
+  let shotSequence = 0;
+  let entitySequence = 0;
+  let kills = 0;
+  let lastFrame = performance.now();
+  let recoil = 0;
+  const pseudoRandom = (seed) => {
+    const value = Math.sin(seed * 12.9898 + 78.233) * 43758.5453;
+    return value - Math.floor(value);
+  };
+  const laneX = (lane) => canvas.width * (lane === 0 ? 0.38 : 0.62);
   const playerY = () => canvas.height * 0.82;
-  const resetToTracks = () => {
-    activeTrack = null;
-    result.hidden = true;
-    trackSelect.hidden = false;
-    status.textContent = "Choose a track.";
-    runStatus.textContent = "";
-    enemies = [];
-    projectiles = [];
-    pickups = [];
-    victory = null;
+  const scale = () => Math.min(devicePixelRatio || 1, 2);
+  for (const [id, gun] of Object.entries(guns)) {
+    gunSelect.add(new Option(gun.label, id));
+  }
+  gunSelect.value = equippedGunId;
+  const selectedLevel = () => {
+    const levels = guns[equippedGunId].levels;
+    return levels.find((level2) => level2.level === equippedLevel) ?? levels[0];
   };
-  const startTrack = (track) => {
-    activeTrack = track;
-    startedAt = performance.now();
-    lastFrame = startedAt;
-    playerLane = 0;
-    gunId = track.startingGun;
-    gunLevel = track.startingGunLevel;
+  const updateReadout = () => {
+    const gun = guns[equippedGunId];
+    const level2 = selectedLevel();
+    weaponReadout.textContent = `${gun.label} \xB7 L${level2.level}`;
+    scoreReadout.textContent = `Kills ${kills}`;
+    specReadout.innerHTML = [
+      ["Pattern", gun.shotPattern],
+      ["Fire rate", `${level2.fireRatePerSecond}/s`],
+      ["Damage", String(level2.damage)],
+      ["Speed", String(level2.projectileSpeed)],
+      ["Radius", String(level2.projectileRadius)],
+      ["Burst", String(level2.burstCount)],
+      ["Pierce", String(level2.pierce)],
+      ["Enemy HP", String(orb.health)],
+      ["Enemy speed", String(orb.speed)]
+    ].map(([name, value]) => `<dt>${name}</dt><dd>${value}</dd>`).join("");
+  };
+  const equip = (gunId, level2) => {
+    equippedGunId = gunId;
+    equippedLevel = level2;
     cooldown = 0;
-    nextEnemy = 0;
-    nextPickup = 0;
-    breaches = 0;
-    enemies = [];
-    projectiles = [];
-    pickups = [];
-    victory = null;
-    trackSelect.hidden = true;
-    result.hidden = true;
-    status.textContent = "A/D or arrows switch lanes. Guns fire automatically.";
+    gunSelect.value = gunId;
+    levelSelect.value = String(level2);
+    window.gameAudio?.play("Pickup");
+    updateReadout();
   };
-  trackList.innerHTML = Object.entries(trackFamily.members).map(([id, track]) => `
-    <button class="track-card" data-track="${id}">
-      <strong>${track.label}</strong><span>${track.description}</span><b>${track.durationSeconds}s \u2192</b>
-    </button>`).join("");
-  trackList.querySelectorAll("[data-track]").forEach((button) => {
-    button.addEventListener("click", () => startTrack(trackFamily.members[button.dataset.track]));
+  const spawnEnemy = (lane) => {
+    enemies.push({ id: ++entitySequence, lane, y: 105 * scale(), health: orb.health, hitFlashUntil: 0 });
+  };
+  const spawnPickup = (lane) => {
+    pickups.push({ gunId: gunSelect.value, level: Number(levelSelect.value), lane, y: 135 * scale() });
+  };
+  document.querySelectorAll("[data-spawn-enemy]").forEach((button) => {
+    button.addEventListener("click", () => spawnEnemy(Number(button.dataset.spawnEnemy)));
   });
-  document.querySelector("#back-to-tracks").addEventListener("click", resetToTracks);
+  document.querySelectorAll("[data-spawn-pickup]").forEach((button) => {
+    button.addEventListener("click", () => spawnPickup(Number(button.dataset.spawnPickup)));
+  });
+  document.querySelector("#spawn-wave").addEventListener("click", () => {
+    spawnEnemy(0);
+    spawnEnemy(1);
+    setTimeout(() => spawnEnemy(0), 450);
+    setTimeout(() => spawnEnemy(1), 700);
+  });
+  document.querySelector("#clear-stage").addEventListener("click", () => {
+    enemies.length = projectiles.length = pickups.length = effects.length = 0;
+  });
   const setLane = (lane) => {
-    if (activeTrack) playerLane = lane <= 0 ? 0 : 1;
+    playerLane = Math.max(0, Math.min(1, lane));
   };
   addEventListener("keydown", (event) => {
     if (event.key === "a" || event.key === "A" || event.key === "ArrowLeft") setLane(0);
@@ -576,139 +537,256 @@ try {
     element: "#joystick",
     container: document.querySelector("#game"),
     radius: 54,
-    orientationLayout: { portrait: { x: 82, yFromBottom: 88 }, landscape: { x: 88, yFromBottom: 82 } },
+    orientationLayout: {
+      portrait: { x: 82, yFromBottom: 88 },
+      landscape: { x: 88, yFromBottom: 82 }
+    },
     recenterRadius: { portrait: 130, landscape: 150 }
   }).onChange((input) => {
     if (input.x < -0.25) setLane(0);
     if (input.x > 0.25) setLane(1);
   });
-  const fire = () => {
-    const gun = gunFamily.members[gunId];
-    const tuning = gun.levels.find((item) => item.level === gunLevel) ?? gun.levels[0];
-    const count = Math.max(1, tuning.projectileCount);
-    for (let index = 0; index < count; index++) {
-      projectiles.push({
-        lane: playerLane,
-        y: playerY() - 20 * scale(),
-        damage: tuning.damage,
-        speed: tuning.projectileSpeed * scale(),
-        radius: tuning.projectileRadius * scale(),
-        color: neonPalette[gun.visualIdentity.projectileColor],
-        trail: neonPalette[gun.visualIdentity.trailColor]
-      });
-    }
-    cooldown += 1 / tuning.fireRatePerSecond;
+  const spawnProjectile = (lane, angleDegrees, level2, gun) => {
+    shotSequence += 1;
+    const angle = angleDegrees * Math.PI / 180;
+    const speed = level2.projectileSpeed * scale();
+    projectiles.push({
+      id: ++entitySequence,
+      lane,
+      x: laneX(lane) + (pseudoRandom(entitySequence + shotSequence * 3.17) * 2 - 1) * gun.visualIdentity.horizontalJitter * scale(),
+      y: playerY() - 22 * scale(),
+      vx: Math.sin(angle) * speed,
+      radius: level2.projectileRadius * scale(),
+      damage: level2.damage,
+      speed: Math.cos(angle) * speed,
+      pierceRemaining: level2.pierce,
+      color: neonPalette[gun.visualIdentity.projectileColor],
+      trailColor: neonPalette[gun.visualIdentity.trailColor],
+      coreColor: neonPalette[gun.visualIdentity.coreColor],
+      aspect: gun.visualIdentity.projectileAspect,
+      trailWidthScale: gun.visualIdentity.trailWidthScale,
+      visualIntensity: gun.visualIdentity.visualIntensity,
+      shape: gun.visualIdentity.projectileShape,
+      impactEffect: gun.visualIdentity.impactEffect,
+      impactDurationMs: gun.visualIdentity.impactDurationMs,
+      trailLength: level2.trailLength * scale(),
+      tracer: level2.tracerEveryNthShot > 0 && shotSequence % level2.tracerEveryNthShot === 0,
+      knockback: level2.knockback * scale(),
+      hitFlashScale: level2.hitFlashScale,
+      hitEnemyIds: /* @__PURE__ */ new Set()
+    });
   };
-  const finish = (won) => {
-    if (!activeTrack) return;
-    result.hidden = false;
-    resultTitle.textContent = won ? "FLAWLESS RUN" : "TRACK FAILED";
-    resultDetail.textContent = won ? "No enemy touched or escaped past you." : `${breaches} enemy${breaches === 1 ? "" : "ies"} breached the defense.`;
-    if (won) {
-      victory = new NeonVictoryExperience({
-        centerX: canvas.width / 2,
-        centerY: canvas.height * 0.38,
-        width: canvas.width,
-        height: canvas.height,
-        particleCount: 120
-      });
+  const fireVolley = (gun, level2) => {
+    const lanes = [playerLane];
+    for (const lane of lanes) {
+      const count = Math.max(1, level2.projectileCount);
+      for (let index = 0; index < count; index++) {
+        const offset = count === 1 ? 0 : (index / (count - 1) - 0.5) * level2.spreadDegrees;
+        spawnProjectile(lane, offset, level2, gun);
+      }
     }
-    activeTrack = null;
+    recoil = level2.muzzleFlashScale * 7 * scale();
+    effects.push({
+      kind: "muzzle",
+      style: gun.visualIdentity.muzzleEffect,
+      x: laneX(playerLane),
+      y: playerY() - 22 * scale(),
+      color: neonPalette[gun.visualIdentity.projectileColor],
+      secondaryColor: neonPalette[gun.visualIdentity.trailColor],
+      radius: 10 * level2.muzzleFlashScale * scale(),
+      expiresAt: performance.now() + gun.visualIdentity.muzzleDurationMs,
+      duration: gun.visualIdentity.muzzleDurationMs,
+      seed: shotSequence
+    });
+    window.gameAudio?.playRotated("Primary", 3);
+  };
+  const fire = (gun, level2) => {
+    fireVolley(gun, level2);
+    for (let index = 1; index < level2.burstCount; index++) {
+      setTimeout(() => fireVolley(gun, level2), level2.burstIntervalMs * index);
+    }
+  };
+  const hitEnemy = (projectile, enemy, now) => {
+    projectile.hitEnemyIds.add(enemy.id);
+    enemy.health -= projectile.damage;
+    enemy.y -= projectile.knockback;
+    enemy.hitFlashUntil = now + orb.hitFlashDurationMs;
+    effects.push({
+      kind: "impact",
+      style: projectile.impactEffect,
+      x: projectile.x,
+      y: projectile.y,
+      color: projectile.color,
+      secondaryColor: projectile.trailColor,
+      radius: projectile.radius * projectile.hitFlashScale * 4,
+      expiresAt: now + projectile.impactDurationMs,
+      duration: projectile.impactDurationMs,
+      seed: projectile.id
+    });
+    window.gameAudio?.play("Hit");
+    if (enemy.health <= 0) {
+      effects.push({
+        kind: "death",
+        style: "deathBloom",
+        x: laneX(enemy.lane),
+        y: enemy.y,
+        color: neonPalette[orb.baseColor],
+        secondaryColor: neonPalette[orb.rimColor],
+        radius: orb.radius * orb.deathFlashScale * scale(),
+        expiresAt: now + orb.hitFlashDurationMs * 2,
+        duration: orb.hitFlashDurationMs * 2,
+        seed: enemy.id
+      });
+      enemies.splice(enemies.indexOf(enemy), 1);
+      kills += 1;
+      window.gameAudio?.play("EnemyDestroyed");
+      updateReadout();
+    }
+    if (projectile.pierceRemaining > 0) projectile.pierceRemaining -= 1;
+    else projectiles.splice(projectiles.indexOf(projectile), 1);
   };
   const update = (now) => {
-    if (!activeTrack) return;
-    const delta = Math.min(0.05, (now - lastFrame) / 1e3);
+    const delta = Math.min((now - lastFrame) / 1e3, 0.05);
     lastFrame = now;
-    const elapsed = (now - startedAt) / 1e3;
-    runStatus.textContent = `${gunFamily.members[gunId].label} \xB7 ${Math.max(0, activeTrack.durationSeconds - elapsed).toFixed(1)}s`;
-    while (nextEnemy < activeTrack.enemySchedule.length && activeTrack.enemySchedule[nextEnemy].atSeconds <= elapsed) {
-      const event = activeTrack.enemySchedule[nextEnemy++];
-      enemies.push({ lane: event.lane, y: 110 * scale(), health: orbFamily.members[event.enemyId].health });
-    }
-    while (nextPickup < activeTrack.pickupSchedule.length && activeTrack.pickupSchedule[nextPickup].atSeconds <= elapsed) {
-      const event = activeTrack.pickupSchedule[nextPickup++];
-      pickups.push({ lane: event.lane, y: 120 * scale(), gunId: event.gunId, level: event.level });
-    }
+    const gun = guns[equippedGunId];
+    const level2 = selectedLevel();
     cooldown -= delta;
-    if (cooldown <= 0) fire();
-    for (const shot of [...projectiles]) {
-      shot.y -= shot.speed * delta;
-      if (shot.y < 0) projectiles.splice(projectiles.indexOf(shot), 1);
+    if (cooldown <= 0) {
+      fire(gun, level2);
+      cooldown += 1 / level2.fireRatePerSecond;
+    }
+    recoil *= Math.pow(1e-3, delta);
+    for (const projectile of [...projectiles]) {
+      projectile.x += projectile.vx * delta;
+      projectile.y -= projectile.speed * delta;
+      if (projectile.y < -40 * scale()) {
+        projectiles.splice(projectiles.indexOf(projectile), 1);
+        continue;
+      }
       for (const enemy of [...enemies]) {
-        if (shot.lane !== enemy.lane || Math.abs(shot.y - enemy.y) > shot.radius + orbFamily.members.basicOrb.radius * scale()) continue;
-        enemy.health -= shot.damage;
-        projectiles.splice(projectiles.indexOf(shot), 1);
-        if (enemy.health <= 0) enemies.splice(enemies.indexOf(enemy), 1);
-        break;
+        if (projectile.hitEnemyIds.has(enemy.id)) continue;
+        const dx = projectile.x - laneX(enemy.lane);
+        const dy = projectile.y - enemy.y;
+        const hitRadius = projectile.radius + orb.radius * scale();
+        if (dx * dx + dy * dy <= hitRadius * hitRadius) {
+          hitEnemy(projectile, enemy, now);
+          if (!projectiles.includes(projectile)) break;
+        }
       }
     }
     for (const enemy of [...enemies]) {
-      enemy.y += orbFamily.members.basicOrb.speed * scale() * delta;
-      if (enemy.y >= playerY()) {
-        breaches++;
-        enemies.splice(enemies.indexOf(enemy), 1);
-      }
+      enemy.y += orb.speed * scale() * delta;
+      if (enemy.y >= playerY()) enemies.splice(enemies.indexOf(enemy), 1);
     }
     for (const pickup of [...pickups]) {
-      pickup.y += 72 * scale() * delta;
-      if (pickup.y >= playerY() - 15 * scale() && pickup.lane === playerLane) {
-        gunId = pickup.gunId;
-        gunLevel = pickup.level;
-        cooldown = 0;
+      pickup.y += 62 * scale() * delta;
+      if (pickup.y >= playerY() - 12 * scale() && pickup.lane === playerLane) {
+        equip(pickup.gunId, pickup.level);
         pickups.splice(pickups.indexOf(pickup), 1);
-      } else if (pickup.y > canvas.height) pickups.splice(pickups.indexOf(pickup), 1);
-    }
-    if (elapsed >= activeTrack.durationSeconds && enemies.length === 0) finish(breaches === 0);
-  };
-  const environment = (track, now) => {
-    const s = scale();
-    const pulse = 0.6 + Math.sin(now / 1e3 * track.environment.pulseRate * Math.PI * 2) * 0.2;
-    const items = [];
-    items.push({ x: canvas.width / 2, y: canvas.height * 0.76, width: canvas.width * 0.44, height: canvas.height * 0.46, color: neonPalette[track.environment.floorColor], secondaryColor: "#030712", glow: 0.1, intensity: 0.22, shape: "bolt" });
-    items.push({ x: canvas.width / 2, y: canvas.height * 0.49, width: canvas.width * 0.34, height: 2 * s, color: neonPalette[track.environment.horizonColor], glow: 0.8, intensity: pulse, shape: "bolt" });
-    for (let depth = 0; depth < 8; depth++) {
-      const perspective = depth / 7;
-      const y = canvas.height * (0.53 + perspective * 0.38);
-      const width = canvas.width * (0.2 + perspective * 0.25);
-      items.push({ x: canvas.width / 2, y, width, height: (1 + perspective * 1.5) * s, color: neonPalette[track.environment.floorColor], glow: 0.3, intensity: 0.18 + pulse * 0.18, shape: "bolt" });
-    }
-    for (const side of [-1, 1]) {
-      for (let segment = 0; segment < 9; segment++) {
-        const perspective = segment / 8;
-        const x = canvas.width / 2 + side * canvas.width * (0.1 + perspective * 0.13);
-        const y = canvas.height * (0.53 + perspective * 0.38);
-        items.push({ x, y, width: (1 + perspective) * s, height: (18 + perspective * 42) * s, color: neonPalette[track.environment.crackColor], glow: 0.42, intensity: 0.22 + pulse * 0.2, shape: "bolt" });
+      } else if (pickup.y > canvas.height + 30 * scale()) {
+        pickups.splice(pickups.indexOf(pickup), 1);
       }
     }
-    for (let index = 0; index < track.environment.crackDensity; index++) {
-      const x = canvas.width * (0.3 + index * 37 % 100 / 250);
-      const y = canvas.height * (0.56 + index * 61 % 100 / 250);
-      items.push({ x, y, width: (1 + index % 3) * s, height: (20 + index % 5 * 12) * s, color: neonPalette[track.environment.crackColor], glow: 0.5, intensity: pulse * (0.45 + index % 4 * 0.1), shape: index % 3 ? "bolt" : "spark" });
+    for (const effect of [...effects]) {
+      if (effect.expiresAt <= now) effects.splice(effects.indexOf(effect), 1);
     }
-    for (let index = 0; index < track.environment.airStreakCount; index++) {
-      const x = canvas.width * (0.12 + index * 53 % 100 / 130);
-      const y = canvas.height * (0.16 + (index * 29 + now / 35) % 100 / 330);
-      items.push({ x, y, width: 1.2 * s, height: (12 + index % 4 * 9) * s, color: neonPalette[track.environment.airColor], glow: 0.4, intensity: 0.3 + pulse * 0.25, shape: "bolt" });
-    }
-    return items;
   };
   const draw = (now) => {
-    const primitives = activeTrack ? environment(activeTrack, now) : [];
     const s = scale();
-    if (activeTrack) {
-      primitives.push({ x: laneX(playerLane), y: playerY(), width: 12 * s, color: neonPalette.cyan, secondaryColor: neonPalette.deepBlue, glow: 0.85, shape: "orb", rimIntensity: 0.8, shadowStrength: 0.4 });
-      for (const shot of projectiles) {
-        primitives.push({ x: laneX(shot.lane), y: shot.y + 9 * s, width: Math.max(1.2 * s, shot.radius * 0.5), height: 18 * s, color: shot.trail, secondaryColor: shot.color, glow: 0.35, intensity: 0.7, shape: "bolt" });
-        primitives.push({ x: laneX(shot.lane), y: shot.y, width: shot.radius, height: shot.radius * 2.5, color: shot.color, secondaryColor: shot.trail, glow: 0.65, shape: "bolt" });
-      }
-      for (const enemy of enemies) primitives.push({ x: laneX(enemy.lane), y: enemy.y, width: orbFamily.members.basicOrb.radius * s, color: neonPalette.pink, secondaryColor: neonPalette.violet, glow: 0.75, texture: 0.25, rimIntensity: 1.1, shadowStrength: 0.65, shape: "orb" });
-      for (const pickup of pickups) {
-        const visual = gunFamily.members[pickup.gunId].visualIdentity;
-        primitives.push({ x: laneX(pickup.lane), y: pickup.y, width: 18 * s, color: neonPalette[visual.projectileColor], secondaryColor: neonPalette[visual.trailColor], glow: 0.5, shape: "ring" });
-        primitives.push({ x: laneX(pickup.lane), y: pickup.y, width: 9 * s, height: 20 * s, color: neonPalette[visual.projectileColor], secondaryColor: neonPalette[visual.trailColor], glow: 0.7, shape: "bolt" });
+    const primitives = [];
+    primitives.push({ x: laneX(playerLane), y: playerY() + recoil, width: 12 * s, color: neonPalette.cyan, glow: 0.95 });
+    for (const projectile of projectiles) {
+      primitives.push({
+        x: projectile.x,
+        y: projectile.y + projectile.trailLength / 2,
+        width: Math.max(projectile.radius * projectile.trailWidthScale, 1.1 * s),
+        height: projectile.trailLength,
+        color: projectile.trailColor,
+        secondaryColor: projectile.color,
+        glow: projectile.tracer ? 1.25 : 0.45,
+        intensity: projectile.visualIntensity * (projectile.tracer ? 1.45 : 0.72),
+        shape: "bolt"
+      });
+      primitives.push({
+        x: projectile.x,
+        y: projectile.y,
+        width: projectile.radius,
+        height: projectile.radius * projectile.aspect,
+        color: projectile.color,
+        secondaryColor: projectile.coreColor,
+        glow: projectile.tracer ? 1.4 : 0.72,
+        intensity: projectile.visualIntensity * (projectile.tracer ? 1.35 : 1),
+        shape: projectile.shape === "needle" ? "circle" : "bolt"
+      });
+    }
+    for (const enemy of enemies) {
+      primitives.push({
+        x: laneX(enemy.lane) + orb.radius * 0.35 * s,
+        y: enemy.y + orb.radius * 1.12 * s,
+        width: orb.radius * 0.9 * s,
+        height: orb.radius * 0.28 * s,
+        color: neonPalette[orb.shadowColor],
+        glow: 0.18,
+        intensity: 0.3,
+        shape: "circle"
+      });
+      primitives.push({
+        x: laneX(enemy.lane),
+        y: enemy.y,
+        width: orb.radius * s,
+        color: enemy.hitFlashUntil > now ? neonPalette.whiteHot : neonPalette[orb.rimColor],
+        secondaryColor: neonPalette[orb.baseColor],
+        glow: orb.glow,
+        texture: orb.surfaceTexture,
+        rimIntensity: orb.rimIntensity,
+        shadowStrength: orb.shadowStrength,
+        intensity: enemy.hitFlashUntil > now ? 1.55 : 1,
+        shape: "orb"
+      });
+    }
+    for (const pickup of pickups) {
+      const gun = guns[pickup.gunId];
+      const pickupColor = neonPalette[gun.visualIdentity.projectileColor];
+      const trailColor = neonPalette[gun.visualIdentity.trailColor];
+      primitives.push({ x: laneX(pickup.lane), y: pickup.y, width: 9 * s, height: 9 * gun.visualIdentity.projectileAspect * 0.55 * s, color: pickupColor, secondaryColor: trailColor, glow: 0.82, intensity: gun.visualIdentity.visualIntensity, shape: gun.visualIdentity.projectileShape === "needle" ? "circle" : "bolt" });
+      primitives.push({ x: laneX(pickup.lane), y: pickup.y, width: 18 * s, color: pickupColor, secondaryColor: trailColor, glow: 0.48, intensity: 0.72, shape: "ring" });
+      primitives.push({ x: laneX(pickup.lane), y: pickup.y, width: 13 * s, color: trailColor, secondaryColor: pickupColor, glow: 0.34, intensity: 0.58, shape: "spark" });
+    }
+    for (const effect of effects) {
+      const life = Math.max(0, (effect.expiresAt - now) / effect.duration);
+      const progress = 1 - life;
+      const size = effect.radius * (1 + progress * 1.35);
+      if (effect.kind === "muzzle") {
+        if (effect.style === "crispStar") {
+          primitives.push({ x: effect.x, y: effect.y - size * 0.28, width: size * 0.85, height: size * 1.65, color: effect.color, secondaryColor: effect.secondaryColor, glow: 0.7 * life, intensity: 1.1 * life, shape: "spark" });
+        } else if (effect.style === "rapidFlicker") {
+          const jitter = (pseudoRandom(effect.seed) * 2 - 1) * size * 0.35;
+          primitives.push({ x: effect.x + jitter, y: effect.y - size * 0.2, width: size * 0.52, height: size * 0.9, color: effect.color, secondaryColor: effect.secondaryColor, glow: 0.55, intensity: life, shape: "circle" });
+        } else if (effect.style === "groupedPulse") {
+          primitives.push({ x: effect.x, y: effect.y, width: size, color: effect.color, secondaryColor: effect.secondaryColor, glow: 0.75 * life, intensity: life, shape: "ring" });
+          primitives.push({ x: effect.x, y: effect.y - size * 0.25, width: size * 0.65, height: size * 1.4, color: effect.secondaryColor, secondaryColor: effect.color, glow: 0.5, intensity: life, shape: "spark" });
+        } else if (effect.style === "shockDiamond") {
+          primitives.push({ x: effect.x, y: effect.y - size * 0.35, width: size * 0.95, height: size * 1.65, color: effect.color, secondaryColor: effect.secondaryColor, glow: 0.9, intensity: 1.15 * life, shape: "bolt" });
+          primitives.push({ x: effect.x, y: effect.y, width: size * 1.2, color: effect.secondaryColor, secondaryColor: effect.color, glow: 0.55, intensity: 0.75 * life, shape: "ring" });
+        } else {
+          primitives.push({ x: effect.x - size * 0.35, y: effect.y - size * 0.2, width: size * 0.38, height: size * 1.5, color: effect.color, secondaryColor: effect.secondaryColor, glow: 0.65, intensity: life, shape: "bolt" });
+          primitives.push({ x: effect.x + size * 0.35, y: effect.y - size * 0.2, width: size * 0.38, height: size * 1.5, color: effect.secondaryColor, secondaryColor: effect.color, glow: 0.65, intensity: life, shape: "bolt" });
+        }
+      } else if (effect.kind === "impact") {
+        if (effect.style === "impactRing" || effect.style === "splitRipple") {
+          primitives.push({ x: effect.x, y: effect.y, width: size, color: effect.color, secondaryColor: effect.secondaryColor, glow: 0.72 * life, intensity: life, shape: "ring" });
+          if (effect.style === "splitRipple") primitives.push({ x: effect.x, y: effect.y, width: size * 0.62, color: effect.secondaryColor, secondaryColor: effect.color, glow: 0.48, intensity: life, shape: "ring" });
+        }
+        const sparkCount = effect.style === "needleScatter" ? 3 : effect.style === "burstCross" ? 2 : 1;
+        for (let index = 0; index < sparkCount; index++) {
+          const offset = (index - (sparkCount - 1) / 2) * size * 0.36;
+          primitives.push({ x: effect.x + offset, y: effect.y, width: size * 0.62, height: size * (effect.style === "needleScatter" ? 1.35 : 0.9), color: index % 2 ? effect.secondaryColor : effect.color, secondaryColor: effect.color, glow: 0.55 * life, intensity: life, shape: "spark" });
+        }
+      } else {
+        primitives.push({ x: effect.x, y: effect.y, width: size, color: effect.color, secondaryColor: effect.secondaryColor, glow: life, intensity: life, shape: "ring" });
+        primitives.push({ x: effect.x, y: effect.y, width: size * 0.7, color: effect.secondaryColor, secondaryColor: effect.color, glow: life, intensity: life, shape: "spark" });
       }
     }
-    if (victory) primitives.push(...victory.primitives(now));
     renderer.render(primitives, now / 1e3);
   };
   const frame = (now) => {
@@ -716,9 +794,12 @@ try {
     draw(now);
     requestAnimationFrame(frame);
   };
+  equip(equippedGunId, equippedLevel);
+  spawnEnemy(0);
+  spawnEnemy(1);
   requestAnimationFrame(frame);
 } catch (cause) {
   error.hidden = false;
   error.textContent = cause instanceof Error ? cause.message : String(cause);
 }
-//# sourceMappingURL=game.js.map
+//# sourceMappingURL=manual.js.map
