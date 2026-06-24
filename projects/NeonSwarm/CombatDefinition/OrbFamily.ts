@@ -25,9 +25,9 @@ export class OrbFamilyDefinition extends FamilyDefinition<Record<string, OrbMemb
   readonly members = {
     basicOrb: {
       label: "Basic Orb",
-      health: 4,
+      health: 1,
       speed: 58,
-      radius: 12,
+      radius: 6.25,
       contactDamage: 1,
       score: 10,
       baseColor: "pink",

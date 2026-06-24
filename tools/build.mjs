@@ -49,6 +49,8 @@ await build({
 
 await mkdir(resolve(docs, "NeonSwarm"), { recursive: true });
 await mkdir(resolve(docs, "NeonSwarm/tests/gun-family"), { recursive: true });
+await mkdir(resolve(docs, "NeonSwarm/tests/multiplier-family"), { recursive: true });
+await mkdir(resolve(docs, "NeonSwarm/tests/auto-aim"), { recursive: true });
 await Promise.all([
   cp(resolve(root, "projects/NeonSwarm/public/index.html"), resolve(docs, "NeonSwarm.html")),
   cp(resolve(root, "projects/NeonSwarm/public/game.css"), resolve(docs, "NeonSwarm/game.css")),
@@ -58,6 +60,8 @@ await Promise.all([
   cp(resolve(root, "projects/NeonSwarm/test-pages/gun-family/manual.css"), resolve(docs, "NeonSwarm/tests/gun-family/manual.css")),
   cp(resolve(root, "projects/NeonSwarm/test-pages/gun-family/smoke.html"), resolve(docs, "NeonSwarm/tests/gun-family/smoke.html")),
   cp(resolve(root, "projects/NeonSwarm/test-pages/gun-family/smoke.css"), resolve(docs, "NeonSwarm/tests/gun-family/smoke.css")),
+  cp(resolve(root, "projects/NeonSwarm/test-pages/multiplier-family/smoke.html"), resolve(docs, "NeonSwarm/tests/multiplier-family/smoke.html")),
+  cp(resolve(root, "projects/NeonSwarm/test-pages/auto-aim/smoke.html"), resolve(docs, "NeonSwarm/tests/auto-aim/smoke.html")),
 ]);
 
 await Promise.all([
@@ -69,6 +73,16 @@ await Promise.all([
   build({
     entryPoints: [resolve(root, "projects/NeonSwarm/test-pages/gun-family/smoke.ts")],
     outfile: resolve(docs, "NeonSwarm/tests/gun-family/smoke.js"),
+    bundle: true, format: "esm", platform: "browser", target: "es2022", sourcemap: true,
+  }),
+  build({
+    entryPoints: [resolve(root, "projects/NeonSwarm/test-pages/multiplier-family/smoke.ts")],
+    outfile: resolve(docs, "NeonSwarm/tests/multiplier-family/smoke.js"),
+    bundle: true, format: "esm", platform: "browser", target: "es2022", sourcemap: true,
+  }),
+  build({
+    entryPoints: [resolve(root, "projects/NeonSwarm/test-pages/auto-aim/smoke.ts")],
+    outfile: resolve(docs, "NeonSwarm/tests/auto-aim/smoke.js"),
     bundle: true, format: "esm", platform: "browser", target: "es2022", sourcemap: true,
   }),
 ]);

@@ -24,5 +24,12 @@ export {
   type TrackEnemyEvent,
   type TrackId,
   type TrackMember,
+  type TrackMultiplierEvent,
   type TrackPickupEvent,
 } from "./TrackFamily";
+export {
+  multiplierFamily,
+  MultiplierFamilyDefinition,
+  type MultiplierId,
+  type MultiplierMember,
+} from "./MultiplierFamily";

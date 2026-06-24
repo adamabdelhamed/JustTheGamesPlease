@@ -287,69 +287,89 @@ var MultiplierFamilyDefinition = class extends FamilyDefinition {
 };
 var multiplierFamily = new MultiplierFamilyDefinition();
 
-// projects/NeonSwarm/src/combat/gunEvaluator.ts
-function evaluateGunAgainstOrb(gunId, gun, orb, levelNumber = 1) {
-  const level2 = gun.levels.find((candidate) => candidate.level === levelNumber) ?? gun.levels[0];
-  const distance = 540;
-  const enemyArrivalMs = distance / orb.speed * 1e3;
-  let enemyHealth = orb.health;
-  let damageDealt = 0;
-  let shotsFired = 0;
-  const hits = [];
-  const cycleMs = 1e3 / level2.fireRatePerSecond;
-  for (let cycleAt = 0; cycleAt < enemyArrivalMs; cycleAt += cycleMs) {
-    for (let burstIndex = 0; burstIndex < level2.burstCount; burstIndex++) {
-      const firedAt = cycleAt + burstIndex * level2.burstIntervalMs;
-      const travelMs = distance / level2.projectileSpeed * 1e3;
-      const hitAt = firedAt + travelMs;
-      if (hitAt < enemyArrivalMs) {
-        const currentLaneProjectiles = gun.shotPattern === "pairedSpread" ? level2.projectileCount : Math.max(1, level2.projectileCount);
-        for (let projectileIndex = 0; projectileIndex < currentLaneProjectiles; projectileIndex++) hits.push(hitAt);
-        shotsFired += currentLaneProjectiles;
-      }
-    }
+// projects/NeonSwarm/src/squad.ts
+var SquadModel = class {
+  lane = 0;
+  count = 1;
+  aimOffset = 0;
+  x = 0;
+  targetX = 0;
+  laneShiftStartedAt = 0;
+  add(amount) {
+    const spec = multiplierFamily.members.squadPlusOne;
+    this.count = Math.min(spec.maxSquadSize, this.count + amount);
+    return this.count;
   }
-  hits.sort((a, b) => a - b);
-  let killTimeMs = null;
-  for (const hitAt of hits) {
-    enemyHealth -= level2.damage;
-    damageDealt += level2.damage;
-    if (enemyHealth <= 0) {
-      killTimeMs = hitAt;
-      break;
-    }
+  setLane(lane, laneCenter, now) {
+    if (lane !== this.lane) this.laneShiftStartedAt = now;
+    this.lane = lane;
+    this.targetX = laneCenter(lane) + this.aimOffset;
   }
-  return {
-    gunId,
-    passed: killTimeMs !== null && killTimeMs < enemyArrivalMs,
-    killTimeMs,
-    enemyArrivalMs,
-    shotsFired,
-    damageDealt
-  };
-}
-
-// projects/NeonSwarm/test-pages/gun-family/smoke.ts
-var status = document.querySelector("#test-status");
-var resultsElement = document.querySelector("#results");
-var results = [];
-var run = () => {
-  results = Object.entries(gunFamily.members).map(([gunId, gun]) => evaluateGunAgainstOrb(gunId, gun, orbFamily.members.basicOrb));
-  resultsElement.innerHTML = results.map((result) => `
-    <li data-passed="${result.passed}">
-      <strong>${gunFamily.members[result.gunId].label}</strong>
-      <span>${result.passed ? "PASS" : "FAIL"}</span>
-      <span class="detail">kill ${result.killTimeMs?.toFixed(0) ?? "never"}ms \xB7 arrival ${result.enemyArrivalMs.toFixed(0)}ms \xB7 ${result.shotsFired} shots</span>
-    </li>`).join("");
-  return results;
+  setAim(normalized, laneWidth, laneCenter) {
+    this.aimOffset = Math.max(-1, Math.min(1, normalized)) * laneWidth * 0.28;
+    this.targetX = laneCenter(this.lane) + this.aimOffset;
+  }
+  autoAim(targetOffset, laneWidth, laneCenter) {
+    this.aimOffset += (Math.max(-laneWidth * 0.28, Math.min(laneWidth * 0.28, targetOffset)) - this.aimOffset) * 0.075;
+    this.targetX = laneCenter(this.lane) + this.aimOffset;
+  }
+  update(deltaSeconds) {
+    const response = 1 - Math.pow(8e-5, deltaSeconds);
+    this.x += (this.targetX - this.x) * response;
+  }
+  points(baseY, scale) {
+    const spec = multiplierFamily.members.squadPlusOne;
+    const points = [];
+    for (let index = 0; index < this.count; index++) {
+      const row = Math.floor(index / spec.membersPerRow);
+      const rowCount = Math.min(spec.membersPerRow, this.count - row * spec.membersPerRow);
+      const column = index % spec.membersPerRow;
+      points.push({
+        x: this.x + (column - (rowCount - 1) / 2) * spec.spacing * scale,
+        y: baseY + row * spec.spacing * scale,
+        column,
+        row
+      });
+    }
+    return points;
+  }
 };
-var test = createTestPage("neon-swarm-gun-family-smoke", { suite: "smoke", run }, status);
+
+// projects/NeonSwarm/test-pages/multiplier-family/smoke.ts
+var status = document.querySelector("#test-status");
+var results = document.querySelector("#results");
+var run = () => {
+  const squad = new SquadModel();
+  const spec = multiplierFamily.members.squadPlusOne;
+  const initial = squad.count;
+  squad.add(spec.squadAdded);
+  const afterPickup = squad.count;
+  for (let index = 0; index < 20; index++) squad.add(spec.squadAdded);
+  const capped = squad.count;
+  squad.x = 200;
+  const points = squad.points(400, 1);
+  const firstRow = points.filter((point) => point.row === 0);
+  const uniqueColumns = new Set(firstRow.map((point) => point.x)).size;
+  return {
+    initial,
+    afterPickup,
+    capped,
+    points,
+    firstRow,
+    uniqueColumns,
+    simultaneousTargets: Math.min(firstRow.length, 5)
+  };
+};
+var test = createTestPage("neon-swarm-multiplier-family-smoke", { suite: "smoke", run }, status);
 test.ready();
-for (const result of run()) {
-  test.assert(
-    `${result.gunId} kills weakest orb before contact`,
-    result.passed,
-    `kill=${result.killTimeMs ?? "never"}ms arrival=${result.enemyArrivalMs.toFixed(0)}ms`
-  );
-}
+var outcome = run();
+var assertions = [
+  ["Pickup adds one wingmate", outcome.afterPickup === outcome.initial + 1],
+  ["Squad respects ten-member cap", outcome.capped === multiplierFamily.members.squadPlusOne.maxSquadSize],
+  ["Formation creates two five-member rows", outcome.points.length === 10 && outcome.firstRow.length === 5],
+  ["First row has five distinct firing columns", outcome.uniqueColumns === 5],
+  ["Five-member squad can cover five enemy positions", outcome.simultaneousTargets === 5]
+];
+results.innerHTML = assertions.map(([name, passed]) => `<li data-passed="${passed}"><strong>${name}</strong><span>${passed ? "PASS" : "FAIL"}</span></li>`).join("");
+for (const [name, passed] of assertions) test.assert(name, passed);
 //# sourceMappingURL=smoke.js.map

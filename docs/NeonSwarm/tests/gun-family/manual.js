@@ -353,9 +353,9 @@ var OrbFamilyDefinition = class extends FamilyDefinition {
   members = {
     basicOrb: {
       label: "Basic Orb",
-      health: 4,
+      health: 1,
       speed: 58,
-      radius: 12,
+      radius: 6.25,
       contactDamage: 1,
       score: 10,
       baseColor: "pink",
@@ -406,20 +406,25 @@ var TrackFamilyDefinition = class extends FamilyDefinition {
         airStreakCount: 11
       },
       enemySchedule: [
-        { atSeconds: 1.5, enemyId: "basicOrb", lane: 0 },
-        { atSeconds: 3.8, enemyId: "basicOrb", lane: 1 },
-        { atSeconds: 6.2, enemyId: "basicOrb", lane: 0 },
-        { atSeconds: 8.1, enemyId: "basicOrb", lane: 1 },
-        { atSeconds: 10.6, enemyId: "basicOrb", lane: 1 },
-        { atSeconds: 13.2, enemyId: "basicOrb", lane: 0 },
-        { atSeconds: 15.1, enemyId: "basicOrb", lane: 1 },
-        { atSeconds: 18, enemyId: "basicOrb", lane: 0 },
-        { atSeconds: 20, enemyId: "basicOrb", lane: 1 }
+        { atSeconds: 1.5, enemyId: "basicOrb", lane: 0, count: 3, spacing: 16 },
+        { atSeconds: 3.8, enemyId: "basicOrb", lane: 1, count: 3, spacing: 16 },
+        { atSeconds: 6.2, enemyId: "basicOrb", lane: 0, count: 4, spacing: 15 },
+        { atSeconds: 8.1, enemyId: "basicOrb", lane: 1, count: 4, spacing: 15 },
+        { atSeconds: 10.6, enemyId: "basicOrb", lane: 1, count: 5, spacing: 14 },
+        { atSeconds: 13.2, enemyId: "basicOrb", lane: 0, count: 5, spacing: 14 },
+        { atSeconds: 16.1, enemyId: "basicOrb", lane: 1, count: 5, spacing: 14 },
+        { atSeconds: 19, enemyId: "basicOrb", lane: 0, count: 5, spacing: 14 }
       ],
       pickupSchedule: [
         { atSeconds: 5, gunId: "needlerSmg", level: 1, lane: 1 },
         { atSeconds: 11.5, gunId: "burstCarbine", level: 1, lane: 0 },
         { atSeconds: 17, gunId: "heavyCannon", level: 1, lane: 1 }
+      ],
+      multiplierSchedule: [
+        { atSeconds: 2.5, multiplierId: "squadPlusOne", lane: 0 },
+        { atSeconds: 4.8, multiplierId: "squadPlusOne", lane: 1 },
+        { atSeconds: 7.4, multiplierId: "squadPlusOne", lane: 0 },
+        { atSeconds: 9.6, multiplierId: "squadPlusOne", lane: 1 }
       ]
     }
   };
@@ -432,12 +437,138 @@ var TrackFamilyDefinition = class extends FamilyDefinition {
       this.require(track.durationSeconds > 0, `${id} duration must be positive.`);
       this.require(track.enemySchedule.every((event) => event.atSeconds < track.durationSeconds), `${id} has an enemy after the finish.`);
       this.require(track.pickupSchedule.every((event) => event.atSeconds < track.durationSeconds), `${id} has a pickup after the finish.`);
+      this.require(track.multiplierSchedule.every((event) => event.atSeconds < track.durationSeconds), `${id} has a multiplier after the finish.`);
       this.require(track.environment.crackDensity > 0 && track.environment.airStreakCount > 0, `${id} environment must contain detail.`);
       this.require(neonPalette[track.environment.floorColor] !== void 0, `${id} has an unknown floor color.`);
     }
   }
 };
 var trackFamily = new TrackFamilyDefinition();
+
+// projects/NeonSwarm/CombatDefinition/MultiplierFamily.ts
+var MultiplierFamilyDefinition = class extends FamilyDefinition {
+  familyId = "multiplier";
+  label = "Squad Multiplier";
+  members = {
+    squadPlusOne: {
+      label: "+1 Wingmate",
+      squadAdded: 1,
+      maxSquadSize: 10,
+      membersPerRow: 5,
+      memberRadius: 5.25,
+      spacing: 13,
+      pickupColor: "gold",
+      coreColor: "cyan",
+      pulseRate: 2.2
+    }
+  };
+  constructor() {
+    super();
+    this.validate();
+  }
+  validate() {
+    for (const [id, item] of Object.entries(this.members)) {
+      this.require(item.squadAdded > 0, `${id} must add squad members.`);
+      this.require(item.maxSquadSize >= item.membersPerRow, `${id} max squad must fit at least one row.`);
+      this.require(item.memberRadius > 0 && item.spacing > item.memberRadius * 2, `${id} member geometry overlaps.`);
+      this.require(neonPalette[item.pickupColor] !== void 0, `${id} has an unknown pickup color.`);
+    }
+  }
+};
+var multiplierFamily = new MultiplierFamilyDefinition();
+
+// projects/NeonSwarm/src/input.ts
+function bindSquadInput(container, joystick, callbacks) {
+  addEventListener("keydown", (event) => {
+    if (event.key === "a" || event.key === "A" || event.key === "ArrowLeft") callbacks.setLane(0);
+    if (event.key === "d" || event.key === "D" || event.key === "ArrowRight") callbacks.setLane(1);
+  });
+  container.addEventListener("pointerdown", (event) => {
+    const target = event.target;
+    if (target.closest(joystick) || target.closest("button,input,select,a")) return;
+    callbacks.setLane(event.clientX < innerWidth / 2 ? 0 : 1);
+  });
+  window.gameController?.createJoystick({
+    element: joystick,
+    container,
+    radius: 54,
+    orientationLayout: { portrait: { x: 82, yFromBottom: 88 }, landscape: { x: 88, yFromBottom: 82 } },
+    recenterRadius: { portrait: 130, landscape: 150 }
+  }).onChange((input) => {
+    const magnitude = Math.abs(input.x);
+    if (magnitude >= 0.95) {
+      const requested = input.x < 0 ? 0 : 1;
+      if (requested !== callbacks.lane()) callbacks.setLane(requested);
+      callbacks.setAim(0);
+    } else if (magnitude <= 0.5) {
+      callbacks.setAim(input.x / 0.5);
+    } else {
+      callbacks.setAim(Math.sign(input.x));
+    }
+    if (input.magnitude === 0) callbacks.releaseAim();
+  });
+}
+
+// projects/NeonSwarm/src/squad.ts
+var SquadModel = class {
+  lane = 0;
+  count = 1;
+  aimOffset = 0;
+  x = 0;
+  targetX = 0;
+  laneShiftStartedAt = 0;
+  add(amount) {
+    const spec = multiplierFamily.members.squadPlusOne;
+    this.count = Math.min(spec.maxSquadSize, this.count + amount);
+    return this.count;
+  }
+  setLane(lane, laneCenter, now) {
+    if (lane !== this.lane) this.laneShiftStartedAt = now;
+    this.lane = lane;
+    this.targetX = laneCenter(lane) + this.aimOffset;
+  }
+  setAim(normalized, laneWidth, laneCenter) {
+    this.aimOffset = Math.max(-1, Math.min(1, normalized)) * laneWidth * 0.28;
+    this.targetX = laneCenter(this.lane) + this.aimOffset;
+  }
+  autoAim(targetOffset, laneWidth, laneCenter) {
+    this.aimOffset += (Math.max(-laneWidth * 0.28, Math.min(laneWidth * 0.28, targetOffset)) - this.aimOffset) * 0.075;
+    this.targetX = laneCenter(this.lane) + this.aimOffset;
+  }
+  update(deltaSeconds) {
+    const response = 1 - Math.pow(8e-5, deltaSeconds);
+    this.x += (this.targetX - this.x) * response;
+  }
+  points(baseY, scale) {
+    const spec = multiplierFamily.members.squadPlusOne;
+    const points = [];
+    for (let index = 0; index < this.count; index++) {
+      const row = Math.floor(index / spec.membersPerRow);
+      const rowCount = Math.min(spec.membersPerRow, this.count - row * spec.membersPerRow);
+      const column = index % spec.membersPerRow;
+      points.push({
+        x: this.x + (column - (rowCount - 1) / 2) * spec.spacing * scale,
+        y: baseY + row * spec.spacing * scale,
+        column,
+        row
+      });
+    }
+    return points;
+  }
+};
+
+// projects/NeonSwarm/src/autoAim.ts
+function selectAutoAimOffset(targets, laneCenter, currentOffset = 0) {
+  if (!targets.length) return 0;
+  const closestY = Math.max(...targets.map((target) => target.y));
+  const closestRow = targets.filter((target) => Math.abs(target.y - closestY) < 3);
+  const currentAimX = laneCenter + currentOffset;
+  const selected = [...closestRow].sort((left, right) => {
+    const distanceDifference = Math.abs(left.x - currentAimX) - Math.abs(right.x - currentAimX);
+    return distanceDifference || left.x - right.x;
+  })[0];
+  return selected.x - laneCenter;
+}
 
 // projects/NeonSwarm/test-pages/gun-family/manual.ts
 var canvas = document.querySelector("#game-canvas");
@@ -447,6 +578,8 @@ var levelSelect = document.querySelector("#level-select");
 var weaponReadout = document.querySelector("#weapon-readout");
 var scoreReadout = document.querySelector("#score-readout");
 var specReadout = document.querySelector("#spec-readout");
+var formationSize = document.querySelector("#formation-size");
+var formationRows = document.querySelector("#formation-rows");
 try {
   const renderer = await NeonPrimitiveRenderer.create(canvas);
   const guns = gunFamily.members;
@@ -455,7 +588,10 @@ try {
   const projectiles = [];
   const pickups = [];
   const effects = [];
+  const multipliers = [];
+  const squad = new SquadModel();
   let playerLane = 0;
+  let manualAim = false;
   let equippedGunId = "pulsePistol";
   let equippedLevel = 1;
   let cooldown = 0;
@@ -505,8 +641,10 @@ try {
     window.gameAudio?.play("Pickup");
     updateReadout();
   };
-  const spawnEnemy = (lane) => {
-    enemies.push({ id: ++entitySequence, lane, y: 105 * scale(), health: orb.health, hitFlashUntil: 0 });
+  squad.x = laneX(0);
+  squad.targetX = laneX(0);
+  const spawnEnemy = (lane, x = laneX(lane), y = 105 * scale()) => {
+    enemies.push({ id: ++entitySequence, lane, x, y, health: orb.health, hitFlashUntil: 0 });
   };
   const spawnPickup = (lane) => {
     pickups.push({ gunId: gunSelect.value, level: Number(levelSelect.value), lane, y: 135 * scale() });
@@ -517,6 +655,25 @@ try {
   document.querySelectorAll("[data-spawn-pickup]").forEach((button) => {
     button.addEventListener("click", () => spawnPickup(Number(button.dataset.spawnPickup)));
   });
+  document.querySelectorAll("[data-spawn-formation]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const lane = Number(button.dataset.spawnFormation);
+      const count = Number(formationSize.value);
+      const rows = Number(formationRows.value);
+      const perRow = Math.ceil(count / rows);
+      let remaining = count;
+      for (let row = 0; row < rows; row++) {
+        const rowCount = Math.min(perRow, remaining);
+        for (let column = 0; column < rowCount; column++) {
+          spawnEnemy(lane, laneX(lane) + (column - (rowCount - 1) / 2) * 15 * scale(), (105 - row * 24) * scale());
+        }
+        remaining -= rowCount;
+      }
+    });
+  });
+  document.querySelectorAll("[data-spawn-multiplier]").forEach((button) => {
+    button.addEventListener("click", () => multipliers.push({ lane: Number(button.dataset.spawnMultiplier), y: 135 * scale() }));
+  });
   document.querySelector("#spawn-wave").addEventListener("click", () => {
     spawnEnemy(0);
     spawnEnemy(1);
@@ -524,36 +681,31 @@ try {
     setTimeout(() => spawnEnemy(1), 700);
   });
   document.querySelector("#clear-stage").addEventListener("click", () => {
-    enemies.length = projectiles.length = pickups.length = effects.length = 0;
+    enemies.length = projectiles.length = pickups.length = effects.length = multipliers.length = 0;
   });
-  const setLane = (lane) => {
-    playerLane = Math.max(0, Math.min(1, lane));
-  };
-  addEventListener("keydown", (event) => {
-    if (event.key === "a" || event.key === "A" || event.key === "ArrowLeft") setLane(0);
-    if (event.key === "d" || event.key === "D" || event.key === "ArrowRight") setLane(1);
-  });
-  window.gameController?.createJoystick({
-    element: "#joystick",
-    container: document.querySelector("#game"),
-    radius: 54,
-    orientationLayout: {
-      portrait: { x: 82, yFromBottom: 88 },
-      landscape: { x: 88, yFromBottom: 82 }
+  bindSquadInput(document.querySelector("#game"), "#joystick", {
+    lane: () => squad.lane,
+    setLane: (lane) => {
+      playerLane = lane;
+      squad.setLane(lane, laneX, performance.now());
+      manualAim = true;
     },
-    recenterRadius: { portrait: 130, landscape: 150 }
-  }).onChange((input) => {
-    if (input.x < -0.25) setLane(0);
-    if (input.x > 0.25) setLane(1);
+    setAim: (value) => {
+      squad.setAim(value, canvas.width * 0.22, laneX);
+      manualAim = true;
+    },
+    releaseAim: () => {
+      manualAim = false;
+    }
   });
-  const spawnProjectile = (lane, angleDegrees, level2, gun) => {
+  const spawnProjectile = (lane, spawnX, angleDegrees, level2, gun) => {
     shotSequence += 1;
     const angle = angleDegrees * Math.PI / 180;
     const speed = level2.projectileSpeed * scale();
     projectiles.push({
       id: ++entitySequence,
       lane,
-      x: laneX(lane) + (pseudoRandom(entitySequence + shotSequence * 3.17) * 2 - 1) * gun.visualIdentity.horizontalJitter * scale(),
+      x: spawnX + (pseudoRandom(entitySequence + shotSequence * 3.17) * 2 - 1) * gun.visualIdentity.horizontalJitter * scale(),
       y: playerY() - 22 * scale(),
       vx: Math.sin(angle) * speed,
       radius: level2.projectileRadius * scale(),
@@ -577,19 +729,18 @@ try {
     });
   };
   const fireVolley = (gun, level2) => {
-    const lanes = [playerLane];
-    for (const lane of lanes) {
+    for (const point of squad.points(playerY(), scale())) {
       const count = Math.max(1, level2.projectileCount);
       for (let index = 0; index < count; index++) {
         const offset = count === 1 ? 0 : (index / (count - 1) - 0.5) * level2.spreadDegrees;
-        spawnProjectile(lane, offset, level2, gun);
+        spawnProjectile(playerLane, point.x, offset, level2, gun);
       }
     }
     recoil = level2.muzzleFlashScale * 7 * scale();
     effects.push({
       kind: "muzzle",
       style: gun.visualIdentity.muzzleEffect,
-      x: laneX(playerLane),
+      x: squad.x,
       y: playerY() - 22 * scale(),
       color: neonPalette[gun.visualIdentity.projectileColor],
       secondaryColor: neonPalette[gun.visualIdentity.trailColor],
@@ -628,7 +779,7 @@ try {
       effects.push({
         kind: "death",
         style: "deathBloom",
-        x: laneX(enemy.lane),
+        x: enemy.x,
         y: enemy.y,
         color: neonPalette[orb.baseColor],
         secondaryColor: neonPalette[orb.rimColor],
@@ -656,6 +807,12 @@ try {
       cooldown += 1 / level2.fireRatePerSecond;
     }
     recoil *= Math.pow(1e-3, delta);
+    if (!manualAim) {
+      const laneEnemies = enemies.filter((enemy) => enemy.lane === squad.lane);
+      const offset = selectAutoAimOffset(laneEnemies, laneX(squad.lane), squad.aimOffset);
+      squad.autoAim(offset, canvas.width * 0.22, laneX);
+    }
+    squad.update(delta);
     for (const projectile of [...projectiles]) {
       projectile.x += projectile.vx * delta;
       projectile.y -= projectile.speed * delta;
@@ -665,7 +822,7 @@ try {
       }
       for (const enemy of [...enemies]) {
         if (projectile.hitEnemyIds.has(enemy.id)) continue;
-        const dx = projectile.x - laneX(enemy.lane);
+        const dx = projectile.x - enemy.x;
         const dy = projectile.y - enemy.y;
         const hitRadius = projectile.radius + orb.radius * scale();
         if (dx * dx + dy * dy <= hitRadius * hitRadius) {
@@ -687,6 +844,13 @@ try {
         pickups.splice(pickups.indexOf(pickup), 1);
       }
     }
+    for (const pickup of [...multipliers]) {
+      pickup.y += 62 * scale() * delta;
+      if (pickup.y >= playerY() - 12 * scale() && pickup.lane === playerLane) {
+        squad.add(multiplierFamily.members.squadPlusOne.squadAdded);
+        multipliers.splice(multipliers.indexOf(pickup), 1);
+      } else if (pickup.y > canvas.height) multipliers.splice(multipliers.indexOf(pickup), 1);
+    }
     for (const effect of [...effects]) {
       if (effect.expiresAt <= now) effects.splice(effects.indexOf(effect), 1);
     }
@@ -694,7 +858,7 @@ try {
   const draw = (now) => {
     const s = scale();
     const primitives = [];
-    primitives.push({ x: laneX(playerLane), y: playerY() + recoil, width: 12 * s, color: neonPalette.cyan, glow: 0.95 });
+    for (const point of squad.points(playerY() + recoil, s)) primitives.push({ x: point.x, y: point.y, width: multiplierFamily.members.squadPlusOne.memberRadius * s, color: neonPalette.cyan, secondaryColor: neonPalette.deepBlue, glow: 0.85, shape: "orb", rimIntensity: 0.8 });
     for (const projectile of projectiles) {
       primitives.push({
         x: projectile.x,
@@ -721,7 +885,7 @@ try {
     }
     for (const enemy of enemies) {
       primitives.push({
-        x: laneX(enemy.lane) + orb.radius * 0.35 * s,
+        x: enemy.x + orb.radius * 0.35 * s,
         y: enemy.y + orb.radius * 1.12 * s,
         width: orb.radius * 0.9 * s,
         height: orb.radius * 0.28 * s,
@@ -731,7 +895,7 @@ try {
         shape: "circle"
       });
       primitives.push({
-        x: laneX(enemy.lane),
+        x: enemy.x,
         y: enemy.y,
         width: orb.radius * s,
         color: enemy.hitFlashUntil > now ? neonPalette.whiteHot : neonPalette[orb.rimColor],
@@ -743,6 +907,11 @@ try {
         intensity: enemy.hitFlashUntil > now ? 1.55 : 1,
         shape: "orb"
       });
+    }
+    for (const pickup of multipliers) {
+      const spec = multiplierFamily.members.squadPlusOne;
+      primitives.push({ x: laneX(pickup.lane), y: pickup.y, width: 18 * s, color: neonPalette[spec.pickupColor], secondaryColor: neonPalette[spec.coreColor], glow: 0.6, shape: "ring" });
+      primitives.push({ x: laneX(pickup.lane), y: pickup.y, width: 10 * s, color: neonPalette[spec.coreColor], secondaryColor: neonPalette[spec.pickupColor], glow: 0.75, shape: "spark" });
     }
     for (const pickup of pickups) {
       const gun = guns[pickup.gunId];

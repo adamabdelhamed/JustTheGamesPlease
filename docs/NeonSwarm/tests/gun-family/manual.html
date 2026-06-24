@@ -16,7 +16,7 @@
     <header data-game-topbar data-contained>
       <div class="game-topbar__identity">
         <h1>GUN FAMILY <b>LAB</b></h1>
-        <p class="game-topbar__instructions" id="status">Move with A/D or arrows. Guns auto-fire. Catch pickups in either lane.</p>
+        <p class="game-topbar__instructions" id="status">Tap a side to switch lanes. Use small joystick motion to aim within a lane.</p>
       </div>
       <div class="game-topbar__right">
         <div class="game-topbar__controls">
@@ -41,6 +41,20 @@
       <div class="button-row">
         <button type="button" data-spawn-enemy="0">Enemy left</button>
         <button type="button" data-spawn-enemy="1">Enemy right</button>
+      </div>
+      <label>Formation size
+        <input id="formation-size" type="range" min="1" max="10" value="5">
+      </label>
+      <label>Rows
+        <select id="formation-rows"><option>1</option><option>2</option></select>
+      </label>
+      <div class="button-row">
+        <button type="button" data-spawn-formation="0">Formation left</button>
+        <button type="button" data-spawn-formation="1">Formation right</button>
+      </div>
+      <div class="button-row">
+        <button type="button" data-spawn-multiplier="0">+1 left</button>
+        <button type="button" data-spawn-multiplier="1">+1 right</button>
       </div>
       <button type="button" id="spawn-wave">Spawn wave</button>
       <button type="button" id="clear-stage">Clear stage</button>
