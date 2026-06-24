@@ -1,0 +1,1131 @@
+{
+  "gameIdentity": {
+    "name": "Neon Swarm Runner",
+    "genre": "two-lane survival shooter",
+    "visualTarget": "Neon geometry with motion-graphics polish, procedural trails, glow, beams, slashes, and readable silhouettes",
+    "coreConstraint": "Everything should be achievable with procedural shapes, gradients, trails, particles, simple shaders, and instanced geometry. Avoid hand-authored art pipelines."
+  },
+  "layout": {
+    "laneCount": 2,
+    "laneWidth": 88,
+    "playerRadius": 10,
+    "defaultEnemyRadius": 9,
+    "largeEnemyRadius": 14,
+    "pickupRadius": 8,
+    "projectileRadius": 3,
+    "rowSpacing": 32,
+    "maxEnemiesVisible": 28,
+    "maxEnemiesPerLaneVisible": 14,
+    "agentNotes": {
+      "intent": "Shrink the player and enemies so the screen can support more simultaneous action without requiring more lanes.",
+      "must": [
+        "Keep enemies readable at small sizes.",
+        "Use silhouette and motion to distinguish enemies, not size alone.",
+        "Avoid making bosses gigantic; make them denser, layered, faster, shielded, or more mechanically interesting instead."
+      ],
+      "avoid": [
+        "Huge enemies that reduce screen density.",
+        "Large player sprite that blocks action.",
+        "Empty lanes with one enemy at a time."
+      ],
+      "expectation": "The screen should feel busier, sharper, and more tactical after scaling down. The player should be able to see several threats and pickups at once."
+    }
+  },
+  "visualSystem": {
+    "style": {
+      "base": "neonGeometry",
+      "background": "darkGrid",
+      "camera": "slightlyZoomedOutForwardRunner",
+      "primaryEffects": [
+        "glow",
+        "trails",
+        "screenSpaceParticles",
+        "proceduralPolylines",
+        "gradientFills",
+        "simpleBloom"
+      ]
+    },
+    "visualBudget": {
+      "maxTotalVisualCost": 18,
+      "maxOrbitingElements": 8,
+      "maxPersistentParticles": 90,
+      "maxTemporaryParticles": 160,
+      "maxActiveBeams": 4,
+      "maxActiveSlashEffects": 3,
+      "maxActiveLightningChains": 3,
+      "maxMissileTrails": 8,
+      "maxPickupGlowRings": 10
+    },
+    "shapeRules": {
+      "enemyCirclesAllowed": false,
+      "pickupCirclesAllowed": true,
+      "shieldCirclesAllowed": true,
+      "projectileCirclesAllowed": true,
+      "allWeaponsCanBeOrbs": false,
+      "preferredEnemySilhouettes": [
+        "triangle",
+        "diamond",
+        "square",
+        "hexagon",
+        "wideHexagon",
+        "nestedPolygon",
+        "crackedDiamond",
+        "chevron"
+      ],
+      "preferredWeaponSilhouettes": [
+        "tinyBullet",
+        "bulletStream",
+        "beamLine",
+        "curvedSlash",
+        "jaggedLightning",
+        "missileTriangle",
+        "droneTriangle",
+        "pulseRing"
+      ],
+      "preferredShieldSilhouettes": [
+        "hexSegments",
+        "frontBarrier",
+        "orbiters",
+        "softAura",
+        "expandingPulse",
+        "reactiveShards"
+      ]
+    },
+    "agentNotes": {
+      "intent": "Use a small number of reusable procedural rendering techniques to create many distinct effects.",
+      "must": [
+        "Every major weapon family needs a different motion language.",
+        "Every enemy family needs a different silhouette.",
+        "Every shield family needs a different defensive personality.",
+        "Prefer effects that look expensive but are cheap: trails, polylines, rings, arcs, beams, and simple particles."
+      ],
+      "avoid": [
+        "Everything becoming glowing orbs.",
+        "Sprite-sheet dependencies.",
+        "Character animation complexity.",
+        "Unclear hit areas.",
+        "Particle spam that hides lanes."
+      ],
+      "expectation": "The game should look like a high-energy neon motion-graphics shooter, not a placeholder shape demo. It should still be practical for browser rendering and agentic coding."
+    }
+  },
+  "player": {
+    "base": {
+      "hp": 3,
+      "radius": 10,
+      "lane": 0,
+      "moveDurationMs": 95,
+      "weaponSlots": 3,
+      "shieldSlots": 1,
+      "passiveSlots": 4
+    },
+    "visualIdentity": {
+      "silhouette": "smallArrowCore",
+      "motionLanguage": "quickLaneSnap",
+      "screenReadPriority": "highest",
+      "visualCost": 2,
+      "renderMethod": "proceduralGeometry",
+      "agentNotes": {
+        "intent": "The player should be small but unmistakable.",
+        "must": [
+          "Use a bright core shape.",
+          "Use a short lane-change smear or afterimage.",
+          "Keep the hit area visually honest."
+        ],
+        "avoid": [
+          "Large character art.",
+          "Detailed humanoid animation.",
+          "Player effects that hide incoming enemies."
+        ],
+        "expectation": "The player should read as a compact neon fighter or runner icon. It should feel agile and responsive, not like a bulky avatar."
+      }
+    }
+  },
+  "weapons": {
+    "basicGun": {
+      "label": "Pulse Pistol",
+      "family": "gun",
+      "unlockPhase": "start",
+      "rarity": "common",
+      "targeting": "currentLaneForward",
+      "visualIdentity": {
+        "silhouette": "tinyBullet",
+        "motionLanguage": "singleStraightShot",
+        "colorRole": "starterBlue",
+        "screenReadPriority": "medium",
+        "visualCost": 1,
+        "renderMethod": "instancedProjectileWithShortTrail",
+        "agentNotes": {
+          "intent": "Reliable starter weapon that establishes the baseline.",
+          "must": [
+            "Use tiny bright projectiles.",
+            "Give each shot a very short trail.",
+            "Keep it visually modest so later weapons feel like upgrades."
+          ],
+          "avoid": [
+            "Large glowing balls.",
+            "Complex particles.",
+            "Overpowering muzzle flash."
+          ],
+          "expectation": "This should feel clean and readable, like a simple neon pistol shot."
+        }
+      },
+      "levels": [
+        {
+          "level": 1,
+          "fireRatePerSecond": 1.3,
+          "damage": 1,
+          "projectileSpeed": 540,
+          "projectileRadius": 3
+        },
+        {
+          "level": 2,
+          "fireRatePerSecond": 1.7,
+          "damage": 1.15,
+          "projectileSpeed": 580,
+          "projectileRadius": 3
+        },
+        {
+          "level": 3,
+          "fireRatePerSecond": 2.1,
+          "damage": 1.35,
+          "projectileSpeed": 620,
+          "projectileRadius": 3.5
+        }
+      ]
+    },
+    "machineGun": {
+      "label": "Needler SMG",
+      "family": "gun",
+      "unlockPhase": "firstBuild",
+      "rarity": "common",
+      "targeting": "currentLaneForward",
+      "visualIdentity": {
+        "silhouette": "bulletStream",
+        "motionLanguage": "rapidNeedleFire",
+        "colorRole": "rapidGreen",
+        "screenReadPriority": "medium",
+        "visualCost": 3,
+        "renderMethod": "instancedProjectileWithTracerEveryNthShot",
+        "agentNotes": {
+          "intent": "Make the player feel like they found a faster gun without flooding the screen with giant projectiles.",
+          "must": [
+            "Use very small bullets.",
+            "Add a brighter tracer every fifth shot.",
+            "Use rhythm and density as the identity."
+          ],
+          "avoid": [
+            "Large projectiles.",
+            "Full-screen muzzle flashes.",
+            "Too many persistent trails."
+          ],
+          "expectation": "This should feel like a tight stream of neon needles, not a collection of orbs."
+        }
+      },
+      "levels": [
+        {
+          "level": 1,
+          "fireRatePerSecond": 5,
+          "damage": 0.45,
+          "projectileSpeed": 680,
+          "projectileRadius": 2.25
+        },
+        {
+          "level": 2,
+          "fireRatePerSecond": 7,
+          "damage": 0.5,
+          "projectileSpeed": 720,
+          "projectileRadius": 2.25
+        },
+        {
+          "level": 3,
+          "fireRatePerSecond": 9,
+          "damage": 0.55,
+          "projectileSpeed": 760,
+          "projectileRadius": 2.5
+        }
+      ]
+    },
+    "railgun": {
+      "label": "Rail Lance",
+      "family": "beam",
+      "unlockPhase": "pressure",
+      "rarity": "uncommon",
+      "targeting": "currentLaneForward",
+      "visualIdentity": {
+        "silhouette": "beamLine",
+        "motionLanguage": "instantPiercingLine",
+        "colorRole": "piercingWhite",
+        "screenReadPriority": "high",
+        "visualCost": 3,
+        "renderMethod": "screenSpaceBeamWithFadeTrail",
+        "agentNotes": {
+          "intent": "Create a powerful contrast against projectile weapons.",
+          "must": [
+            "No moving projectile.",
+            "Draw a thin instant beam through enemies.",
+            "Leave a brief heat-line afterimage."
+          ],
+          "avoid": [
+            "Slow laser blob.",
+            "Orb projectile.",
+            "Beam that lingers long enough to confuse hit timing."
+          ],
+          "expectation": "This should feel surgical and high-impact: blink, line, enemies pop."
+        }
+      },
+      "levels": [
+        {
+          "level": 1,
+          "cooldownSeconds": 2.4,
+          "damage": 3,
+          "pierce": 4,
+          "beamDurationMs": 70
+        },
+        {
+          "level": 2,
+          "cooldownSeconds": 2.0,
+          "damage": 4,
+          "pierce": 6,
+          "beamDurationMs": 80
+        },
+        {
+          "level": 3,
+          "cooldownSeconds": 1.7,
+          "damage": 5,
+          "pierce": 999,
+          "beamDurationMs": 90
+        }
+      ]
+    },
+    "sword": {
+      "label": "Arc Blade",
+      "family": "melee",
+      "unlockPhase": "pressure",
+      "rarity": "uncommon",
+      "targeting": "nearestThreat",
+      "visualIdentity": {
+        "silhouette": "curvedSlash",
+        "motionLanguage": "whippingArc",
+        "colorRole": "meleePink",
+        "screenReadPriority": "high",
+        "visualCost": 4,
+        "renderMethod": "animatedSplineArcWithAfterimage",
+        "agentNotes": {
+          "intent": "Make this the coolest readable close-range weapon.",
+          "must": [
+            "Use a curved slash arc.",
+            "Animate the slash quickly, around 120-180ms.",
+            "Use a fading afterimage instead of particles.",
+            "Make the hit area visually match the arc."
+          ],
+          "avoid": [
+            "Straight rectangle sword swipe.",
+            "Orb slash.",
+            "Permanent blade stuck to the player.",
+            "Complex character animation."
+          ],
+          "expectation": "The slash should feel like a neon whip or katana arc cutting across the lane."
+        }
+      },
+      "levels": [
+        {
+          "level": 1,
+          "cooldownSeconds": 1.8,
+          "damage": 2.2,
+          "reach": 76,
+          "arcWidth": 34,
+          "slashCount": 1
+        },
+        {
+          "level": 2,
+          "cooldownSeconds": 1.45,
+          "damage": 2.8,
+          "reach": 92,
+          "arcWidth": 42,
+          "slashCount": 1
+        },
+        {
+          "level": 3,
+          "cooldownSeconds": 1.2,
+          "damage": 3.4,
+          "reach": 108,
+          "arcWidth": 50,
+          "slashCount": 2
+        }
+      ]
+    },
+    "chainLightning": {
+      "label": "Chain Spark",
+      "family": "electric",
+      "unlockPhase": "chaos",
+      "rarity": "rare",
+      "targeting": "clusteredEnemies",
+      "visualIdentity": {
+        "silhouette": "jaggedLightning",
+        "motionLanguage": "branchingChain",
+        "colorRole": "electricCyan",
+        "screenReadPriority": "high",
+        "visualCost": 5,
+        "renderMethod": "proceduralPolylineSegments",
+        "agentNotes": {
+          "intent": "Create high dopamine chain reactions without heavy simulation.",
+          "must": [
+            "Use jagged procedural polylines.",
+            "Link enemy centers for very short bursts.",
+            "Randomize the bend points slightly each strike.",
+            "Keep the effect brief and snappy."
+          ],
+          "avoid": [
+            "Round lightning balls.",
+            "Long-lived lightning covering the screen.",
+            "Too many branches at once."
+          ],
+          "expectation": "This should look like angular electricity snapping from target to target."
+        }
+      },
+      "levels": [
+        {
+          "level": 1,
+          "cooldownSeconds": 2.2,
+          "damage": 1.5,
+          "jumps": 2,
+          "chainRange": 76
+        },
+        {
+          "level": 2,
+          "cooldownSeconds": 1.9,
+          "damage": 1.75,
+          "jumps": 3,
+          "chainRange": 88
+        },
+        {
+          "level": 3,
+          "cooldownSeconds": 1.6,
+          "damage": 2,
+          "jumps": 4,
+          "chainRange": 102
+        }
+      ]
+    },
+    "missilePod": {
+      "label": "Micro Missile Pod",
+      "family": "explosive",
+      "unlockPhase": "chaos",
+      "rarity": "rare",
+      "targeting": "strongestVisibleEnemy",
+      "visualIdentity": {
+        "silhouette": "missileTriangle",
+        "motionLanguage": "curvedHoming",
+        "colorRole": "explosiveOrange",
+        "screenReadPriority": "high",
+        "visualCost": 4,
+        "renderMethod": "triangleProjectileWithSmokeTrail",
+        "agentNotes": {
+          "intent": "Give the player chunky targeted damage with satisfying movement.",
+          "must": [
+            "Use tiny triangular missile shapes.",
+            "Use a curved homing path.",
+            "Use a short smoke or spark trail.",
+            "Use a compact burst on impact."
+          ],
+          "avoid": [
+            "Large rocket art.",
+            "Realistic smoke simulation.",
+            "Huge explosion that hides lanes."
+          ],
+          "expectation": "The missile should feel smart and punchy while still being just geometry plus trail."
+        }
+      },
+      "levels": [
+        {
+          "level": 1,
+          "cooldownSeconds": 2.6,
+          "damage": 3,
+          "splashRadius": 30,
+          "missileCount": 1
+        },
+        {
+          "level": 2,
+          "cooldownSeconds": 2.3,
+          "damage": 3.5,
+          "splashRadius": 36,
+          "missileCount": 1
+        },
+        {
+          "level": 3,
+          "cooldownSeconds": 2.1,
+          "damage": 3.75,
+          "splashRadius": 40,
+          "missileCount": 2
+        }
+      ]
+    }
+  },
+  "shields": {
+    "orbitShield": {
+      "label": "Satellite Guard",
+      "family": "orbit",
+      "unlockPhase": "start",
+      "rarity": "common",
+      "visualIdentity": {
+        "silhouette": "orbiters",
+        "motionLanguage": "rotatingSatellites",
+        "colorRole": "defenseBlue",
+        "screenReadPriority": "medium",
+        "visualCost": 3,
+        "renderMethod": "smallOrbitingGeometry",
+        "agentNotes": {
+          "intent": "Keep the current shield idea, but treat it as only one shield family.",
+          "must": [
+            "Use small rotating satellites.",
+            "Keep the orbit radius tight.",
+            "Make charges visually countable."
+          ],
+          "avoid": [
+            "Using orbiters for every shield.",
+            "Large circles around the player.",
+            "Orbiters that make the player hitbox ambiguous."
+          ],
+          "expectation": "This is the classic readable starter shield, not the template for all shields."
+        }
+      },
+      "levels": [
+        {
+          "level": 1,
+          "charges": 1,
+          "orbiters": 2,
+          "radius": 22
+        },
+        {
+          "level": 2,
+          "charges": 2,
+          "orbiters": 3,
+          "radius": 25
+        },
+        {
+          "level": 3,
+          "charges": 3,
+          "orbiters": 4,
+          "radius": 28
+        }
+      ]
+    },
+    "hexShield": {
+      "label": "Hex Guard",
+      "family": "segmentedBarrier",
+      "unlockPhase": "firstBuild",
+      "rarity": "common",
+      "visualIdentity": {
+        "silhouette": "hexSegments",
+        "motionLanguage": "staticSegmentedBubble",
+        "colorRole": "defenseViolet",
+        "screenReadPriority": "medium",
+        "visualCost": 3,
+        "renderMethod": "sixArcSegmentsAroundPlayer",
+        "agentNotes": {
+          "intent": "Make shield health visually obvious.",
+          "must": [
+            "Draw six shield segments around the player.",
+            "Break or dim one segment per absorbed hit.",
+            "Keep gaps between segments visible."
+          ],
+          "avoid": [
+            "Solid circular bubble.",
+            "Orbiting particles.",
+            "Overly thick shield that covers enemies."
+          ],
+          "expectation": "The player should immediately understand how many shield chunks remain."
+        }
+      },
+      "levels": [
+        {
+          "level": 1,
+          "segments": 3,
+          "hitsPerSegment": 1,
+          "radius": 20
+        },
+        {
+          "level": 2,
+          "segments": 4,
+          "hitsPerSegment": 1,
+          "radius": 22
+        },
+        {
+          "level": 3,
+          "segments": 6,
+          "hitsPerSegment": 1,
+          "radius": 24
+        }
+      ]
+    },
+    "frontBarrier": {
+      "label": "Deflector Wedge",
+      "family": "directionalBarrier",
+      "unlockPhase": "firstBuild",
+      "rarity": "uncommon",
+      "visualIdentity": {
+        "silhouette": "frontBarrier",
+        "motionLanguage": "forwardCrescent",
+        "colorRole": "defenseGold",
+        "screenReadPriority": "high",
+        "visualCost": 3,
+        "renderMethod": "curvedArcInFrontOfPlayer",
+        "agentNotes": {
+          "intent": "Create a shield that feels mechanically different because it protects forward only.",
+          "must": [
+            "Draw a crescent or windshield in front of the player.",
+            "Make directionality obvious.",
+            "On hit, ripple across the barrier."
+          ],
+          "avoid": [
+            "Full circular bubble.",
+            "Ambiguous protection area.",
+            "Tiny effect that players miss."
+          ],
+          "expectation": "This should feel like a neon riot shield or spaceship deflector wedge."
+        }
+      },
+      "levels": [
+        {
+          "level": 1,
+          "hp": 2,
+          "width": 30,
+          "reflect": false
+        },
+        {
+          "level": 2,
+          "hp": 3,
+          "width": 38,
+          "reflect": false
+        },
+        {
+          "level": 3,
+          "hp": 4,
+          "width": 46,
+          "reflect": true
+        }
+      ]
+    },
+    "pulseShield": {
+      "label": "Pulse Core",
+      "family": "reactiveBurst",
+      "unlockPhase": "pressure",
+      "rarity": "uncommon",
+      "visualIdentity": {
+        "silhouette": "expandingPulse",
+        "motionLanguage": "shockwaveRing",
+        "colorRole": "defenseWhite",
+        "screenReadPriority": "high",
+        "visualCost": 4,
+        "renderMethod": "expandingRingWithFade",
+        "agentNotes": {
+          "intent": "Make a shield that is mostly invisible until it saves the player.",
+          "must": [
+            "Trigger a large expanding ring.",
+            "Push enemies back clearly.",
+            "Use one clean shockwave instead of many particles."
+          ],
+          "avoid": [
+            "Always-on visual clutter.",
+            "Orbital shield visuals.",
+            "Screen-filling opacity."
+          ],
+          "expectation": "This should feel like a panic blast that buys breathing room."
+        }
+      },
+      "levels": [
+        {
+          "level": 1,
+          "cooldownSeconds": 5.5,
+          "pushDistance": 54,
+          "damage": 0.5
+        },
+        {
+          "level": 2,
+          "cooldownSeconds": 4.7,
+          "pushDistance": 68,
+          "damage": 0.75
+        },
+        {
+          "level": 3,
+          "cooldownSeconds": 4.0,
+          "pushDistance": 84,
+          "damage": 1
+        }
+      ]
+    },
+    "frostAura": {
+      "label": "Frost Field",
+      "family": "aura",
+      "unlockPhase": "pressure",
+      "rarity": "rare",
+      "visualIdentity": {
+        "silhouette": "softAura",
+        "motionLanguage": "subtleSlowField",
+        "colorRole": "defenseCyan",
+        "screenReadPriority": "low",
+        "visualCost": 3,
+        "renderMethod": "transparentShaderRing",
+        "agentNotes": {
+          "intent": "Create a passive defensive style that changes enemy movement rather than blocking hits.",
+          "must": [
+            "Use a subtle circular field.",
+            "Tint or slightly crystallize enemies inside the aura.",
+            "Keep the effect readable but not noisy."
+          ],
+          "avoid": [
+            "Heavy snow particles.",
+            "Large opaque circle.",
+            "Making this look like the orbit shield."
+          ],
+          "expectation": "This should feel cold and controlled, like nearby enemies are moving through neon ice."
+        }
+      },
+      "levels": [
+        {
+          "level": 1,
+          "radius": 42,
+          "slowMultiplier": 0.85
+        },
+        {
+          "level": 2,
+          "radius": 52,
+          "slowMultiplier": 0.78
+        },
+        {
+          "level": 3,
+          "radius": 64,
+          "slowMultiplier": 0.7
+        }
+      ]
+    }
+  },
+  "enemies": {
+    "runner": {
+      "label": "Runner",
+      "family": "pressure",
+      "unlockPhase": "start",
+      "base": {
+        "hp": 1,
+        "speed": 150,
+        "radius": 7,
+        "contactDamage": 1
+      },
+      "visualIdentity": {
+        "silhouette": "triangle",
+        "motionLanguage": "fastStraightRush",
+        "colorRole": "enemyRed",
+        "screenReadPriority": "medium",
+        "visualCost": 1,
+        "renderMethod": "instancedTriangleWithTrail",
+        "agentNotes": {
+          "intent": "Basic fast pressure enemy.",
+          "must": [
+            "Use a small triangle or chevron.",
+            "Use a short trail to emphasize speed.",
+            "Keep it tiny and numerous."
+          ],
+          "avoid": [
+            "Circle enemy.",
+            "Large body.",
+            "Complex animation."
+          ],
+          "expectation": "The runner should feel like a dangerous little dart."
+        }
+      }
+    },
+    "bruiser": {
+      "label": "Bruiser",
+      "family": "mediumThreat",
+      "unlockPhase": "firstBuild",
+      "base": {
+        "hp": 4,
+        "speed": 105,
+        "radius": 10,
+        "contactDamage": 1
+      },
+      "visualIdentity": {
+        "silhouette": "square",
+        "motionLanguage": "steadyAdvance",
+        "colorRole": "enemyOrange",
+        "screenReadPriority": "medium",
+        "visualCost": 2,
+        "renderMethod": "instancedSquareWithInnerCore",
+        "agentNotes": {
+          "intent": "Medium enemy that survives long enough to create pressure.",
+          "must": [
+            "Use a compact square silhouette.",
+            "Show damage by cracking, dimming, or shrinking an inner core.",
+            "Remain smaller than old enemy sizes."
+          ],
+          "avoid": [
+            "Huge tank-like body.",
+            "Circle silhouette.",
+            "Too many particles on hit."
+          ],
+          "expectation": "This should feel sturdy but not boss-like."
+        }
+      }
+    },
+    "tank": {
+      "label": "Tank",
+      "family": "durable",
+      "unlockPhase": "pressure",
+      "base": {
+        "hp": 9,
+        "speed": 68,
+        "radius": 14,
+        "contactDamage": 1
+      },
+      "visualIdentity": {
+        "silhouette": "wideHexagon",
+        "motionLanguage": "slowHeavyAdvance",
+        "colorRole": "enemyPurple",
+        "screenReadPriority": "high",
+        "visualCost": 3,
+        "renderMethod": "wideHexagonWithLayeredArmor",
+        "agentNotes": {
+          "intent": "Durable threat that absorbs damage and creates lane pressure.",
+          "must": [
+            "Use a wide hexagon.",
+            "Layer armor bands instead of making it huge.",
+            "Communicate health through armor segments."
+          ],
+          "avoid": [
+            "Oversized boss body.",
+            "Circle silhouette.",
+            "Blocking too much of the lane visually."
+          ],
+          "expectation": "The tank should feel heavy because of shape and layers, not because it takes up half the screen."
+        }
+      }
+    },
+    "splitter": {
+      "label": "Splitter",
+      "family": "deathEffect",
+      "unlockPhase": "chaos",
+      "base": {
+        "hp": 3,
+        "speed": 95,
+        "radius": 10,
+        "contactDamage": 1,
+        "splitsInto": "runner",
+        "splitCount": 2
+      },
+      "visualIdentity": {
+        "silhouette": "crackedDiamond",
+        "motionLanguage": "unstableAdvance",
+        "colorRole": "enemyYellow",
+        "screenReadPriority": "high",
+        "visualCost": 3,
+        "renderMethod": "diamondWithProceduralCrack",
+        "agentNotes": {
+          "intent": "Telegraph that something special happens when it dies.",
+          "must": [
+            "Use a diamond with a visible crack.",
+            "On death, split into two tiny runners with a snap effect.",
+            "Make the split visually readable but quick."
+          ],
+          "avoid": [
+            "Surprise splitting with no visual hint.",
+            "Large explosion.",
+            "Too many child enemies."
+          ],
+          "expectation": "The crack should teach the player that this enemy breaks apart."
+        }
+      }
+    },
+    "jumper": {
+      "label": "Lane Jumper",
+      "family": "movementTrick",
+      "unlockPhase": "pressure",
+      "base": {
+        "hp": 2,
+        "speed": 115,
+        "radius": 9,
+        "contactDamage": 1,
+        "laneJumpCooldownSeconds": 2.4,
+        "laneJumpTelegraphMs": 400
+      },
+      "visualIdentity": {
+        "silhouette": "rotatingDiamond",
+        "motionLanguage": "telegraphedLaneSwitch",
+        "colorRole": "enemyPink",
+        "screenReadPriority": "high",
+        "visualCost": 3,
+        "renderMethod": "rotatingDiamondWithLaneGhost",
+        "agentNotes": {
+          "intent": "Enemy that makes two lanes feel less predictable.",
+          "must": [
+            "Rotate or wobble while moving.",
+            "Show a faint ghost marker in the destination lane before jumping.",
+            "Keep the actual jump fast."
+          ],
+          "avoid": [
+            "Instant lane changes with no warning.",
+            "Complex pathfinding.",
+            "Animation that hides the lane target."
+          ],
+          "expectation": "The player should learn that rotating diamond means lane switch is coming."
+        }
+      }
+    },
+    "elite": {
+      "label": "Elite",
+      "family": "phaseSpike",
+      "unlockPhase": "chaos",
+      "base": {
+        "hp": 14,
+        "speed": 105,
+        "radius": 14,
+        "contactDamage": 1,
+        "scoreMultiplier": 3
+      },
+      "visualIdentity": {
+        "silhouette": "nestedPolygon",
+        "motionLanguage": "confidentAdvance",
+        "colorRole": "enemyWhiteHot",
+        "screenReadPriority": "highest",
+        "visualCost": 5,
+        "renderMethod": "nestedGeometryWithRotatingInnerLayer",
+        "agentNotes": {
+          "intent": "Create a boss-like threat without requiring a large boss sprite.",
+          "must": [
+            "Use nested geometry.",
+            "Use a rotating inner layer.",
+            "Use a brighter outline and more hit sparks.",
+            "Keep radius within normal large enemy limits."
+          ],
+          "avoid": [
+            "Giant boss art.",
+            "Humanoid enemy.",
+            "Projectile spam unless explicitly enabled by balance."
+          ],
+          "expectation": "This should feel elite because it is layered, bright, and durable, not because it is enormous."
+        }
+      }
+    }
+  },
+  "pickups": {
+    "rules": {
+      "pickupChoiceCount": 1,
+      "upgradeExistingWeight": 0.65,
+      "newWeaponWeight": 0.25,
+      "shieldWeight": 0.1,
+      "maxWeaponSlots": 3,
+      "maxShieldSlots": 1,
+      "maxSameWeaponLevel": 3
+    },
+    "visualIdentity": {
+      "silhouette": "floatingBadge",
+      "motionLanguage": "gentleBobWithGlowRing",
+      "screenReadPriority": "high",
+      "visualCost": 2,
+      "renderMethod": "iconBadgeWithGlowRing",
+      "agentNotes": {
+        "intent": "Pickups should be exciting and readable while still cheap to draw.",
+        "must": [
+          "Use simple icon-like badges.",
+          "Show weapon family through icon silhouette.",
+          "Use color and shape together.",
+          "Make upgrade pickups visually different from new weapon pickups."
+        ],
+        "avoid": [
+          "Generic mystery orbs for everything.",
+          "Tiny unreadable text.",
+          "Overly detailed icons."
+        ],
+        "expectation": "A player should be able to recognize a sword pickup, gun pickup, shield pickup, or missile pickup at a glance."
+      }
+    }
+  },
+  "progression": {
+    "phases": [
+      {
+        "id": "start",
+        "label": "Warmup",
+        "startsAtSeconds": 0,
+        "enemyPool": [
+          "runner"
+        ],
+        "pickupPool": [
+          "basicGun",
+          "orbitShield"
+        ],
+        "spawnRatePerSecond": 0.85,
+        "enemyPowerMultiplier": 1,
+        "agentNotes": {
+          "intent": "Let the player understand movement, lanes, and basic shooting.",
+          "expectation": "The screen should be readable and lightly threatening, not empty."
+        }
+      },
+      {
+        "id": "firstBuild",
+        "label": "First Build",
+        "startsAtSeconds": 60,
+        "enemyPool": [
+          "runner",
+          "bruiser"
+        ],
+        "pickupPool": [
+          "basicGun",
+          "machineGun",
+          "orbitShield",
+          "hexShield",
+          "frontBarrier"
+        ],
+        "spawnRatePerSecond": 1.15,
+        "enemyPowerMultiplier": 1.15,
+        "agentNotes": {
+          "intent": "Give the player their first feeling of a build forming.",
+          "expectation": "The player should start feeling stronger, but bruisers should prove that raw starter damage will not scale forever."
+        }
+      },
+      {
+        "id": "pressure",
+        "label": "Pressure",
+        "startsAtSeconds": 150,
+        "enemyPool": [
+          "runner",
+          "bruiser",
+          "tank",
+          "jumper"
+        ],
+        "pickupPool": [
+          "machineGun",
+          "railgun",
+          "sword",
+          "hexShield",
+          "frontBarrier",
+          "pulseShield",
+          "frostAura"
+        ],
+        "spawnRatePerSecond": 1.5,
+        "enemyPowerMultiplier": 1.35,
+        "agentNotes": {
+          "intent": "Introduce enemies that challenge lane safety and weapon coverage.",
+          "expectation": "The player should experience the first major difficulty squeeze and need a stronger weapon or better shield."
+        }
+      },
+      {
+        "id": "chaos",
+        "label": "Chaos",
+        "startsAtSeconds": 300,
+        "enemyPool": [
+          "runner",
+          "bruiser",
+          "tank",
+          "jumper",
+          "splitter",
+          "elite"
+        ],
+        "pickupPool": [
+          "railgun",
+          "sword",
+          "chainLightning",
+          "missilePod",
+          "frontBarrier",
+          "pulseShield",
+          "frostAura"
+        ],
+        "spawnRatePerSecond": 2.0,
+        "enemyPowerMultiplier": 1.75,
+        "agentNotes": {
+          "intent": "Let the build become absurd while the enemy mix becomes dangerous enough to keep tension high.",
+          "expectation": "The player should alternate between feeling overpowered and barely surviving."
+        }
+      }
+    ],
+    "difficultyCurve": {
+      "spawnRateGrowthPerMinute": 0.12,
+      "enemyHpGrowthPerMinute": 0.1,
+      "enemySpeedGrowthPerMinute": 0.035,
+      "eliteChanceGrowthPerMinute": 0.015,
+      "maxEliteChance": 0.18,
+      "agentNotes": {
+        "intent": "Use slow numerical pressure plus phased enemy introductions instead of only making everything faster.",
+        "must": [
+          "Preserve readability.",
+          "Keep early enemies useful later by spawning more of them.",
+          "Use elites as spikes, not constant clutter."
+        ],
+        "avoid": [
+          "Pure speed scaling until the game becomes unfair.",
+          "Health sponge monotony.",
+          "Projectile-heavy enemy behavior too early."
+        ],
+        "expectation": "The game should feel like a survivable escalation curve with occasional scary spikes."
+      }
+    }
+  },
+  "implementationGuidance": {
+    "preferredRenderingApproach": [
+      "Use WebGPU if available for bloom, instancing, trails, and shader rings.",
+      "Keep the gameplay model independent from the renderer.",
+      "Use Canvas2D or WebGL fallback only if needed, but design visuals as simple primitives either way.",
+      "Represent most visuals as procedural draw commands rather than assets."
+    ],
+    "highConfidenceEffects": [
+      {
+        "name": "fadingTrail",
+        "fit": "bullets, missiles, enemies, player lane changes",
+        "implementationConfidence": "high"
+      },
+      {
+        "name": "animatedSplineSlash",
+        "fit": "sword weapon",
+        "implementationConfidence": "high"
+      },
+      {
+        "name": "proceduralLightningPolyline",
+        "fit": "chain lightning",
+        "implementationConfidence": "high"
+      },
+      {
+        "name": "screenSpaceBeam",
+        "fit": "railgun",
+        "implementationConfidence": "high"
+      },
+      {
+        "name": "expandingRing",
+        "fit": "pulse shield and explosions",
+        "implementationConfidence": "high"
+      },
+      {
+        "name": "segmentedArcShield",
+        "fit": "hex shield and front barrier",
+        "implementationConfidence": "high"
+      },
+      {
+        "name": "nestedPolygonElite",
+        "fit": "elite enemy",
+        "implementationConfidence": "high"
+      }
+    ],
+    "riskyEffectsToAvoidForNow": [
+      "skeletal character animation",
+      "detailed sprite pipeline",
+      "fluid simulation",
+      "realistic smoke",
+      "complex 3D models",
+      "physics-heavy debris",
+      "large numbers of enemy projectiles"
+    ],
+    "agentNotes": {
+      "intent": "Bias the implementation toward effects that an LLM coding agent can build reliably in a browser.",
+      "must": [
+        "Keep effects procedural.",
+        "Prefer simple reusable primitives.",
+        "Use visual identity data to prevent accidental sameness.",
+        "Protect readability before spectacle."
+      ],
+      "avoid": [
+        "Over-promising WebGPU complexity.",
+        "Making every new thing require a custom renderer.",
+        "Adding visuals that are impressive in isolation but unreadable during gameplay."
+      ],
+      "expectation": "The final game should feel polished because of motion, glow, timing, and contrast, not because it has expensive art assets."
+    }
+  }
+}
