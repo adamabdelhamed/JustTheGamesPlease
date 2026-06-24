@@ -2,7 +2,7 @@ import { NeonPrimitiveRenderer, NeonVictoryExperience, neonPalette, type NeonPri
 import { gunFamily, multiplierFamily, orbFamily, trackFamily, type GunId, type MultiplierId, type TrackMember } from "../CombatDefinition";
 import { bindSquadInput } from "./input";
 import { SquadModel } from "./squad";
-import { selectAutoAimOffset } from "./autoAim";
+import { AutoAimControlState, selectAutoAimOffset } from "./autoAim";
 
 interface Enemy { lane: 0 | 1; x: number; y: number; health: number; rowId: number }
 interface Projectile { lane: 0 | 1; x: number; y: number; damage: number; speed: number; radius: number; color: string; trail: string }
@@ -39,7 +39,7 @@ try {
   let pickups: Pickup[] = [];
   let multipliers: MultiplierPickup[] = [];
   const squad = new SquadModel();
-  let manualAim = false;
+  const aimControl = new AutoAimControlState();
   let victory: NeonVictoryExperience | null = null;
 
   const scale = () => Math.min(devicePixelRatio || 1, 2);
@@ -100,15 +100,15 @@ try {
       if (!activeTrack) return;
       squad.setLane(lane, laneX, performance.now());
       playerLane = lane;
-      manualAim = true;
+      aimControl.laneSelected();
     },
     setAim: value => {
       if (!activeTrack) return;
       squad.setAim(value, canvas.width * .22, laneX);
-      manualAim = true;
+      aimControl.aimChanged();
     },
     releaseAim: () => {
-      manualAim = false;
+      aimControl.aimReleased();
     },
   });
 
@@ -175,7 +175,7 @@ try {
       multipliers.push({ lane: event.lane, y: 125 * scale(), multiplierId: event.multiplierId });
     }
 
-    if (!manualAim) {
+    if (!aimControl.manual) {
       const laneEnemies = enemies.filter(enemy => enemy.lane === squad.lane);
       const offset = selectAutoAimOffset(laneEnemies, laneX(squad.lane), squad.aimOffset);
       squad.autoAim(offset, canvas.width * .22, laneX);

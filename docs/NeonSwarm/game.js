@@ -615,10 +615,27 @@ var SquadModel = class {
 };
 
 // projects/NeonSwarm/src/autoAim.ts
+var AutoAimControlState = class {
+  manual = false;
+  laneSelected() {
+  }
+  aimChanged() {
+    this.manual = true;
+  }
+  aimReleased() {
+    this.manual = false;
+  }
+};
 function selectAutoAimOffset(targets, laneCenter, currentOffset = 0) {
   if (!targets.length) return 0;
-  const closestY = Math.max(...targets.map((target) => target.y));
-  const closestRow = targets.filter((target) => Math.abs(target.y - closestY) < 3);
+  const explicitRows = /* @__PURE__ */ new Map();
+  for (const target of targets) {
+    if (target.rowId === void 0) continue;
+    const row = explicitRows.get(target.rowId) ?? [];
+    row.push(target);
+    explicitRows.set(target.rowId, row);
+  }
+  const closestRow = explicitRows.size ? [...explicitRows.values()].sort((left, right) => Math.max(...right.map((target) => target.y)) - Math.max(...left.map((target) => target.y)))[0] : targets.filter((target) => Math.abs(target.y - Math.max(...targets.map((candidate) => candidate.y))) < 3);
   const currentAimX = laneCenter + currentOffset;
   const selected = [...closestRow].sort((left, right) => {
     const distanceDifference = Math.abs(left.x - currentAimX) - Math.abs(right.x - currentAimX);
@@ -657,7 +674,7 @@ try {
   let pickups = [];
   let multipliers = [];
   const squad = new SquadModel();
-  let manualAim = false;
+  const aimControl = new AutoAimControlState();
   let victory = null;
   const scale = () => Math.min(devicePixelRatio || 1, 2);
   const laneX = (lane) => canvas.width * (lane === 0 ? 0.39 : 0.61);
@@ -713,15 +730,15 @@ try {
       if (!activeTrack) return;
       squad.setLane(lane, laneX, performance.now());
       playerLane = lane;
-      manualAim = true;
+      aimControl.laneSelected();
     },
     setAim: (value) => {
       if (!activeTrack) return;
       squad.setAim(value, canvas.width * 0.22, laneX);
-      manualAim = true;
+      aimControl.aimChanged();
     },
     releaseAim: () => {
-      manualAim = false;
+      aimControl.aimReleased();
     }
   });
   const fire = () => {
@@ -786,7 +803,7 @@ try {
       const event = activeTrack.multiplierSchedule[nextMultiplier++];
       multipliers.push({ lane: event.lane, y: 125 * scale(), multiplierId: event.multiplierId });
     }
-    if (!manualAim) {
+    if (!aimControl.manual) {
       const laneEnemies = enemies.filter((enemy) => enemy.lane === squad.lane);
       const offset = selectAutoAimOffset(laneEnemies, laneX(squad.lane), squad.aimOffset);
       squad.autoAim(offset, canvas.width * 0.22, laneX);

@@ -558,10 +558,27 @@ var SquadModel = class {
 };
 
 // projects/NeonSwarm/src/autoAim.ts
+var AutoAimControlState = class {
+  manual = false;
+  laneSelected() {
+  }
+  aimChanged() {
+    this.manual = true;
+  }
+  aimReleased() {
+    this.manual = false;
+  }
+};
 function selectAutoAimOffset(targets, laneCenter, currentOffset = 0) {
   if (!targets.length) return 0;
-  const closestY = Math.max(...targets.map((target) => target.y));
-  const closestRow = targets.filter((target) => Math.abs(target.y - closestY) < 3);
+  const explicitRows = /* @__PURE__ */ new Map();
+  for (const target of targets) {
+    if (target.rowId === void 0) continue;
+    const row = explicitRows.get(target.rowId) ?? [];
+    row.push(target);
+    explicitRows.set(target.rowId, row);
+  }
+  const closestRow = explicitRows.size ? [...explicitRows.values()].sort((left, right) => Math.max(...right.map((target) => target.y)) - Math.max(...left.map((target) => target.y)))[0] : targets.filter((target) => Math.abs(target.y - Math.max(...targets.map((candidate) => candidate.y))) < 3);
   const currentAimX = laneCenter + currentOffset;
   const selected = [...closestRow].sort((left, right) => {
     const distanceDifference = Math.abs(left.x - currentAimX) - Math.abs(right.x - currentAimX);
@@ -591,7 +608,7 @@ try {
   const multipliers = [];
   const squad = new SquadModel();
   let playerLane = 0;
-  let manualAim = false;
+  const aimControl = new AutoAimControlState();
   let equippedGunId = "pulsePistol";
   let equippedLevel = 1;
   let cooldown = 0;
@@ -643,8 +660,8 @@ try {
   };
   squad.x = laneX(0);
   squad.targetX = laneX(0);
-  const spawnEnemy = (lane, x = laneX(lane), y = 105 * scale()) => {
-    enemies.push({ id: ++entitySequence, lane, x, y, health: orb.health, hitFlashUntil: 0 });
+  const spawnEnemy = (lane, x = laneX(lane), y = 105 * scale(), rowId = ++entitySequence) => {
+    enemies.push({ id: ++entitySequence, lane, x, y, health: orb.health, hitFlashUntil: 0, rowId });
   };
   const spawnPickup = (lane) => {
     pickups.push({ gunId: gunSelect.value, level: Number(levelSelect.value), lane, y: 135 * scale() });
@@ -663,9 +680,10 @@ try {
       const perRow = Math.ceil(count / rows);
       let remaining = count;
       for (let row = 0; row < rows; row++) {
+        const rowId = ++entitySequence;
         const rowCount = Math.min(perRow, remaining);
         for (let column = 0; column < rowCount; column++) {
-          spawnEnemy(lane, laneX(lane) + (column - (rowCount - 1) / 2) * 15 * scale(), (105 - row * 24) * scale());
+          spawnEnemy(lane, laneX(lane) + (column - (rowCount - 1) / 2) * 15 * scale(), (105 - row * 24) * scale(), rowId);
         }
         remaining -= rowCount;
       }
@@ -688,14 +706,14 @@ try {
     setLane: (lane) => {
       playerLane = lane;
       squad.setLane(lane, laneX, performance.now());
-      manualAim = true;
+      aimControl.laneSelected();
     },
     setAim: (value) => {
       squad.setAim(value, canvas.width * 0.22, laneX);
-      manualAim = true;
+      aimControl.aimChanged();
     },
     releaseAim: () => {
-      manualAim = false;
+      aimControl.aimReleased();
     }
   });
   const spawnProjectile = (lane, spawnX, angleDegrees, level2, gun) => {
@@ -807,7 +825,7 @@ try {
       cooldown += 1 / level2.fireRatePerSecond;
     }
     recoil *= Math.pow(1e-3, delta);
-    if (!manualAim) {
+    if (!aimControl.manual) {
       const laneEnemies = enemies.filter((enemy) => enemy.lane === squad.lane);
       const offset = selectAutoAimOffset(laneEnemies, laneX(squad.lane), squad.aimOffset);
       squad.autoAim(offset, canvas.width * 0.22, laneX);
