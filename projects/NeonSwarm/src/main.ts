@@ -134,6 +134,7 @@ try {
       });
     }
     cooldown += 1 / tuning.fireRatePerSecond;
+    window.gameAudio?.playRotated("Primary", 3);
   };
 
   const finish = (won: boolean): void => {
@@ -146,6 +147,9 @@ try {
         centerX: canvas.width / 2, centerY: canvas.height * .38,
         width: canvas.width, height: canvas.height, particleCount: 120,
       });
+      window.gameAudio?.play("PuzzleComplete");
+    } else {
+      window.gameAudio?.play("GameOver");
     }
     activeTrack = null;
   };
@@ -199,7 +203,12 @@ try {
         if (shot.lane !== enemy.lane || Math.hypot(shot.x - enemy.x, shot.y - enemy.y) > hitRadius) continue;
         enemy.health -= shot.damage;
         projectiles.splice(projectiles.indexOf(shot), 1);
-        if (enemy.health <= 0) enemies.splice(enemies.indexOf(enemy), 1);
+        if (enemy.health <= 0) {
+          enemies.splice(enemies.indexOf(enemy), 1);
+          window.gameAudio?.play("EnemyDestroyed");
+        } else {
+          window.gameAudio?.play("Hit");
+        }
         break;
       }
     }
@@ -208,6 +217,7 @@ try {
       if (enemy.y >= playerY()) {
         breaches++;
         enemies.splice(enemies.indexOf(enemy), 1);
+        window.gameAudio?.play("EnemyEscaped");
       }
     }
     for (const pickup of [...pickups]) {
@@ -217,6 +227,7 @@ try {
         gunLevel = pickup.level;
         cooldown = 0;
         pickups.splice(pickups.indexOf(pickup), 1);
+        window.gameAudio?.play("Pickup");
       } else if (pickup.y > canvas.height) pickups.splice(pickups.indexOf(pickup), 1);
     }
     for (const pickup of [...multipliers]) {
@@ -224,6 +235,7 @@ try {
       if (pickup.y >= playerY() - 15 * scale() && pickup.lane === playerLane) {
         squad.add(multiplierFamily.members[pickup.multiplierId].squadAdded);
         multipliers.splice(multipliers.indexOf(pickup), 1);
+        window.gameAudio?.play("Pickup");
       } else if (pickup.y > canvas.height) multipliers.splice(multipliers.indexOf(pickup), 1);
     }
     if (elapsed >= activeTrack.durationSeconds && enemies.length === 0) finish(breaches === 0);
@@ -357,4 +369,13 @@ try {
 } catch (cause) {
   error.hidden = false;
   error.textContent = cause instanceof Error ? cause.message : String(cause);
+}
+
+declare global {
+  interface Window {
+    gameAudio?: {
+      play(id: string): void;
+      playRotated(id: string, alternatives: number): void;
+    };
+  }
 }
