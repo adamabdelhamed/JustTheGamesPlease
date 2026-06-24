@@ -70,6 +70,50 @@ struct VertexOutput {
 }
 
 @fragment fn fragmentMain(input: VertexOutput) -> @location(0) vec4f {
+  if (input.shape > 5.5) {
+    // Pentagon SDF
+    // local is in [-1, 1] range. Let's find pentagon distance.
+    let px = abs(input.local.x);
+    let py = input.local.y;
+    // Pentagon constants for vertices/edges
+    let k = vec3f(-0.809016994, 0.587785252, 1.37638192); // cos/sin of 72, plus height factor
+    // Project/Mirror across the symmetry axes of regular pentagon
+    var p = vec2f(px, py);
+    p = p - 2 * min(dot(vec2f(-k.x, k.y), p), 0) * vec2f(-k.x, k.y);
+    p = p - 2 * min(dot(vec2f(k.x, k.y), p), 0) * vec2f(k.x, k.y);
+    p.x = p.x - clamp(p.x, -k.z * 0.5, k.z * 0.5);
+    let d = length(p - vec2f(0, 0.72)) * sign(p.y - 0.72);
+    // Map d to a normalized radius scale
+    let scaleD = d + 0.35; // offset pentagon to fit bounds nicely
+    if (scaleD > 0.8) { discard; }
+    
+    let edge = 1 - smoothstep(0.5, 0.65, scaleD);
+    let border = smoothstep(0.45, 0.53, scaleD) * (1 - smoothstep(0.65, 0.75, scaleD));
+    let fill = 1 - smoothstep(-0.2, 0.5, scaleD);
+    let halo = (1 - smoothstep(0.55, 0.8, scaleD)) * input.glow;
+    let glass = fill * 0.38 + border * 1.35;
+    let energy = (glass + halo * 0.5) * input.intensity;
+    let edgeColor = input.color.rgb * (border * 1.75 + edge * 0.3);
+    let fillColor = mix(input.secondaryColor.rgb, input.color.rgb, fill * 0.45) * fill * 0.35;
+    let bloom = input.color.rgb * halo * 0.4;
+    let rgb = edgeColor + fillColor + bloom;
+    return vec4f(rgb, clamp(energy, 0, 0.95));
+  }
+  if (input.shape > 4.5) {
+    let d = abs(input.local.x) + abs(input.local.y);
+    if (d > 1.08) { discard; }
+    let edge = 1 - smoothstep(0.78, 0.92, d);
+    let border = smoothstep(0.72, 0.82, d) * (1 - smoothstep(0.92, 1.02, d));
+    let fill = 1 - smoothstep(0.0, 0.78, d);
+    let halo = (1 - smoothstep(0.82, 1.08, d)) * input.glow;
+    let glass = fill * 0.35 + border * 1.2;
+    let energy = (glass + halo * 0.45) * input.intensity;
+    let edgeColor = input.color.rgb * (border * 1.6 + edge * 0.3);
+    let fillColor = mix(input.secondaryColor.rgb, input.color.rgb, fill * 0.5) * fill * 0.38;
+    let bloom = input.color.rgb * halo * 0.35;
+    let rgb = edgeColor + fillColor + bloom;
+    return vec4f(rgb, clamp(energy, 0, 0.95));
+  }
   if (input.shape > 1.5) {
     let r2 = dot(input.local, input.local);
     if (r2 > 1) { discard; }
@@ -196,7 +240,7 @@ var NeonPrimitiveRenderer = class _NeonPrimitiveRenderer {
         ...rgba(item.secondaryColor ?? item.color),
         item.glow ?? 0.5,
         item.intensity ?? 1,
-        item.shape === "spark" ? 4 : item.shape === "ring" ? 3 : item.shape === "orb" ? 2 : item.shape === "bolt" ? 1 : 0,
+        item.shape === "pentagon" ? 6 : item.shape === "diamond" ? 5 : item.shape === "spark" ? 4 : item.shape === "ring" ? 3 : item.shape === "orb" ? 2 : item.shape === "bolt" ? 1 : 0,
         item.texture ?? 0,
         item.rimIntensity ?? 0,
         item.shadowStrength ?? 0,
@@ -1010,16 +1054,50 @@ try {
     }
     for (const pickup of multipliers) {
       const spec = multiplierFamily.members.squadPlusOne;
-      primitives.push({ x: laneX(pickup.lane), y: pickup.y, width: 18 * s, color: neonPalette[spec.pickupColor], secondaryColor: neonPalette[spec.coreColor], glow: 0.6, shape: "ring" });
-      primitives.push({ x: laneX(pickup.lane), y: pickup.y, width: 10 * s, color: neonPalette[spec.coreColor], secondaryColor: neonPalette[spec.pickupColor], glow: 0.75, shape: "spark" });
+      const pColor = neonPalette[spec.pickupColor];
+      const tColor = neonPalette[spec.coreColor];
+      const px = laneX(pickup.lane);
+      const wobble = Math.sin(now / 420 + pickup.y * 0.07) * 4.5 * s;
+      const wx = px + wobble;
+      const pulse = 1 + Math.sin(now / 600 + pickup.y * 0.05) * 0.08;
+      primitives.push({ x: wx, y: pickup.y, width: 28 * s * pulse, color: pColor, secondaryColor: tColor, glow: 0.95, intensity: 0.25, shape: "circle" });
+      primitives.push({ x: wx, y: pickup.y, width: 19 * s * pulse, color: pColor, secondaryColor: tColor, glow: 0.9, intensity: 1.1, shape: "pentagon" });
+      primitives.push({ x: wx - 3.5 * s, y: pickup.y, width: 1 * s, height: 6 * s, color: pColor, secondaryColor: tColor, glow: 0.6, intensity: 1.15, shape: "bolt" });
+      primitives.push({ x: wx - 3.5 * s, y: pickup.y, width: 6 * s, height: 1 * s, color: pColor, secondaryColor: tColor, glow: 0.6, intensity: 1.15, shape: "bolt" });
+      primitives.push({ x: wx + 2.5 * s, y: pickup.y, width: 1.4 * s, height: 7 * s, color: pColor, secondaryColor: tColor, glow: 0.75, intensity: 1.2, shape: "bolt" });
+      primitives.push({ x: wx + 1.2 * s, y: pickup.y - 2.5 * s, width: 1.5 * s, height: 1 * s, color: pColor, secondaryColor: tColor, glow: 0.6, intensity: 1.15, shape: "bolt" });
+      for (let sp = 0; sp < 3; sp++) {
+        const angle = now / 900 + sp * 2.09 + pickup.y;
+        const dist = (10 + sp * 3.5) * s * pulse;
+        primitives.push({ x: wx + Math.cos(angle) * dist, y: pickup.y + Math.sin(angle) * dist * 0.7, width: 1.4 * s, color: pColor, glow: 0.95, intensity: 0.6 + Math.sin(now / 300 + sp) * 0.25, shape: "circle" });
+      }
     }
     for (const pickup of pickups) {
       const gun = guns[pickup.gunId];
       const pickupColor = neonPalette[gun.visualIdentity.projectileColor];
       const trailColor = neonPalette[gun.visualIdentity.trailColor];
-      primitives.push({ x: laneX(pickup.lane), y: pickup.y, width: 9 * s, height: 9 * gun.visualIdentity.projectileAspect * 0.55 * s, color: pickupColor, secondaryColor: trailColor, glow: 0.82, intensity: gun.visualIdentity.visualIntensity, shape: gun.visualIdentity.projectileShape === "needle" ? "circle" : "bolt" });
-      primitives.push({ x: laneX(pickup.lane), y: pickup.y, width: 18 * s, color: pickupColor, secondaryColor: trailColor, glow: 0.48, intensity: 0.72, shape: "ring" });
-      primitives.push({ x: laneX(pickup.lane), y: pickup.y, width: 13 * s, color: trailColor, secondaryColor: pickupColor, glow: 0.34, intensity: 0.58, shape: "spark" });
+      const px = laneX(pickup.lane);
+      const wobble = Math.sin(now / 420 + pickup.y * 0.07) * 4.5 * s;
+      const wx = px + wobble;
+      const pulse = 1 + Math.sin(now / 600 + pickup.y * 0.05) * 0.08;
+      primitives.push({ x: wx, y: pickup.y, width: 28 * s * pulse, color: pickupColor, secondaryColor: trailColor, glow: 0.9, intensity: 0.22, shape: "circle" });
+      primitives.push({ x: wx, y: pickup.y, width: 18 * s * pulse, color: pickupColor, secondaryColor: trailColor, glow: 0.85, intensity: 1.05, shape: "diamond" });
+      const iconShape = gun.visualIdentity.projectileShape;
+      if (iconShape === "needle") {
+        for (let n = -1; n <= 1; n++) primitives.push({ x: wx + n * 3.2 * s, y: pickup.y, width: 1.2 * s, height: 8 * s, color: pickupColor, secondaryColor: trailColor, glow: 0.6, intensity: 1.1, shape: "bolt" });
+      } else if (iconShape === "slug") {
+        primitives.push({ x: wx, y: pickup.y, width: 3.5 * s, height: 9 * s, color: pickupColor, secondaryColor: trailColor, glow: 0.7, intensity: 1.15, shape: "bolt" });
+      } else if (iconShape === "splitBolt") {
+        primitives.push({ x: wx - 2.5 * s, y: pickup.y - 1 * s, width: 1.5 * s, height: 8 * s, color: pickupColor, secondaryColor: trailColor, glow: 0.6, intensity: 1.1, shape: "bolt" });
+        primitives.push({ x: wx + 2.5 * s, y: pickup.y - 1 * s, width: 1.5 * s, height: 8 * s, color: pickupColor, secondaryColor: trailColor, glow: 0.6, intensity: 1.1, shape: "bolt" });
+      } else {
+        primitives.push({ x: wx, y: pickup.y - 1 * s, width: 2 * s, height: 9 * s, color: pickupColor, secondaryColor: trailColor, glow: 0.65, intensity: 1.1, shape: "bolt" });
+      }
+      for (let sp = 0; sp < 3; sp++) {
+        const angle = now / 900 + sp * 2.09 + pickup.y;
+        const dist = (9 + sp * 3) * s * pulse;
+        primitives.push({ x: wx + Math.cos(angle) * dist, y: pickup.y + Math.sin(angle) * dist * 0.7, width: 1.4 * s, color: pickupColor, glow: 0.9, intensity: 0.55 + Math.sin(now / 300 + sp) * 0.25, shape: "circle" });
+      }
     }
     for (const effect of effects) {
       const life = Math.max(0, (effect.expiresAt - now) / effect.duration);

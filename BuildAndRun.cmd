@@ -31,10 +31,11 @@ if errorlevel 1 (
 
 echo.
 echo Server running at:
-echo http://127.0.0.1:4173/NeonSwarm.html?dev=1
+echo http://127.0.0.1:4173/?dev=1
 echo.
 echo Keep this window open. Press Ctrl+C to stop the server.
 echo.
+start "" "http://127.0.0.1:4173/?dev=1"
 call "%~dp0node_modules\.bin\http-server.cmd" docs -c-1 -p 4173
 
 if errorlevel 1 goto :failed

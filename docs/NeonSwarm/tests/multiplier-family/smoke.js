@@ -70,6 +70,50 @@ struct VertexOutput {
 }
 
 @fragment fn fragmentMain(input: VertexOutput) -> @location(0) vec4f {
+  if (input.shape > 5.5) {
+    // Pentagon SDF
+    // local is in [-1, 1] range. Let's find pentagon distance.
+    let px = abs(input.local.x);
+    let py = input.local.y;
+    // Pentagon constants for vertices/edges
+    let k = vec3f(-0.809016994, 0.587785252, 1.37638192); // cos/sin of 72, plus height factor
+    // Project/Mirror across the symmetry axes of regular pentagon
+    var p = vec2f(px, py);
+    p = p - 2 * min(dot(vec2f(-k.x, k.y), p), 0) * vec2f(-k.x, k.y);
+    p = p - 2 * min(dot(vec2f(k.x, k.y), p), 0) * vec2f(k.x, k.y);
+    p.x = p.x - clamp(p.x, -k.z * 0.5, k.z * 0.5);
+    let d = length(p - vec2f(0, 0.72)) * sign(p.y - 0.72);
+    // Map d to a normalized radius scale
+    let scaleD = d + 0.35; // offset pentagon to fit bounds nicely
+    if (scaleD > 0.8) { discard; }
+    
+    let edge = 1 - smoothstep(0.5, 0.65, scaleD);
+    let border = smoothstep(0.45, 0.53, scaleD) * (1 - smoothstep(0.65, 0.75, scaleD));
+    let fill = 1 - smoothstep(-0.2, 0.5, scaleD);
+    let halo = (1 - smoothstep(0.55, 0.8, scaleD)) * input.glow;
+    let glass = fill * 0.38 + border * 1.35;
+    let energy = (glass + halo * 0.5) * input.intensity;
+    let edgeColor = input.color.rgb * (border * 1.75 + edge * 0.3);
+    let fillColor = mix(input.secondaryColor.rgb, input.color.rgb, fill * 0.45) * fill * 0.35;
+    let bloom = input.color.rgb * halo * 0.4;
+    let rgb = edgeColor + fillColor + bloom;
+    return vec4f(rgb, clamp(energy, 0, 0.95));
+  }
+  if (input.shape > 4.5) {
+    let d = abs(input.local.x) + abs(input.local.y);
+    if (d > 1.08) { discard; }
+    let edge = 1 - smoothstep(0.78, 0.92, d);
+    let border = smoothstep(0.72, 0.82, d) * (1 - smoothstep(0.92, 1.02, d));
+    let fill = 1 - smoothstep(0.0, 0.78, d);
+    let halo = (1 - smoothstep(0.82, 1.08, d)) * input.glow;
+    let glass = fill * 0.35 + border * 1.2;
+    let energy = (glass + halo * 0.45) * input.intensity;
+    let edgeColor = input.color.rgb * (border * 1.6 + edge * 0.3);
+    let fillColor = mix(input.secondaryColor.rgb, input.color.rgb, fill * 0.5) * fill * 0.38;
+    let bloom = input.color.rgb * halo * 0.35;
+    let rgb = edgeColor + fillColor + bloom;
+    return vec4f(rgb, clamp(energy, 0, 0.95));
+  }
   if (input.shape > 1.5) {
     let r2 = dot(input.local, input.local);
     if (r2 > 1) { discard; }
@@ -196,7 +240,7 @@ var NeonPrimitiveRenderer = class _NeonPrimitiveRenderer {
         ...rgba(item.secondaryColor ?? item.color),
         item.glow ?? 0.5,
         item.intensity ?? 1,
-        item.shape === "spark" ? 4 : item.shape === "ring" ? 3 : item.shape === "orb" ? 2 : item.shape === "bolt" ? 1 : 0,
+        item.shape === "pentagon" ? 6 : item.shape === "diamond" ? 5 : item.shape === "spark" ? 4 : item.shape === "ring" ? 3 : item.shape === "orb" ? 2 : item.shape === "bolt" ? 1 : 0,
         item.texture ?? 0,
         item.rimIntensity ?? 0,
         item.shadowStrength ?? 0,

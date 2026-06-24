@@ -278,13 +278,70 @@ try {
       for (const enemy of enemies) primitives.push({ x: enemy.x, y: enemy.y, width: orbFamily.members.basicOrb.radius * s, color: neonPalette.pink, secondaryColor: neonPalette.violet, glow: .75, texture: .25, rimIntensity: 1.1, shadowStrength: .65, shape: "orb" });
       for (const pickup of pickups) {
         const visual = gunFamily.members[pickup.gunId].visualIdentity;
-        primitives.push({ x: laneX(pickup.lane), y: pickup.y, width: 18 * s, color: neonPalette[visual.projectileColor], secondaryColor: neonPalette[visual.trailColor], glow: .5, shape: "ring" });
-        primitives.push({ x: laneX(pickup.lane), y: pickup.y, width: 9 * s, height: 20 * s, color: neonPalette[visual.projectileColor], secondaryColor: neonPalette[visual.trailColor], glow: .7, shape: "bolt" });
+        const pColor = neonPalette[visual.projectileColor];
+        const tColor = neonPalette[visual.trailColor];
+        const px = laneX(pickup.lane);
+        // Wobble: gentle ±15° rocking → horizontal offset
+        const wobble = Math.sin(now / 420 + pickup.y * 0.07) * 4.5 * s;
+        const wx = px + wobble;
+        // Scale pulse
+        const pulse = 1 + Math.sin(now / 600 + pickup.y * 0.05) * 0.08;
+        // Outer bloom halo
+        primitives.push({ x: wx, y: pickup.y, width: 28 * s * pulse, color: pColor, secondaryColor: tColor, glow: .9, intensity: .22, shape: "circle" });
+        // Diamond glassy panel (neon edges)
+        primitives.push({ x: wx, y: pickup.y, width: 18 * s * pulse, color: pColor, secondaryColor: tColor, glow: .85, intensity: 1.05, shape: "diamond" });
+        // Inner weapon icon (silhouette varies per projectile shape)
+        const iconShape = visual.projectileShape;
+        if (iconShape === "needle") {
+          // Three vertical needle lines
+          for (let n = -1; n <= 1; n++) primitives.push({ x: wx + n * 3.2 * s, y: pickup.y, width: 1.2 * s, height: 8 * s, color: pColor, secondaryColor: tColor, glow: .6, intensity: 1.1, shape: "bolt" });
+        } else if (iconShape === "slug") {
+          // Single thick bolt
+          primitives.push({ x: wx, y: pickup.y, width: 3.5 * s, height: 9 * s, color: pColor, secondaryColor: tColor, glow: .7, intensity: 1.15, shape: "bolt" });
+        } else if (iconShape === "splitBolt") {
+          // Two diverging bolts
+          primitives.push({ x: wx - 2.5 * s, y: pickup.y - 1 * s, width: 1.5 * s, height: 8 * s, color: pColor, secondaryColor: tColor, glow: .6, intensity: 1.1, shape: "bolt" });
+          primitives.push({ x: wx + 2.5 * s, y: pickup.y - 1 * s, width: 1.5 * s, height: 8 * s, color: pColor, secondaryColor: tColor, glow: .6, intensity: 1.1, shape: "bolt" });
+        } else {
+          // Default dart: single upward bolt
+          primitives.push({ x: wx, y: pickup.y - 1 * s, width: 2 * s, height: 9 * s, color: pColor, secondaryColor: tColor, glow: .65, intensity: 1.1, shape: "bolt" });
+        }
+        // Sparkle particles (2-3 drifting)
+        for (let sp = 0; sp < 3; sp++) {
+          const angle = now / 900 + sp * 2.09 + pickup.y;
+          const dist = (9 + sp * 3) * s * pulse;
+          primitives.push({ x: wx + Math.cos(angle) * dist, y: pickup.y + Math.sin(angle) * dist * 0.7, width: 1.4 * s, color: pColor, glow: .9, intensity: .55 + Math.sin(now / 300 + sp) * .25, shape: "circle" });
+        }
       }
       for (const pickup of multipliers) {
         const spec = multiplierFamily.members[pickup.multiplierId];
-        primitives.push({ x: laneX(pickup.lane), y: pickup.y, width: 18 * s, color: neonPalette[spec.pickupColor], secondaryColor: neonPalette[spec.coreColor], glow: .65, shape: "ring" });
-        primitives.push({ x: laneX(pickup.lane), y: pickup.y, width: 10 * s, color: neonPalette[spec.coreColor], secondaryColor: neonPalette[spec.pickupColor], glow: .8, shape: "spark" });
+        const pColor = neonPalette[spec.pickupColor];
+        const tColor = neonPalette[spec.coreColor];
+        const px = laneX(pickup.lane);
+        // Wobble & scale pulse matching weapon pickup style
+        const wobble = Math.sin(now / 420 + pickup.y * 0.07) * 4.5 * s;
+        const wx = px + wobble;
+        const pulse = 1 + Math.sin(now / 600 + pickup.y * 0.05) * 0.08;
+
+        // Outer bloom halo (different size/glow for distinction)
+        primitives.push({ x: wx, y: pickup.y, width: 28 * s * pulse, color: pColor, secondaryColor: tColor, glow: .95, intensity: .25, shape: "circle" });
+        // Pentagon glassy panel (neon edges)
+        primitives.push({ x: wx, y: pickup.y, width: 19 * s * pulse, color: pColor, secondaryColor: tColor, glow: .9, intensity: 1.1, shape: "pentagon" });
+
+        // Inner glyph for "+1" (using simple lines/spark for + and bolt/line for 1)
+        // Draw the vertical and horizontal bars of "+"
+        primitives.push({ x: wx - 3.5 * s, y: pickup.y, width: 1.0 * s, height: 6.0 * s, color: pColor, secondaryColor: tColor, glow: .6, intensity: 1.15, shape: "bolt" });
+        primitives.push({ x: wx - 3.5 * s, y: pickup.y, width: 6.0 * s, height: 1.0 * s, color: pColor, secondaryColor: tColor, glow: .6, intensity: 1.15, shape: "bolt" });
+        // Draw the "1" (thick vertical line with a small notch)
+        primitives.push({ x: wx + 2.5 * s, y: pickup.y, width: 1.4 * s, height: 7.0 * s, color: pColor, secondaryColor: tColor, glow: .75, intensity: 1.2, shape: "bolt" });
+        primitives.push({ x: wx + 1.2 * s, y: pickup.y - 2.5 * s, width: 1.5 * s, height: 1.0 * s, color: pColor, secondaryColor: tColor, glow: .6, intensity: 1.15, shape: "bolt" });
+
+        // Sparkle particles
+        for (let sp = 0; sp < 3; sp++) {
+          const angle = now / 900 + sp * 2.09 + pickup.y;
+          const dist = (10 + sp * 3.5) * s * pulse;
+          primitives.push({ x: wx + Math.cos(angle) * dist, y: pickup.y + Math.sin(angle) * dist * 0.7, width: 1.4 * s, color: pColor, glow: .95, intensity: .6 + Math.sin(now / 300 + sp) * .25, shape: "circle" });
+        }
       }
     }
     if (victory) primitives.push(...victory.primitives(now));
