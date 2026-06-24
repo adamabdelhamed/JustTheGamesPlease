@@ -1,0 +1,21 @@
+{
+  "name": "just-the-games-please",
+  "private": true,
+  "workspaces": [
+    "projects/NeonFactory",
+    "projects/NeonSwarm"
+  ],
+  "scripts": {
+    "build": "npm run typecheck && node tools/build.mjs",
+    "build:assets": "node tools/build.mjs",
+    "clean": "node tools/clean.mjs",
+    "serve": "npx http-server docs -c-1",
+    "typecheck": "npm run typecheck --workspaces --if-present"
+  },
+  "devDependencies": {
+    "@webgpu/types": "^0.1.64",
+    "esbuild": "^0.25.5",
+    "http-server": "^14.1.1",
+    "typescript": "^5.8.3"
+  }
+}

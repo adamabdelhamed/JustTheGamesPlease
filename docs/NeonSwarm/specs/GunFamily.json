@@ -1,0 +1,75 @@
+{
+  "weaponFamilies": {
+    "gun": {
+      "familyId": "gun",
+      "label": "Gun",
+      "implementation": {
+        "autoFires": true,
+        "targeting": "laneForward",
+        "projectileModel": "kinematic",
+        "collisionModel": "circleVsEnemy",
+        "powerTunablesSource": "GunFamily.json",
+        "allowedShotPatterns": ["single", "rapidSingle", "burst", "heavySingle", "pairedLaneSplit"],
+        "allowedProjectileBehaviors": ["straight", "piercingStraight"],
+        "escapeHatches": ["customShotPattern", "customProjectileSpawn", "customOnHitEffect", "customProjectileBehavior", "customVisualModifier"]
+      },
+      "agentNotes": {
+        "intent": "Build one reusable Gun family implementation that can express several different guns through data.",
+        "must": [
+          "Keep all speed, damage, fire rate, projectile size, burst count, spread, pierce, and visual intensity values in GunFamily.json.",
+          "Make each gun feel distinct through cadence, projectile shape, trail length, muzzle flash, hit effect, and color.",
+          "Avoid implementing each gun as a separate one-off system."
+        ],
+        "avoid": ["Hardcoded weapon power values in JavaScript.", "Switch-heavy weapon logic.", "Making every gun feel like the same projectile with a different color.", "Large glowing orb projectiles."],
+        "expectation": "The player should immediately feel the difference between a clean pistol, a needle-like SMG, a burst weapon, a heavy cannon, and a lane-splitting rifle."
+      },
+      "members": {
+        "pulsePistol": {
+          "label": "Pulse Pistol", "rarity": "starter", "unlockPhase": "start", "shotPattern": "single", "projectileBehavior": "straight",
+          "visualIdentity": {"silhouette": "tinyBullet", "motionLanguage": "cleanSingleShot", "colorRole": "starterBlue", "projectileColor": "#55e7ff", "screenReadPriority": "medium", "visualCost": 1, "renderMethod": "smallProjectileWithShortTrail"},
+          "levels": [
+            {"level":1,"fireRatePerSecond":1.35,"damage":1,"projectileSpeed":540,"projectileRadius":3,"projectileCount":1,"burstCount":1,"burstIntervalMs":0,"spreadDegrees":0,"pierce":0,"trailLength":14,"tracerEveryNthShot":0,"muzzleFlashScale":0.65,"hitFlashScale":0.75,"knockback":0},
+            {"level":2,"fireRatePerSecond":1.75,"damage":1.15,"projectileSpeed":580,"projectileRadius":3,"projectileCount":1,"burstCount":1,"burstIntervalMs":0,"spreadDegrees":0,"pierce":0,"trailLength":16,"tracerEveryNthShot":0,"muzzleFlashScale":0.7,"hitFlashScale":0.8,"knockback":0},
+            {"level":3,"fireRatePerSecond":2.15,"damage":1.35,"projectileSpeed":620,"projectileRadius":3.25,"projectileCount":1,"burstCount":1,"burstIntervalMs":0,"spreadDegrees":0,"pierce":0,"trailLength":18,"tracerEveryNthShot":0,"muzzleFlashScale":0.75,"hitFlashScale":0.9,"knockback":0}
+          ]
+        },
+        "needlerSmg": {
+          "label": "Needler SMG", "rarity": "common", "unlockPhase": "firstBuild", "shotPattern": "rapidSingle", "projectileBehavior": "straight",
+          "visualIdentity": {"silhouette": "needleBullet", "motionLanguage": "rapidNeedleStream", "colorRole": "rapidGreen", "projectileColor": "#7fffc2", "screenReadPriority": "medium", "visualCost": 3, "renderMethod": "tinyProjectileStreamWithTracerCadence"},
+          "levels": [
+            {"level":1,"fireRatePerSecond":5.25,"damage":0.42,"projectileSpeed":690,"projectileRadius":2,"projectileCount":1,"burstCount":1,"burstIntervalMs":0,"spreadDegrees":1,"pierce":0,"trailLength":10,"tracerEveryNthShot":5,"muzzleFlashScale":0.35,"hitFlashScale":0.45,"knockback":0},
+            {"level":2,"fireRatePerSecond":7.25,"damage":0.48,"projectileSpeed":735,"projectileRadius":2,"projectileCount":1,"burstCount":1,"burstIntervalMs":0,"spreadDegrees":1.5,"pierce":0,"trailLength":11,"tracerEveryNthShot":5,"muzzleFlashScale":0.4,"hitFlashScale":0.5,"knockback":0},
+            {"level":3,"fireRatePerSecond":9.25,"damage":0.54,"projectileSpeed":780,"projectileRadius":2.15,"projectileCount":1,"burstCount":1,"burstIntervalMs":0,"spreadDegrees":2,"pierce":0,"trailLength":12,"tracerEveryNthShot":4,"muzzleFlashScale":0.45,"hitFlashScale":0.55,"knockback":0}
+          ]
+        },
+        "burstCarbine": {
+          "label": "Burst Carbine", "rarity": "common", "unlockPhase": "firstBuild", "shotPattern": "burst", "projectileBehavior": "straight",
+          "visualIdentity": {"silhouette": "shortTracerBullet", "motionLanguage": "groupedVolley", "colorRole": "burstYellow", "projectileColor": "#ffd45c", "screenReadPriority": "medium", "visualCost": 2, "renderMethod": "smallProjectileBurstWithGroupedMuzzlePulse"},
+          "levels": [
+            {"level":1,"fireRatePerSecond":0.95,"damage":0.75,"projectileSpeed":650,"projectileRadius":2.75,"projectileCount":1,"burstCount":3,"burstIntervalMs":72,"spreadDegrees":0.75,"pierce":0,"trailLength":15,"tracerEveryNthShot":0,"muzzleFlashScale":0.55,"hitFlashScale":0.65,"knockback":0},
+            {"level":2,"fireRatePerSecond":1.08,"damage":0.85,"projectileSpeed":690,"projectileRadius":2.85,"projectileCount":1,"burstCount":3,"burstIntervalMs":64,"spreadDegrees":0.75,"pierce":0,"trailLength":16,"tracerEveryNthShot":0,"muzzleFlashScale":0.6,"hitFlashScale":0.7,"knockback":0},
+            {"level":3,"fireRatePerSecond":1.15,"damage":0.9,"projectileSpeed":725,"projectileRadius":3,"projectileCount":1,"burstCount":4,"burstIntervalMs":58,"spreadDegrees":1,"pierce":0,"trailLength":17,"tracerEveryNthShot":0,"muzzleFlashScale":0.65,"hitFlashScale":0.75,"knockback":0}
+          ]
+        },
+        "heavyCannon": {
+          "label": "Heavy Cannon", "rarity": "uncommon", "unlockPhase": "pressure", "shotPattern": "heavySingle", "projectileBehavior": "piercingStraight",
+          "visualIdentity": {"silhouette": "chunkyBolt", "motionLanguage": "slowHeavyPunch", "colorRole": "heavyOrange", "projectileColor": "#ff8a45", "screenReadPriority": "high", "visualCost": 3, "renderMethod": "largerProjectileWithImpactRing"},
+          "levels": [
+            {"level":1,"fireRatePerSecond":0.72,"damage":2.4,"projectileSpeed":500,"projectileRadius":4.5,"projectileCount":1,"burstCount":1,"burstIntervalMs":0,"spreadDegrees":0,"pierce":1,"trailLength":22,"tracerEveryNthShot":0,"impactRadius":14,"knockback":14,"muzzleFlashScale":1.1,"hitFlashScale":1.25},
+            {"level":2,"fireRatePerSecond":0.82,"damage":3,"projectileSpeed":535,"projectileRadius":4.75,"projectileCount":1,"burstCount":1,"burstIntervalMs":0,"spreadDegrees":0,"pierce":1,"trailLength":24,"tracerEveryNthShot":0,"impactRadius":16,"knockback":18,"muzzleFlashScale":1.2,"hitFlashScale":1.35},
+            {"level":3,"fireRatePerSecond":0.9,"damage":3.6,"projectileSpeed":570,"projectileRadius":5,"projectileCount":1,"burstCount":1,"burstIntervalMs":0,"spreadDegrees":0,"pierce":2,"trailLength":26,"tracerEveryNthShot":0,"impactRadius":18,"knockback":22,"muzzleFlashScale":1.3,"hitFlashScale":1.5}
+          ]
+        },
+        "splitterRifle": {
+          "label": "Splitter Rifle", "rarity": "uncommon", "unlockPhase": "pressure", "shotPattern": "pairedLaneSplit", "projectileBehavior": "straight",
+          "visualIdentity": {"silhouette": "pairedBolt", "motionLanguage": "dualLaneSnap", "colorRole": "splitViolet", "projectileColor": "#a987ff", "screenReadPriority": "high", "visualCost": 3, "renderMethod": "pairedSmallProjectilesWithSymmetricTrails"},
+          "levels": [
+            {"level":1,"fireRatePerSecond":1.15,"damage":0.8,"projectileSpeed":585,"projectileRadius":2.75,"projectileCount":2,"burstCount":1,"burstIntervalMs":0,"spreadDegrees":0,"pierce":0,"laneCoverage":"both","trailLength":14,"tracerEveryNthShot":0,"muzzleFlashScale":0.65,"hitFlashScale":0.65,"knockback":0},
+            {"level":2,"fireRatePerSecond":1.35,"damage":0.95,"projectileSpeed":625,"projectileRadius":2.85,"projectileCount":2,"burstCount":1,"burstIntervalMs":0,"spreadDegrees":0,"pierce":0,"laneCoverage":"both","trailLength":15,"tracerEveryNthShot":0,"muzzleFlashScale":0.7,"hitFlashScale":0.7,"knockback":0},
+            {"level":3,"fireRatePerSecond":1.55,"damage":1.05,"projectileSpeed":665,"projectileRadius":3,"projectileCount":2,"burstCount":1,"burstIntervalMs":0,"spreadDegrees":0,"pierce":0,"laneCoverage":"both","trailLength":16,"tracerEveryNthShot":0,"muzzleFlashScale":0.75,"hitFlashScale":0.75,"knockback":0}
+          ]
+        }
+      }
+    }
+  }
+}

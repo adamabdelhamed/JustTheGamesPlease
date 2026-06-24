@@ -1,0 +1,39 @@
+{
+  "enemyFamilies": {
+    "orb": {
+      "familyId": "orb",
+      "label": "Orb Enemy",
+      "implementation": {
+        "movement": "laneTowardPlayer",
+        "collisionModel": "circle",
+        "powerTunablesSource": "OrbFamily.json"
+      },
+      "agentNotes": {
+        "intent": "Provide a simple tunable target used to prove combat families and lane-runner test pages.",
+        "must": [
+          "Keep health, speed, radius, contact damage, score, and visual intensity in JSON.",
+          "Remain visually simple so weapon behavior is easy to evaluate."
+        ],
+        "avoid": [
+          "Special attacks.",
+          "Hardcoded power values in TypeScript."
+        ],
+        "expectation": "A readable neon orb that advances down one lane and clearly reacts to gun hits."
+      },
+      "members": {
+        "basicOrb": {
+          "label": "Basic Orb",
+          "health": 4,
+          "speed": 58,
+          "radius": 12,
+          "contactDamage": 1,
+          "score": 10,
+          "color": "#ff4f9a",
+          "glow": 0.8,
+          "hitFlashDurationMs": 90,
+          "deathFlashScale": 1.8
+        }
+      }
+    }
+  }
+}

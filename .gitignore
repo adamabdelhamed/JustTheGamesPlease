@@ -10,3 +10,7 @@ obj/
 # OS files
 Thumbs.db
 Desktop.ini
+
+# Node / TypeScript tooling
+node_modules/
+npm-debug.log*

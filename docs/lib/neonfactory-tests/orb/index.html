@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>NeonFactory · Orb Test</title>
+  <link rel="stylesheet" href="orb-test.css">
+</head>
+<body>
+  <main>
+    <header>
+      <div>
+        <span class="eyebrow">NEONFACTORY TEST PAGE</span>
+        <h1>Neon Orb</h1>
+        <p>WebGPU primitive, visual controls, and an automation-visible assertion contract.</p>
+      </div>
+      <output id="test-status" data-status="booting">BOOTING</output>
+    </header>
+    <section class="stage">
+      <canvas id="orb-canvas" aria-label="Animated neon orb"></canvas>
+      <div id="error" role="alert" hidden></div>
+    </section>
+    <section class="controls" aria-label="Orb controls">
+      <label>Color
+        <select id="color">
+          <option value="#55e7ff">Cyan</option>
+          <option value="#ff4f9a">Pink</option>
+          <option value="#7fffc2">Green</option>
+          <option value="#ffd45c">Gold</option>
+          <option value="#a987ff">Violet</option>
+        </select>
+      </label>
+      <label>Radius <input id="radius" type="range" min="5" max="30" value="12"></label>
+      <label>Glow <input id="glow" type="range" min="10" max="150" value="65"></label>
+      <label class="toggle"><input id="animate" type="checkbox" checked> Animate</label>
+    </section>
+  </main>
+  <script type="module" src="orb-test.js"></script>
+</body>
+</html>
