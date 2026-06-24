@@ -11,6 +11,234 @@ var neonPalette = {
   whiteHot: "#f4fbff"
 };
 
+// projects/NeonFactory/src/primitive-renderer.ts
+var maxPrimitives = 1024;
+var floatsPerPrimitive = 20;
+var shader = (
+  /* wgsl */
+  `
+struct Scene { resolution: vec2f, count: f32, time: f32 }
+struct Primitive {
+  position: vec2f,
+  size: vec2f,
+  color: vec4f,
+  secondaryColor: vec4f,
+  glow: f32,
+  intensity: f32,
+  shape: f32,
+  texture: f32,
+  rimIntensity: f32,
+  shadowStrength: f32,
+  padding: vec2f,
+}
+@group(0) @binding(0) var<uniform> scene: Scene;
+@group(0) @binding(1) var<storage, read> items: array<Primitive>;
+
+struct VertexOutput {
+  @builtin(position) position: vec4f,
+  @location(0) local: vec2f,
+  @location(1) color: vec4f,
+  @location(2) glow: f32,
+  @location(3) intensity: f32,
+  @location(4) shape: f32,
+  @location(5) secondaryColor: vec4f,
+  @location(6) texture: f32,
+  @location(7) rimIntensity: f32,
+  @location(8) shadowStrength: f32,
+}
+
+@vertex fn vertexMain(@builtin(vertex_index) vertex: u32, @builtin(instance_index) instance: u32) -> VertexOutput {
+  var corners = array<vec2f, 6>(
+    vec2f(-1,-1), vec2f(1,-1), vec2f(-1,1),
+    vec2f(-1,1), vec2f(1,-1), vec2f(1,1)
+  );
+  let item = items[instance];
+  let local = corners[vertex];
+  let pixel = item.position + local * item.size;
+  var output: VertexOutput;
+  output.position = vec4f(pixel.x / scene.resolution.x * 2 - 1, 1 - pixel.y / scene.resolution.y * 2, 0, 1);
+  output.local = local;
+  output.color = item.color;
+  output.glow = item.glow;
+  output.intensity = item.intensity;
+  output.shape = item.shape;
+  output.secondaryColor = item.secondaryColor;
+  output.texture = item.texture;
+  output.rimIntensity = item.rimIntensity;
+  output.shadowStrength = item.shadowStrength;
+  return output;
+}
+
+@fragment fn fragmentMain(input: VertexOutput) -> @location(0) vec4f {
+  if (input.shape > 1.5) {
+    let r2 = dot(input.local, input.local);
+    if (r2 > 1) { discard; }
+    let z = sqrt(max(0, 1 - r2));
+    let normal = normalize(vec3f(input.local.x, -input.local.y, z));
+    let light = normalize(vec3f(-0.55, -0.7, 0.9));
+    let diffuse = max(dot(normal, light), 0);
+    let rim = pow(1 - z, 2.2) * input.rimIntensity;
+    let shadow = mix(1 - input.shadowStrength, 1, smoothstep(-0.65, 0.45, dot(normal.xy, light.xy)));
+    let grain = sin(input.local.x * 23 + input.local.y * 17) * sin(input.local.y * 31 - input.local.x * 11);
+    let texture = 1 + grain * input.texture * 0.22;
+    let specular = pow(max(dot(reflect(-light, normal), vec3f(0,0,1)), 0), 28) * 1.8;
+    let body = mix(input.secondaryColor.rgb, input.color.rgb, diffuse * 0.8 + 0.2) * shadow * texture;
+    let halo = pow(max(0, 1 - length(input.local)), 0.35) * input.glow;
+    let rgb = body * (0.38 + diffuse * 0.95) + input.color.rgb * rim + vec3f(specular) + input.color.rgb * halo * 0.3;
+    return vec4f(rgb * input.intensity, 1);
+  }
+  var distance = length(input.local);
+  if (input.shape > 3.5) {
+    let axis = min(abs(input.local.x), abs(input.local.y));
+    let arm = 1 - smoothstep(0.04, 0.18, axis);
+    let fade = 1 - smoothstep(0.2, 1, max(abs(input.local.x), abs(input.local.y)));
+    let energy = arm * fade * input.intensity;
+    let rgb = mix(input.secondaryColor.rgb, input.color.rgb, arm) * energy;
+    return vec4f(rgb, clamp(energy, 0, 0.92));
+  }
+  if (input.shape > 2.5) {
+    let ringDistance = abs(length(input.local) - 0.62);
+    let ring = 1 - smoothstep(0.055, 0.18, ringDistance);
+    let halo = (1 - smoothstep(0.12, 0.42, ringDistance)) * input.glow;
+    let energy = (ring + halo * 0.45) * input.intensity;
+    let rgb = mix(input.secondaryColor.rgb, input.color.rgb, ring) * energy;
+    return vec4f(rgb, clamp(energy, 0, 0.9));
+  }
+  if (input.shape > 0.5) {
+    distance = max(abs(input.local.x), abs(input.local.y));
+  }
+  let core = 1 - smoothstep(0.38, 0.76, distance);
+  let halo = (1 - smoothstep(0.3, 1, distance)) * input.glow;
+  let energy = (core + halo * 0.55) * input.intensity;
+  let chromaticCore = mix(input.color.rgb, input.secondaryColor.rgb, pow(max(core, 0), 2));
+  let raw = chromaticCore * (core * 1.05 + halo * 0.42);
+  let rgb = raw / (vec3f(1) + raw * 0.32);
+  return vec4f(rgb, clamp(energy, 0, 0.92));
+}
+`
+);
+function rgba(hex) {
+  const value = hex.replace("#", "");
+  if (!/^[0-9a-f]{6}$/i.test(value)) throw new Error(`Expected six-digit hex color, received "${hex}".`);
+  return [
+    Number.parseInt(value.slice(0, 2), 16) / 255,
+    Number.parseInt(value.slice(2, 4), 16) / 255,
+    Number.parseInt(value.slice(4, 6), 16) / 255,
+    1
+  ];
+}
+var NeonPrimitiveRenderer = class _NeonPrimitiveRenderer {
+  canvas;
+  device;
+  #context;
+  #pipeline;
+  #sceneBuffer;
+  #primitiveBuffer;
+  #bindGroup;
+  #logicalSize = null;
+  constructor(canvas2, device, context, format) {
+    this.canvas = canvas2;
+    this.device = device;
+    this.#context = context;
+    const module = device.createShaderModule({ code: shader });
+    this.#pipeline = device.createRenderPipeline({
+      layout: "auto",
+      vertex: { module, entryPoint: "vertexMain" },
+      fragment: {
+        module,
+        entryPoint: "fragmentMain",
+        targets: [{ format, blend: { color: { srcFactor: "src-alpha", dstFactor: "one" }, alpha: { srcFactor: "one", dstFactor: "one" } } }]
+      },
+      primitive: { topology: "triangle-list" }
+    });
+    this.#sceneBuffer = device.createBuffer({ size: 16, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
+    this.#primitiveBuffer = device.createBuffer({
+      size: maxPrimitives * floatsPerPrimitive * 4,
+      usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST
+    });
+    this.#bindGroup = device.createBindGroup({
+      layout: this.#pipeline.getBindGroupLayout(0),
+      entries: [
+        { binding: 0, resource: { buffer: this.#sceneBuffer } },
+        { binding: 1, resource: { buffer: this.#primitiveBuffer } }
+      ]
+    });
+  }
+  static async create(canvas2) {
+    if (!navigator.gpu) throw new Error("WebGPU is required for NeonFactory.");
+    const adapter = await navigator.gpu.requestAdapter();
+    if (!adapter) throw new Error("No compatible WebGPU adapter was found.");
+    const device = await adapter.requestDevice();
+    const context = canvas2.getContext("webgpu");
+    if (!context) throw new Error("The canvas could not create a WebGPU context.");
+    const format = navigator.gpu.getPreferredCanvasFormat();
+    context.configure({ device, format, alphaMode: "premultiplied" });
+    return new _NeonPrimitiveRenderer(canvas2, device, context, format);
+  }
+  setLogicalSize(width, height) {
+    this.#logicalSize = { width, height };
+    this.canvas.width = width;
+    this.canvas.height = height;
+    return this;
+  }
+  render(primitives, timeSeconds = 0) {
+    this.#resize();
+    const visible = primitives.slice(0, maxPrimitives);
+    const data = new Float32Array(visible.length * floatsPerPrimitive);
+    visible.forEach((item, index) => {
+      const offset = index * floatsPerPrimitive;
+      data.set([
+        item.x,
+        item.y,
+        item.width,
+        item.height ?? item.width,
+        ...rgba(item.color),
+        ...rgba(item.secondaryColor ?? item.color),
+        item.glow ?? 0.5,
+        item.intensity ?? 1,
+        item.shape === "spark" ? 4 : item.shape === "ring" ? 3 : item.shape === "orb" ? 2 : item.shape === "bolt" ? 1 : 0,
+        item.texture ?? 0,
+        item.rimIntensity ?? 0,
+        item.shadowStrength ?? 0,
+        0,
+        0
+      ], offset);
+    });
+    this.device.queue.writeBuffer(this.#sceneBuffer, 0, new Float32Array([this.canvas.width, this.canvas.height, visible.length, timeSeconds]));
+    if (data.length) this.device.queue.writeBuffer(this.#primitiveBuffer, 0, data);
+    const encoder = this.device.createCommandEncoder();
+    const pass = encoder.beginRenderPass({
+      colorAttachments: [{
+        view: this.#context.getCurrentTexture().createView(),
+        clearValue: { r: 6e-3, g: 9e-3, b: 0.025, a: 1 },
+        loadOp: "clear",
+        storeOp: "store"
+      }]
+    });
+    if (visible.length) {
+      pass.setPipeline(this.#pipeline);
+      pass.setBindGroup(0, this.#bindGroup);
+      pass.draw(6, visible.length);
+    }
+    pass.end();
+    this.device.queue.submit([encoder.finish()]);
+  }
+  #resize() {
+    if (this.#logicalSize) {
+      if (this.canvas.width !== this.#logicalSize.width) this.canvas.width = this.#logicalSize.width;
+      if (this.canvas.height !== this.#logicalSize.height) this.canvas.height = this.#logicalSize.height;
+      return;
+    }
+    const ratio = Math.min(devicePixelRatio || 1, 2);
+    const width = Math.max(1, Math.floor(this.canvas.clientWidth * ratio));
+    const height = Math.max(1, Math.floor(this.canvas.clientHeight * ratio));
+    if (this.canvas.width !== width || this.canvas.height !== height) {
+      this.canvas.width = width;
+      this.canvas.height = height;
+    }
+  }
+};
+
 // projects/NeonFactory/src/test-harness.ts
 function createTestPage(id, driver, statusElement) {
   const snapshot = { id, status: "booting", assertions: [] };
@@ -301,7 +529,7 @@ function evaluateGunAgainstOrb(gunId, gun, orb, levelNumber = 1) {
   const level2 = gun.levels.find((candidate) => candidate.level === levelNumber) ?? gun.levels[0];
   const distance = 540;
   const enemyArrivalMs = distance / orb.speed * 1e3;
-  let enemyHealth = orb.health;
+  let enemyHealth2 = orb.health;
   let damageDealt = 0;
   let shotsFired = 0;
   const hits = [];
@@ -321,9 +549,9 @@ function evaluateGunAgainstOrb(gunId, gun, orb, levelNumber = 1) {
   hits.sort((a, b) => a - b);
   let killTimeMs = null;
   for (const hitAt of hits) {
-    enemyHealth -= level2.damage;
+    enemyHealth2 -= level2.damage;
     damageDealt += level2.damage;
-    if (enemyHealth <= 0) {
+    if (enemyHealth2 <= 0) {
       killTimeMs = hitAt;
       break;
     }
@@ -345,11 +573,20 @@ var results = [];
 var run = () => {
   results = Object.entries(gunFamily.members).map(([gunId, gun]) => evaluateGunAgainstOrb(gunId, gun, orbFamily.members.basicOrb));
   resultsElement.innerHTML = results.map((result) => `
-    <li data-passed="${result.passed}">
+    <li data-passed="${result.passed}" data-gun-id="${result.gunId}">
       <strong>${gunFamily.members[result.gunId].label}</strong>
       <span>${result.passed ? "PASS" : "FAIL"}</span>
       <span class="detail">kill ${result.killTimeMs?.toFixed(0) ?? "never"}ms \xB7 arrival ${result.enemyArrivalMs.toFixed(0)}ms \xB7 ${result.shotsFired} shots</span>
     </li>`).join("");
+  const items = resultsElement.querySelectorAll("li");
+  items.forEach((item) => {
+    item.addEventListener("click", () => {
+      const gunId = item.getAttribute("data-gun-id");
+      if (gunId) {
+        startSimulation(gunId);
+      }
+    });
+  });
   return results;
 };
 var test = createTestPage("neon-swarm-gun-family-smoke", { suite: "smoke", run }, status);
@@ -361,4 +598,327 @@ for (const result of run()) {
     `kill=${result.killTimeMs ?? "never"}ms arrival=${result.enemyArrivalMs.toFixed(0)}ms`
   );
 }
+var pageContainer = document.getElementById("page-container");
+var simulatorPanel = document.getElementById("simulator-panel");
+var closeSimBtn = document.getElementById("close-sim");
+var replayBtn = document.getElementById("replay-btn");
+var pauseBtn = document.getElementById("pause-btn");
+var simStatusText = document.getElementById("sim-status");
+var simTitle = document.getElementById("sim-title");
+var simDetails = document.getElementById("sim-details");
+var canvas = document.getElementById("game-canvas");
+var renderer = null;
+var animationFrameId = null;
+var isPaused = false;
+var activeGunId = null;
+var simTimeMs = 0;
+var lastTimeMs = 0;
+var enemyHealth = 0;
+var enemyY = 0;
+var enemyX = 225;
+var playerY = 650;
+var playerX = 225;
+var projectiles = [];
+var effects = [];
+var cooldown = 0;
+var shotSequence = 0;
+var simFinished = false;
+var simOutcome = "";
+var simEndingTime = null;
+async function startSimulation(gunId) {
+  if (!renderer) {
+    try {
+      renderer = await NeonPrimitiveRenderer.create(canvas);
+      renderer.setLogicalSize(450, 800);
+    } catch (e) {
+      console.error("Failed to initialize renderer", e);
+      return;
+    }
+  }
+  activeGunId = gunId;
+  pageContainer.classList.add("simulator-active");
+  simulatorPanel.removeAttribute("hidden");
+  const gun = gunFamily.members[gunId];
+  simTitle.textContent = `${gun.label} Simulation`;
+  resetSimulation();
+  loop(performance.now());
+}
+function resetSimulation() {
+  if (animationFrameId) {
+    cancelAnimationFrame(animationFrameId);
+  }
+  const gun = gunFamily.members[activeGunId];
+  const orb = orbFamily.members.basicOrb;
+  simTimeMs = 0;
+  lastTimeMs = 0;
+  enemyHealth = orb.health;
+  enemyY = 110;
+  projectiles = [];
+  effects = [];
+  cooldown = 0;
+  shotSequence = 0;
+  simFinished = false;
+  simEndingTime = null;
+  simOutcome = "";
+  isPaused = false;
+  pauseBtn.textContent = "Pause";
+  simStatusText.textContent = "Simulating...";
+  simStatusText.className = "sim-status";
+  updateDetails();
+}
+function updateDetails() {
+  if (!activeGunId) return;
+  const gun = gunFamily.members[activeGunId];
+  const orb = orbFamily.members.basicOrb;
+  const level2 = gun.levels[0];
+  simDetails.innerHTML = `
+    <dt>Weapon</dt><dd>${gun.label} (Lvl ${level2.level})</dd>
+    <dt>Fire Rate</dt><dd>${level2.fireRatePerSecond}/s</dd>
+    <dt>Damage</dt><dd>${level2.damage}</dd>
+    <dt>Speed</dt><dd>${level2.projectileSpeed} px/s</dd>
+    <dt>Enemy Health</dt><dd>${enemyHealth.toFixed(2)} / ${orb.health}</dd>
+    <dt>Enemy Speed</dt><dd>${orb.speed} px/s</dd>
+    <dt>Time Elapsed</dt><dd>${simTimeMs.toFixed(0)} ms</dd>
+    <dt>Outcome</dt><dd>${simOutcome || "In Progress"}</dd>
+  `;
+}
+function loop(now) {
+  if (isPaused) {
+    lastTimeMs = now;
+    animationFrameId = requestAnimationFrame(loop);
+    return;
+  }
+  if (lastTimeMs === 0) lastTimeMs = now;
+  const dt = Math.min((now - lastTimeMs) / 1e3, 0.05);
+  lastTimeMs = now;
+  updateSim(dt);
+  drawSim();
+  if (!simFinished) {
+    animationFrameId = requestAnimationFrame(loop);
+  }
+}
+function updateSim(dt) {
+  simTimeMs += dt * 1e3;
+  const gun = gunFamily.members[activeGunId];
+  const orb = orbFamily.members.basicOrb;
+  const level2 = gun.levels[0];
+  cooldown -= dt;
+  if (cooldown <= 0 && !simFinished) {
+    const count = Math.max(1, level2.projectileCount);
+    for (let index = 0; index < count; index++) {
+      const offset = count === 1 ? 0 : (index / (count - 1) - 0.5) * level2.spreadDegrees;
+      const angle = offset * Math.PI / 180;
+      const speed = level2.projectileSpeed;
+      shotSequence++;
+      projectiles.push({
+        x: playerX,
+        y: playerY - 22,
+        vx: Math.sin(angle) * speed,
+        vy: -Math.cos(angle) * speed,
+        radius: level2.projectileRadius,
+        damage: level2.damage,
+        color: neonPalette[gun.visualIdentity.projectileColor],
+        trailColor: neonPalette[gun.visualIdentity.trailColor],
+        coreColor: neonPalette[gun.visualIdentity.coreColor],
+        shape: gun.visualIdentity.projectileShape,
+        aspect: gun.visualIdentity.projectileAspect,
+        trailWidthScale: gun.visualIdentity.trailWidthScale,
+        visualIntensity: gun.visualIdentity.visualIntensity,
+        trailLength: level2.trailLength,
+        tracer: level2.tracerEveryNthShot > 0 && shotSequence % level2.tracerEveryNthShot === 0
+      });
+    }
+    effects.push({
+      kind: "muzzle",
+      style: gun.visualIdentity.muzzleEffect,
+      x: playerX,
+      y: playerY - 22,
+      color: neonPalette[gun.visualIdentity.projectileColor],
+      secondaryColor: neonPalette[gun.visualIdentity.trailColor],
+      radius: 10 * level2.muzzleFlashScale,
+      expiresAt: simTimeMs + gun.visualIdentity.muzzleDurationMs,
+      duration: gun.visualIdentity.muzzleDurationMs,
+      seed: shotSequence
+    });
+    cooldown += 1 / level2.fireRatePerSecond;
+  }
+  for (let i = projectiles.length - 1; i >= 0; i--) {
+    const p = projectiles[i];
+    p.x += p.vx * dt;
+    p.y += p.vy * dt;
+    if (p.y < 0) {
+      projectiles.splice(i, 1);
+      continue;
+    }
+    if (!simFinished) {
+      const dx = p.x - enemyX;
+      const dy = p.y - enemyY;
+      const hitRadius = p.radius + orb.radius;
+      if (dx * dx + dy * dy <= hitRadius * hitRadius) {
+        enemyHealth -= p.damage;
+        enemyY -= level2.knockback;
+        effects.push({
+          kind: "impact",
+          style: p.shape === "needle" ? "pinSpark" : "impactRing",
+          x: p.x,
+          y: p.y,
+          color: p.color,
+          secondaryColor: p.trailColor,
+          radius: p.radius * level2.hitFlashScale * 4,
+          expiresAt: simTimeMs + gun.visualIdentity.impactDurationMs,
+          duration: gun.visualIdentity.impactDurationMs,
+          seed: i
+        });
+        projectiles.splice(i, 1);
+        if (enemyHealth <= 0 && !simEndingTime) {
+          enemyHealth = 0;
+          simEndingTime = simTimeMs + 1200;
+          simOutcome = `PASSED \xB7 Defeated at ${simTimeMs.toFixed(0)}ms`;
+          simStatusText.textContent = "PASSED";
+          simStatusText.className = "sim-status";
+          effects.push({
+            kind: "death",
+            style: "deathBloom",
+            x: enemyX,
+            y: enemyY,
+            color: neonPalette[orb.baseColor],
+            secondaryColor: neonPalette[orb.rimColor],
+            radius: orb.radius * orb.deathFlashScale,
+            expiresAt: simTimeMs + orb.hitFlashDurationMs * 2,
+            duration: orb.hitFlashDurationMs * 2,
+            seed: 99
+          });
+        }
+      }
+    }
+  }
+  if (!simFinished && !simEndingTime) {
+    enemyY += orb.speed * dt;
+    if (enemyY >= playerY) {
+      enemyY = playerY;
+      simEndingTime = simTimeMs + 800;
+      simOutcome = "FAILED \xB7 Orb reached contact";
+      simStatusText.textContent = "FAILED";
+      simStatusText.className = "sim-status failed";
+    }
+  }
+  if (simEndingTime && simTimeMs >= simEndingTime) {
+    simFinished = true;
+  }
+  for (let i = effects.length - 1; i >= 0; i--) {
+    if (effects[i].expiresAt <= simTimeMs) {
+      effects.splice(i, 1);
+    }
+  }
+  updateDetails();
+}
+function drawSim() {
+  const primitives = [];
+  primitives.push({
+    x: playerX,
+    y: playerY,
+    width: 6,
+    color: neonPalette.cyan,
+    secondaryColor: neonPalette.deepBlue,
+    glow: 0.85,
+    shape: "orb",
+    rimIntensity: 0.8
+  });
+  for (const p of projectiles) {
+    primitives.push({
+      x: p.x,
+      y: p.y + p.trailLength / 2,
+      width: Math.max(p.radius * p.trailWidthScale, 1.1),
+      height: p.trailLength,
+      color: p.trailColor,
+      secondaryColor: p.color,
+      glow: p.tracer ? 1.25 : 0.45,
+      intensity: p.visualIntensity * (p.tracer ? 1.45 : 0.72),
+      shape: "bolt"
+    });
+    primitives.push({
+      x: p.x,
+      y: p.y,
+      width: p.radius,
+      height: p.radius * p.aspect,
+      color: p.color,
+      secondaryColor: p.coreColor,
+      glow: p.tracer ? 1.4 : 0.72,
+      intensity: p.visualIntensity * (p.tracer ? 1.35 : 1),
+      shape: p.shape === "needle" ? "circle" : "bolt"
+    });
+  }
+  if (!simFinished || enemyHealth > 0) {
+    const orb = orbFamily.members.basicOrb;
+    primitives.push({
+      x: enemyX,
+      y: enemyY,
+      width: orb.radius,
+      color: neonPalette[orb.rimColor],
+      secondaryColor: neonPalette[orb.baseColor],
+      glow: orb.glow,
+      texture: orb.surfaceTexture,
+      rimIntensity: orb.rimIntensity,
+      shadowStrength: orb.shadowStrength,
+      intensity: 1,
+      shape: "orb"
+    });
+  }
+  for (const effect of effects) {
+    const life = Math.max(0, (effect.expiresAt - simTimeMs) / effect.duration);
+    const progress = 1 - life;
+    const size = effect.radius * (1 + progress * 1.35);
+    if (effect.kind === "muzzle") {
+      primitives.push({
+        x: effect.x,
+        y: effect.y,
+        width: size,
+        color: effect.color,
+        secondaryColor: effect.secondaryColor,
+        glow: 0.75 * life,
+        intensity: life,
+        shape: "ring"
+      });
+    } else if (effect.kind === "impact") {
+      primitives.push({
+        x: effect.x,
+        y: effect.y,
+        width: size,
+        color: effect.color,
+        secondaryColor: effect.secondaryColor,
+        glow: 0.72 * life,
+        intensity: life,
+        shape: "ring"
+      });
+    } else if (effect.kind === "death") {
+      primitives.push({
+        x: effect.x,
+        y: effect.y,
+        width: size,
+        color: effect.color,
+        secondaryColor: effect.secondaryColor,
+        glow: life,
+        intensity: life,
+        shape: "ring"
+      });
+    }
+  }
+  renderer.render(primitives, simTimeMs / 1e3);
+}
+closeSimBtn.addEventListener("click", () => {
+  if (animationFrameId) cancelAnimationFrame(animationFrameId);
+  pageContainer.classList.remove("simulator-active");
+  simulatorPanel.setAttribute("hidden", "true");
+  activeGunId = null;
+});
+replayBtn.addEventListener("click", () => {
+  if (activeGunId) {
+    resetSimulation();
+    loop(performance.now());
+  }
+});
+pauseBtn.addEventListener("click", () => {
+  isPaused = !isPaused;
+  pauseBtn.textContent = isPaused ? "Resume" : "Pause";
+});
 //# sourceMappingURL=smoke.js.map

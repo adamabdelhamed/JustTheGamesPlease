@@ -1,5 +1,36 @@
 <!doctype html>
 <html lang="en">
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Auto Aim Smoke Test</title><link rel="stylesheet" href="../gun-family/smoke.css"></head>
-<body><main><span class="eyebrow">NEON SWARM · SMOKE SUITE</span><h1>Auto Aim Smoke Test</h1><p>Three centered fighters must clean up the two outside survivors from a five-enemy row.</p><output id="test-status" data-status="booting">BOOTING</output><ol id="results"></ol></main><script type="module" src="smoke.js"></script></body>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Auto Aim Smoke Test</title>
+  <link rel="stylesheet" href="../gun-family/smoke.css">
+</head>
+<body>
+  <div class="container" id="page-container">
+    <main>
+      <span class="eyebrow">NEON SWARM · SMOKE SUITE</span>
+      <h1>Auto Aim Smoke Test</h1>
+      <p>Three centered fighters must clean up the two outside survivors from a five-enemy row.</p>
+      <output id="test-status" data-status="booting">BOOTING</output>
+      <ol id="results"></ol>
+    </main>
+    <section id="simulator-panel" class="simulator-panel" hidden>
+      <header class="sim-header">
+        <h2 id="sim-title">Visual Simulation</h2>
+        <button id="close-sim" class="close-btn">&times;</button>
+      </header>
+      <div id="canvas-container">
+        <canvas id="game-canvas"></canvas>
+      </div>
+      <div class="sim-controls">
+        <button id="replay-btn" class="control-btn">Replay</button>
+        <button id="pause-btn" class="control-btn">Pause</button>
+        <span id="sim-status" class="sim-status">Running...</span>
+      </div>
+      <dl id="sim-details" class="sim-details"></dl>
+    </section>
+  </div>
+  <script type="module" src="smoke.js"></script>
+</body>
 </html>
