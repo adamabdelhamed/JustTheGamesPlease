@@ -31,7 +31,7 @@ export {
   type TrackLegendEntry,
   type TrackMember,
 } from "./TrackDefinition";
-export { firstTrack, secondTrack, tracks } from "./tracks";
+export { generatedTrack, generatedTrack2, tracks } from "./tracks";
 export {
   multiplierFamily,
   MultiplierFamilyDefinition,

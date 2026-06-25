@@ -1,11 +1,10 @@
-import { firstTrack } from "./firstTrack";
-import { secondTrack } from "./secondTrack";
-import { editedTrack } from "./editedTrack";
+import { generatedTrack } from "./Track1";
+import { generatedTrack as generatedTrack2 } from "./Track2";
 // Register a track by importing it and adding one entry here.
 export const tracks = {
-  editedTrack: editedTrack,
-  electricCauseway: firstTrack,
-  violetCrossfire: secondTrack,
+ 
+  "track1": generatedTrack,
+  "track2": generatedTrack2,
 } as const;
 
-export { editedTrack, firstTrack, secondTrack };
+export { generatedTrack, generatedTrack2 }; 

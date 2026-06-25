@@ -90,338 +90,6 @@ var neonShapeCatalog = [
   make("elite", "elite-emperor", "Emperor", star(8, 0.48), "roll", [regular(8, 0, 0.24, 0.24)])
 ];
 
-// projects/NeonFactory/src/primitive-renderer.ts
-var maxPrimitives = 1024;
-var floatsPerPrimitive = 20;
-var shader = (
-  /* wgsl */
-  `
-struct Scene { resolution: vec2f, count: f32, time: f32 }
-struct Primitive {
-  position: vec2f,
-  size: vec2f,
-  color: vec4f,
-  secondaryColor: vec4f,
-  glow: f32,
-  intensity: f32,
-  shape: f32,
-  texture: f32,
-  rimIntensity: f32,
-  shadowStrength: f32,
-  padding: vec2f,
-}
-@group(0) @binding(0) var<uniform> scene: Scene;
-@group(0) @binding(1) var<storage, read> items: array<Primitive>;
-
-struct VertexOutput {
-  @builtin(position) position: vec4f,
-  @location(0) local: vec2f,
-  @location(1) color: vec4f,
-  @location(2) glow: f32,
-  @location(3) intensity: f32,
-  @location(4) shape: f32,
-  @location(5) secondaryColor: vec4f,
-  @location(6) texture: f32,
-  @location(7) rimIntensity: f32,
-  @location(8) shadowStrength: f32,
-}
-
-@vertex fn vertexMain(@builtin(vertex_index) vertex: u32, @builtin(instance_index) instance: u32) -> VertexOutput {
-  var corners = array<vec2f, 6>(
-    vec2f(-1,-1), vec2f(1,-1), vec2f(-1,1),
-    vec2f(-1,1), vec2f(1,-1), vec2f(1,1)
-  );
-  let item = items[instance];
-  let local = corners[vertex];
-  var pixelOffset = local * item.size;
-  if (item.shape > 6.5 && item.shape < 7.5) {
-    let c = cos(item.texture);
-    let s = sin(item.texture);
-    pixelOffset = vec2f(pixelOffset.x * c - pixelOffset.y * s, pixelOffset.x * s + pixelOffset.y * c);
-  }
-  let pixel = item.position + pixelOffset;
-  var output: VertexOutput;
-  output.position = vec4f(pixel.x / scene.resolution.x * 2 - 1, 1 - pixel.y / scene.resolution.y * 2, 0, 1);
-  output.local = local;
-  output.color = item.color;
-  output.glow = item.glow;
-  output.intensity = item.intensity;
-  output.shape = item.shape;
-  output.secondaryColor = item.secondaryColor;
-  output.texture = item.texture;
-  output.rimIntensity = item.rimIntensity;
-  output.shadowStrength = item.shadowStrength;
-  return output;
-}
-
-@fragment fn fragmentMain(input: VertexOutput) -> @location(0) vec4f {
-  if (input.shape > 7.5) {
-    let radius = length(input.local);
-    let angle = atan2(input.local.y, input.local.x);
-    if (angle < input.rimIntensity || angle > input.shadowStrength || radius > 1.0) { discard; }
-    let lineDistance = abs(radius - 0.78);
-    if (lineDistance > 0.16) { discard; }
-    let core = 1.0 - smoothstep(0.012, 0.038, lineDistance);
-    let halo = (1.0 - smoothstep(0.025, 0.16, lineDistance)) * input.glow;
-    let pulseA = pow(max(0.0, sin(angle * 23.0 - scene.time * 8.5)), 16.0);
-    let pulseB = pow(max(0.0, sin(angle * 11.0 + scene.time * 5.3 + 1.7)), 24.0);
-    let grain = sin(angle * 71.0 + scene.time * 3.1) * 0.5 + 0.5;
-    let surge = smoothstep(0.72, 0.94, pulseA * 0.7 + pulseB * 0.65 + grain * 0.12);
-    let energy = (core * (0.88 + surge * 0.65) + halo * (0.22 + surge * 0.9)) * input.intensity;
-    let hot = mix(input.color.rgb, input.secondaryColor.rgb, core * surge * 0.9);
-    return vec4f(hot * energy, clamp(energy, 0.0, 0.95));
-  }
-  if (input.shape > 6.5) {
-    let along = input.local.y;
-    let across = abs(input.local.x);
-    if (across > 1.0 || abs(along) > 1.0) { discard; }
-    let core = 1.0 - smoothstep(0.08, 0.24, across);
-    let halo = (1.0 - smoothstep(0.12, 1.0, across)) * input.glow;
-    let endFade = 1.0 - smoothstep(0.72, 1.0, abs(along));
-    let travel = pow(max(0.0, sin(along * 24.0 - scene.time * 8.0 + input.texture)), 14.0);
-    let energy = (core * (0.75 + travel * 0.5) + halo * (0.2 + travel * 0.55)) * endFade * input.intensity;
-    let hot = mix(input.color.rgb, input.secondaryColor.rgb, core * travel * 0.75);
-    return vec4f(hot * energy, clamp(energy, 0.0, 0.95));
-  }
-  if (input.shape > 5.5) {
-    // Pentagon SDF
-    // local is in [-1, 1] range. Let's find pentagon distance.
-    let px = abs(input.local.x);
-    let py = input.local.y;
-    // Pentagon constants for vertices/edges
-    let k = vec3f(-0.809016994, 0.587785252, 1.37638192); // cos/sin of 72, plus height factor
-    // Project/Mirror across the symmetry axes of regular pentagon
-    var p = vec2f(px, py);
-    p = p - 2 * min(dot(vec2f(-k.x, k.y), p), 0) * vec2f(-k.x, k.y);
-    p = p - 2 * min(dot(vec2f(k.x, k.y), p), 0) * vec2f(k.x, k.y);
-    p.x = p.x - clamp(p.x, -k.z * 0.5, k.z * 0.5);
-    let d = length(p - vec2f(0, 0.72)) * sign(p.y - 0.72);
-    // Map d to a normalized radius scale
-    let scaleD = d + 0.35; // offset pentagon to fit bounds nicely
-    if (scaleD > 0.8) { discard; }
-    
-    let edge = 1 - smoothstep(0.5, 0.65, scaleD);
-    let border = smoothstep(0.45, 0.53, scaleD) * (1 - smoothstep(0.65, 0.75, scaleD));
-    let fill = 1 - smoothstep(-0.2, 0.5, scaleD);
-    let halo = (1 - smoothstep(0.55, 0.8, scaleD)) * input.glow;
-    let glass = fill * 0.38 + border * 1.35;
-    let energy = (glass + halo * 0.5) * input.intensity;
-    let edgeColor = input.color.rgb * (border * 1.75 + edge * 0.3);
-    let fillColor = mix(input.secondaryColor.rgb, input.color.rgb, fill * 0.45) * fill * 0.35;
-    let bloom = input.color.rgb * halo * 0.4;
-    let rgb = edgeColor + fillColor + bloom;
-    return vec4f(rgb, clamp(energy, 0, 0.95));
-  }
-  if (input.shape > 4.5) {
-    let d = abs(input.local.x) + abs(input.local.y);
-    if (d > 1.08) { discard; }
-    let edge = 1 - smoothstep(0.78, 0.92, d);
-    let border = smoothstep(0.72, 0.82, d) * (1 - smoothstep(0.92, 1.02, d));
-    let fill = 1 - smoothstep(0.0, 0.78, d);
-    let halo = (1 - smoothstep(0.82, 1.08, d)) * input.glow;
-    let glass = fill * 0.35 + border * 1.2;
-    let energy = (glass + halo * 0.45) * input.intensity;
-    let edgeColor = input.color.rgb * (border * 1.6 + edge * 0.3);
-    let fillColor = mix(input.secondaryColor.rgb, input.color.rgb, fill * 0.5) * fill * 0.38;
-    let bloom = input.color.rgb * halo * 0.35;
-    let rgb = edgeColor + fillColor + bloom;
-    return vec4f(rgb, clamp(energy, 0, 0.95));
-  }
-  if (input.shape > 1.5) {
-    let r2 = dot(input.local, input.local);
-    if (r2 > 1) { discard; }
-    let z = sqrt(max(0, 1 - r2));
-    let normal = normalize(vec3f(input.local.x, -input.local.y, z));
-    let light = normalize(vec3f(-0.55, -0.7, 0.9));
-    let diffuse = max(dot(normal, light), 0);
-    let rim = pow(1 - z, 2.2) * input.rimIntensity;
-    let shadow = mix(1 - input.shadowStrength, 1, smoothstep(-0.65, 0.45, dot(normal.xy, light.xy)));
-    let grain = sin(input.local.x * 23 + input.local.y * 17) * sin(input.local.y * 31 - input.local.x * 11);
-    let texture = 1 + grain * input.texture * 0.22;
-    let specular = pow(max(dot(reflect(-light, normal), vec3f(0,0,1)), 0), 28) * 1.8;
-    let body = mix(input.secondaryColor.rgb, input.color.rgb, diffuse * 0.8 + 0.2) * shadow * texture;
-    let halo = pow(max(0, 1 - length(input.local)), 0.35) * input.glow;
-    let rgb = body * (0.38 + diffuse * 0.95) + input.color.rgb * rim + vec3f(specular) + input.color.rgb * halo * 0.3;
-    return vec4f(rgb * input.intensity, 1);
-  }
-  var distance = length(input.local);
-  if (input.shape > 3.5) {
-    let axis = min(abs(input.local.x), abs(input.local.y));
-    let arm = 1 - smoothstep(0.04, 0.18, axis);
-    let fade = 1 - smoothstep(0.2, 1, max(abs(input.local.x), abs(input.local.y)));
-    let energy = arm * fade * input.intensity;
-    let rgb = mix(input.secondaryColor.rgb, input.color.rgb, arm) * energy;
-    return vec4f(rgb, clamp(energy, 0, 0.92));
-  }
-  if (input.shape > 2.5) {
-    let ringDistance = abs(length(input.local) - 0.62);
-    let ring = 1 - smoothstep(0.055, 0.18, ringDistance);
-    let halo = (1 - smoothstep(0.12, 0.42, ringDistance)) * input.glow;
-    let energy = (ring + halo * 0.45) * input.intensity;
-    let rgb = mix(input.secondaryColor.rgb, input.color.rgb, ring) * energy;
-    return vec4f(rgb, clamp(energy, 0, 0.9));
-  }
-  if (input.shape > 0.5) {
-    distance = max(abs(input.local.x), abs(input.local.y));
-  }
-  let core = 1 - smoothstep(0.38, 0.76, distance);
-  let halo = (1 - smoothstep(0.3, 1, distance)) * input.glow;
-  let energy = (core + halo * 0.55) * input.intensity;
-  let chromaticCore = mix(input.color.rgb, input.secondaryColor.rgb, pow(max(core, 0), 2));
-  let raw = chromaticCore * (core * 1.05 + halo * 0.42);
-  let rgb = raw / (vec3f(1) + raw * 0.32);
-  return vec4f(rgb, clamp(energy, 0, 0.92));
-}
-`
-);
-function rgba(hex) {
-  const value = hex.replace("#", "");
-  if (!/^[0-9a-f]{6}$/i.test(value)) throw new Error(`Expected six-digit hex color, received "${hex}".`);
-  return [
-    Number.parseInt(value.slice(0, 2), 16) / 255,
-    Number.parseInt(value.slice(2, 4), 16) / 255,
-    Number.parseInt(value.slice(4, 6), 16) / 255,
-    1
-  ];
-}
-var NeonPrimitiveRenderer = class _NeonPrimitiveRenderer {
-  canvas;
-  device;
-  #context;
-  #pipeline;
-  #sceneBuffer;
-  #primitiveBuffer;
-  #bindGroup;
-  #logicalSize = null;
-  constructor(canvas2, device, context, format) {
-    this.canvas = canvas2;
-    this.device = device;
-    this.#context = context;
-    const module = device.createShaderModule({ code: shader });
-    this.#pipeline = device.createRenderPipeline({
-      layout: "auto",
-      vertex: { module, entryPoint: "vertexMain" },
-      fragment: {
-        module,
-        entryPoint: "fragmentMain",
-        targets: [{ format, blend: { color: { srcFactor: "src-alpha", dstFactor: "one" }, alpha: { srcFactor: "one", dstFactor: "one" } } }]
-      },
-      primitive: { topology: "triangle-list" }
-    });
-    this.#sceneBuffer = device.createBuffer({ size: 16, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
-    this.#primitiveBuffer = device.createBuffer({
-      size: maxPrimitives * floatsPerPrimitive * 4,
-      usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST
-    });
-    this.#bindGroup = device.createBindGroup({
-      layout: this.#pipeline.getBindGroupLayout(0),
-      entries: [
-        { binding: 0, resource: { buffer: this.#sceneBuffer } },
-        { binding: 1, resource: { buffer: this.#primitiveBuffer } }
-      ]
-    });
-  }
-  static async create(canvas2) {
-    if (!navigator.gpu) throw new Error("WebGPU is required for NeonFactory.");
-    const adapter = await navigator.gpu.requestAdapter();
-    if (!adapter) throw new Error("No compatible WebGPU adapter was found.");
-    const device = await adapter.requestDevice();
-    const context = canvas2.getContext("webgpu");
-    if (!context) throw new Error("The canvas could not create a WebGPU context.");
-    const format = navigator.gpu.getPreferredCanvasFormat();
-    context.configure({ device, format, alphaMode: "premultiplied" });
-    return new _NeonPrimitiveRenderer(canvas2, device, context, format);
-  }
-  setLogicalSize(width, height) {
-    this.#logicalSize = { width, height };
-    this.canvas.width = width;
-    this.canvas.height = height;
-    return this;
-  }
-  render(primitives, timeSeconds = 0, preserveColor = false, targetView) {
-    this.#resize();
-    const visible = primitives.slice(0, maxPrimitives);
-    const data = new Float32Array(visible.length * floatsPerPrimitive);
-    visible.forEach((item, index) => {
-      const offset = index * floatsPerPrimitive;
-      data.set([
-        item.x,
-        item.y,
-        item.width,
-        item.height ?? item.width,
-        ...rgba(item.color),
-        ...rgba(item.secondaryColor ?? item.color),
-        item.glow ?? 0.5,
-        item.intensity ?? 1,
-        item.shape === "arc" ? 8 : item.shape === "line" ? 7 : item.shape === "pentagon" ? 6 : item.shape === "diamond" ? 5 : item.shape === "spark" ? 4 : item.shape === "ring" ? 3 : item.shape === "orb" ? 2 : item.shape === "bolt" ? 1 : 0,
-        item.rotation ?? item.texture ?? 0,
-        item.arcStart ?? item.rimIntensity ?? 0,
-        item.arcEnd ?? item.shadowStrength ?? 0,
-        0,
-        0
-      ], offset);
-    });
-    this.device.queue.writeBuffer(this.#sceneBuffer, 0, new Float32Array([this.canvas.width, this.canvas.height, visible.length, timeSeconds]));
-    if (data.length) this.device.queue.writeBuffer(this.#primitiveBuffer, 0, data);
-    const encoder = this.device.createCommandEncoder();
-    const pass = encoder.beginRenderPass({
-      colorAttachments: [{
-        view: targetView ?? this.#context.getCurrentTexture().createView(),
-        clearValue: { r: 6e-3, g: 9e-3, b: 0.025, a: 1 },
-        loadOp: preserveColor ? "load" : "clear",
-        storeOp: "store"
-      }]
-    });
-    if (visible.length) {
-      pass.setPipeline(this.#pipeline);
-      pass.setBindGroup(0, this.#bindGroup);
-      pass.draw(6, visible.length);
-    }
-    pass.end();
-    this.device.queue.submit([encoder.finish()]);
-  }
-  #resize() {
-    if (this.#logicalSize) {
-      if (this.canvas.width !== this.#logicalSize.width) this.canvas.width = this.#logicalSize.width;
-      if (this.canvas.height !== this.#logicalSize.height) this.canvas.height = this.#logicalSize.height;
-      return;
-    }
-    const ratio = Math.min(devicePixelRatio || 1, 2);
-    const width = Math.max(1, Math.floor(this.canvas.clientWidth * ratio));
-    const height = Math.max(1, Math.floor(this.canvas.clientHeight * ratio));
-    if (this.canvas.width !== width || this.canvas.height !== height) {
-      this.canvas.width = width;
-      this.canvas.height = height;
-    }
-  }
-};
-
-// projects/NeonFactory/src/test-harness.ts
-function createTestPage(id, driver, statusElement) {
-  const snapshot = { id, status: "booting", assertions: [] };
-  const publish = () => {
-    statusElement.dataset.status = snapshot.status;
-    statusElement.textContent = `${snapshot.status.toUpperCase()} \xB7 ${snapshot.assertions.filter((a) => a.passed).length}/${snapshot.assertions.length} assertions`;
-    document.documentElement.dataset.testStatus = snapshot.status;
-  };
-  const api = {
-    ...driver,
-    getSnapshot: () => structuredClone(snapshot),
-    ready() {
-      snapshot.status = "ready";
-      publish();
-    },
-    assert(name, passed, detail) {
-      snapshot.assertions.push({ name, passed, detail });
-      snapshot.status = snapshot.assertions.every((assertion) => assertion.passed) ? "passed" : "failed";
-      publish();
-    }
-  };
-  window.neonFactoryTest = api;
-  publish();
-  return api;
-}
-
 // projects/NeonFactory/src/shield-primitives.ts
 var shieldFieldPoints = Array.from({ length: 32 }, (_, index) => {
   const angle = -Math.PI / 2 + index * Math.PI * 2 / 32;
@@ -1018,377 +686,237 @@ var SwordFamilyDefinition = class extends FamilyDefinition {
 };
 var swordFamily = new SwordFamilyDefinition();
 
-// projects/NeonSwarm/src/squad.ts
-var SquadModel = class {
-  lane = 0;
-  count = 1;
-  aimOffset = 0;
-  x = 0;
-  targetX = 0;
-  laneShiftStartedAt = 0;
-  add(amount) {
-    const spec = multiplierFamily.members.squadPlusOne;
-    this.count = Math.min(spec.maxSquadSize, this.count + amount);
-    return this.count;
+// projects/NeonSwarm/test-pages/track-generator/track-generator.ts
+var customRequirements = document.querySelector("#custom-requirements");
+var startGunSelect = document.querySelector("#start-gun");
+var startGunLevelSelect = document.querySelector("#start-gun-level");
+var startShieldSelect = document.querySelector("#start-shield");
+var startSwordSelect = document.querySelector("#start-sword");
+var trackLabelInput = document.querySelector("#track-label");
+var enemyHpInput = document.querySelector("#enemy-hp");
+var enemySpeedInput = document.querySelector("#enemy-speed");
+var copyBtn = document.querySelector("#copy-btn");
+var promptPreview = document.querySelector("#prompt-preview");
+function initializeSelectors() {
+  for (const [id, gun] of Object.entries(gunFamily.members)) {
+    const opt = new Option(gun.label, id);
+    if (id === "pulsePistol") opt.selected = true;
+    startGunSelect.add(opt);
   }
-  remove(amount = 1) {
-    this.count = Math.max(0, this.count - amount);
-    return this.count;
+  for (const [id, shield] of Object.entries(shieldFamily.members)) {
+    const opt = new Option(shield.label, id);
+    startShieldSelect.add(opt);
   }
-  setLane(lane, laneCenter, now) {
-    if (lane !== this.lane) {
-      this.laneShiftStartedAt = now;
-      this.aimOffset = 0;
-    }
-    this.lane = lane;
-    this.targetX = laneCenter(lane) + this.aimOffset;
+  for (const [id, sword] of Object.entries(swordFamily.members)) {
+    const opt = new Option(sword.label, id);
+    startSwordSelect.add(opt);
   }
-  setAim(normalized, laneWidth, laneCenter) {
-    this.aimOffset = Math.max(-1, Math.min(1, normalized)) * laneWidth * 0.28;
-    this.targetX = laneCenter(this.lane) + this.aimOffset;
+}
+function generateItemsDocumentation() {
+  let doc = "";
+  doc += "### 1. Enemies (Orbs)\n\n";
+  doc += "| ID | Label | Editor Symbol | Health | Capabilities | Power Level |\n";
+  doc += "| :--- | :--- | :---: | :---: | :--- | :--- |\n";
+  for (const [id, orb] of Object.entries(orbFamily.members)) {
+    const symbol = id === "basicOrb" ? "E" : id.charAt(0).toUpperCase();
+    const power = id === "basicOrb" ? "Low (Standard)" : "Medium/High";
+    doc += `| \`enemy.${id === "basicOrb" ? "basic" : id}\` | ${orb.label} | \`${symbol}\` | ${orb.health} HP | Standard runner threat. | ${power} |
+`;
   }
-  autoAim(targetOffset, laneWidth, laneCenter) {
-    this.aimOffset += (Math.max(-laneWidth * 0.28, Math.min(laneWidth * 0.28, targetOffset)) - this.aimOffset) * 0.85;
-    this.targetX = laneCenter(this.lane) + this.aimOffset;
-  }
-  update(deltaSeconds) {
-    const response = 1 - Math.pow(8e-5, deltaSeconds);
-    this.x += (this.targetX - this.x) * response;
-  }
-  /** X offsets of each column in the front row, relative to squad center. */
-  frontRowColumnOffsets(scale) {
-    const spec = multiplierFamily.members.squadPlusOne;
-    const rowCount = Math.min(spec.membersPerRow, this.count);
-    return Array.from(
-      { length: rowCount },
-      (_, col) => (col - (rowCount - 1) / 2) * spec.spacing * scale
-    );
-  }
-  points(baseY, scale) {
-    const spec = multiplierFamily.members.squadPlusOne;
-    const points = [];
-    for (let index = 0; index < this.count; index++) {
-      const row = Math.floor(index / spec.membersPerRow);
-      const rowCount = Math.min(spec.membersPerRow, this.count - row * spec.membersPerRow);
-      const column = index % spec.membersPerRow;
-      points.push({
-        x: this.x + (column - (rowCount - 1) / 2) * spec.spacing * scale,
-        y: baseY + row * spec.spacing * scale,
-        column,
-        row
-      });
-    }
-    return points;
-  }
-};
-
-// projects/NeonSwarm/test-pages/multiplier-family/smoke.ts
-var status = document.querySelector("#test-status");
-var results = document.querySelector("#results");
-var run = () => {
-  const squad2 = new SquadModel();
-  const spec = multiplierFamily.members.squadPlusOne;
-  const initial = squad2.count;
-  squad2.add(spec.squadAdded);
-  const afterPickup = squad2.count;
-  for (let index = 0; index < 20; index++) squad2.add(spec.squadAdded);
-  const capped = squad2.count;
-  squad2.x = 200;
-  const points = squad2.points(400, 1);
-  const firstRow = points.filter((point) => point.row === 0);
-  const uniqueColumns = new Set(firstRow.map((point) => point.x)).size;
-  return {
-    initial,
-    afterPickup,
-    capped,
-    points,
-    firstRow,
-    uniqueColumns,
-    simultaneousTargets: Math.min(firstRow.length, 5)
-  };
-};
-var test = createTestPage("neon-swarm-multiplier-family-smoke", { suite: "smoke", run }, status);
-test.ready();
-var outcome = run();
-var assertions = [
-  ["Pickup adds one wingmate", outcome.afterPickup === outcome.initial + 1],
-  ["Squad respects ten-member cap", outcome.capped === multiplierFamily.members.squadPlusOne.maxSquadSize],
-  ["Formation creates two five-member rows", outcome.points.length === 10 && outcome.firstRow.length === 5],
-  ["First row has five distinct firing columns", outcome.uniqueColumns === 5],
-  ["Five-member squad can cover five enemy positions", outcome.simultaneousTargets === 5]
-];
-results.innerHTML = assertions.map(([name, passed], index) => `
-  <li data-passed="${passed}" data-index="${index}">
-    <strong>${name}</strong>
-    <span>${passed ? "PASS" : "FAIL"}</span>
-  </li>`).join("");
-results.querySelectorAll("li").forEach((item) => {
-  item.addEventListener("click", () => {
-    const idx = Number(item.getAttribute("data-index"));
-    startSimulation(idx);
+  doc += "\n";
+  doc += "### 2. Guns (Weapon Family)\n\n";
+  doc += "| ID | Label | Editor Symbol | Shot Pattern | Behaviors | Power Level / Rarity |\n";
+  doc += "| :--- | :--- | :---: | :--- | :--- | :--- |\n";
+  Object.entries(gunFamily.members).forEach(([id, gun], index) => {
+    const symbol = "GHIJKLMNOQRSTUVWXYZ"[index] || "G";
+    const power = gun.rarity === "starter" ? "Low (Starter)" : gun.rarity === "common" ? "Medium (Common)" : "High (Uncommon)";
+    doc += `| \`pickup.weapon.gun.${id}\` | ${gun.label} | \`${symbol}\` | ${gun.shotPattern} | ${gun.projectileBehavior} projectile | ${power} |
+`;
   });
-});
-for (const [name, passed] of assertions) test.assert(name, passed);
-var pageContainer = document.getElementById("page-container");
-var simulatorPanel = document.getElementById("simulator-panel");
-var closeSimBtn = document.getElementById("close-sim");
-var replayBtn = document.getElementById("replay-btn");
-var pauseBtn = document.getElementById("pause-btn");
-var simStatusText = document.getElementById("sim-status");
-var simTitle = document.getElementById("sim-title");
-var simDetails = document.getElementById("sim-details");
-var canvas = document.getElementById("game-canvas");
-var renderer = null;
-var animationFrameId = null;
-var isPaused = false;
-var activeScenarioIdx = 0;
-var simTimeMs = 0;
-var lastTimeMs = 0;
-var simFinished = false;
-var simOutcome = "";
-var squad = new SquadModel();
-var pickups = [];
-var nextPickupTime = 0;
-var showBeams = false;
-var beamTargets = [];
-async function startSimulation(index) {
-  if (!renderer) {
-    try {
-      renderer = await NeonPrimitiveRenderer.create(canvas);
-      renderer.setLogicalSize(450, 800);
-    } catch (e) {
-      console.error("Failed to initialize renderer", e);
-      return;
-    }
-  }
-  activeScenarioIdx = index;
-  pageContainer.classList.add("simulator-active");
-  simulatorPanel.removeAttribute("hidden");
-  simTitle.textContent = assertions[index][0];
-  resetSimulation();
-  loop(performance.now());
+  doc += "\n";
+  doc += "### 3. Shields (Weapon Family)\n\n";
+  doc += "| ID | Label | Editor Symbol | Max Charges | Cooldown | Power Level / Rarity |\n";
+  doc += "| :--- | :--- | :---: | :---: | :---: | :--- |\n";
+  Object.entries(shieldFamily.members).forEach(([id, shield], index) => {
+    const symbol = "SHX"[index] || "S";
+    const power = shield.rarity === "starter" ? "Low (Starter)" : shield.rarity === "common" ? "Medium (Common)" : "High (Uncommon)";
+    doc += `| \`pickup.weapon.shield.${id}\` | ${shield.label} | \`${symbol}\` | ${shield.maxCharges} charges | ${shield.cooldownSeconds}s | ${power} |
+`;
+  });
+  doc += "\n";
+  doc += "### 4. Swords (Weapon Family)\n\n";
+  doc += "| ID | Label | Editor Symbol | Damage | Cooldown | Targeting Mode | Power Level / Rarity |\n";
+  doc += "| :--- | :--- | :---: | :---: | :---: | :--- | :--- |\n";
+  Object.entries(swordFamily.members).forEach(([id, sword], index) => {
+    const symbol = "abc"[index] || "a";
+    const power = sword.rarity === "starter" ? "Low-Medium (Starter)" : sword.rarity === "common" ? "Medium-High (Common)" : "High (Uncommon)";
+    doc += `| \`pickup.weapon.sword.${id}\` | ${sword.label} | \`${symbol}\` | ${sword.damage} | ${sword.cooldownSeconds}s | ${sword.targetingMode} | ${power} |
+`;
+  });
+  doc += "\n";
+  doc += "### 5. Squad Multipliers & Special Items\n\n";
+  doc += "| ID | Label | Editor Symbol | Capabilities | Power Level |\n";
+  doc += "| :--- | :--- | :---: | :--- | :--- |\n";
+  doc += "| `pickup.unitMultiplier.2x` | 2x Squad (+1 Wingmate) | `2` | Adds an additional player wingmate to the squad. Caps at 10 total. | High |\n";
+  doc += "| `player.start` | Player Start position | `P` | Marks the initial spawning coordinates and side of the player. Must appear exactly once in the layout. | Required |\n";
+  doc += "| `empty` | Empty Space | `.` | Blank lane coordinate. | - |\n";
+  doc += "\n";
+  return doc;
 }
-function resetSimulation() {
-  if (animationFrameId) cancelAnimationFrame(animationFrameId);
-  simTimeMs = 0;
-  lastTimeMs = 0;
-  simFinished = false;
-  simOutcome = "";
-  isPaused = false;
-  pauseBtn.textContent = "Pause";
-  simStatusText.textContent = "Simulating...";
-  simStatusText.className = "sim-status";
-  squad = new SquadModel();
-  squad.x = 225;
-  squad.targetX = 225;
-  pickups = [];
-  nextPickupTime = 0;
-  showBeams = false;
-  beamTargets = [];
-  if (activeScenarioIdx === 0) {
-    pickups.push({ y: 100, lane: 0 });
-  } else if (activeScenarioIdx === 1) {
-    nextPickupTime = 200;
-  } else if (activeScenarioIdx === 2) {
-    for (let i = 0; i < 9; i++) squad.add(1);
-    simFinished = true;
-    simOutcome = "PASSED \xB7 Visualizing 2 rows of 5 wingmates";
-    simStatusText.textContent = "PASSED";
-  } else if (activeScenarioIdx === 3) {
-    for (let i = 0; i < 4; i++) squad.add(1);
-    showBeams = true;
-    simFinished = true;
-    simOutcome = "PASSED \xB7 Visualizing 5 distinct firing columns";
-    simStatusText.textContent = "PASSED";
-  } else if (activeScenarioIdx === 4) {
-    for (let i = 0; i < 4; i++) squad.add(1);
-    showBeams = true;
-    beamTargets = [
-      { x: 165, y: 200 },
-      { x: 195, y: 200 },
-      { x: 225, y: 200 },
-      { x: 255, y: 200 },
-      { x: 285, y: 200 }
-    ];
-    simFinished = true;
-    simOutcome = "PASSED \xB7 Visualizing coverage of 5 positions";
-    simStatusText.textContent = "PASSED";
-  }
-  updateDetails();
+function buildPrompt() {
+  const reqText = customRequirements.value.trim() || "(No custom requirements provided. Design a balanced, intermediate difficulty track.)";
+  const startGun = startGunSelect.value;
+  const startGunLevel = startGunLevelSelect.value;
+  const startShield = startShieldSelect.value;
+  const startSword = startSwordSelect.value;
+  const trackLabel = trackLabelInput.value.trim() || "Custom Nebula Drive";
+  const enemyHp = enemyHpInput.value || "1.0";
+  const enemySpeed = enemySpeedInput.value || "1.0";
+  const shieldField = startShield === "none" ? "null" : `{
+    shieldId: "${startShield}",
+    charges: ${shieldFamily.members[startShield]?.maxCharges || 2},
+    cooldownLeft: 0,
+    pulseEffects: [],
+    hitFlashUntil: 0,
+  }`;
+  const swordField = startSword === "none" ? "null" : `{
+    swordId: "${startSword}",
+    cooldownLeft: 0,
+    activeSlash: null,
+  }`;
+  const itemsDoc = generateItemsDocumentation();
+  return `You are an expert level and track designer for "Neon Swarm", a fast-paced two-lane neon runner/shooter game.
+
+Your task is to design a new custom track file based on the specifications, environment constraints, and custom requirements listed below.
+
+---
+
+## 1. CUSTOM REQUIREMENTS
+${reqText}
+
+---
+
+## 2. TRACK DURATION & LAYOUT RULES
+- **Duration/Length**: The duration of the track is determined entirely by the number of rows in the layout.
+- **Rule of Thumb**: Each row in the layout string corresponds to approximately 1 second of playtime. Therefore, a track that should last 25 seconds must have exactly 25 lines in the layout grid.
+- **Layout Format**: The layout string consists of left-lane and right-lane bands separated by a "|" character. 
+  - Each side must be exactly 5 characters wide, representing the 5 columns of that lane.
+  - Example: \`..... | .....\` represents an empty row across both lanes.
+  - The player starts at the bottom of the layout, moving upwards. The LLM must place \`P\` (Player Start) exactly once at the bottom row.
+
+---
+
+## 3. AVAILABLE WEAPONS, SHIELDS, SWORDS & ITEMS
+Here is a list of all validated items and their corresponding IDs, editor symbols, and capabilities:
+
+${itemsDoc}
+
+---
+
+## 4. CODE TEMPLATE
+You must output a valid TypeScript track file implementing \`TrackMember\` matching the following format. Ensure all legend keys map exactly to the symbols you use in the layout:
+
+\`\`\`typescript
+import type { TrackMember } from "../TrackDefinition";
+
+export const generatedTrack: TrackMember = {
+  label: "${trackLabel}",
+  description: "An AI-generated combat runner track designed for custom challenges.",
+  durationSeconds: 25, // Set matching the number of lines in your layout (excluding blank lines)
+  startingGun: "${startGun}",
+  startingGunLevel: ${startGunLevel},
+  viewport: {
+    orientation: "portrait",
+    aspectWidth: 9,
+    aspectHeight: 16,
+    logicalWidth: 450,
+    logicalHeight: 800,
+  },
+  environment: {
+    floorColor: "deepBlue", // available colors: deepBlue, violet, pink, cyan, orange, green, red, gold
+    crackColor: "violet",
+    airColor: "pink",
+    horizonColor: "cyan",
+    pulseRate: 1.2,
+    crackDensity: 12,
+    airStreakCount: 8,
+  },
+  definition: {
+    layout: \`
+..... | .....
+..... | ..E..
+..... | .....
+..E.. | .....
+..... | .....
+.E.E. | ..E..
+..... | .....
+..E.. | .E.E.
+.S... | .....
+..... | .....
+.EEE. | .....
+..... | .....
+..E.. | .EEE.
+..... | .....
+....a | .....
+.EE.. | ..EE.
+..... | .....
+..E.. | .E.E.
+..... | .....
+..2.. | .....
+.EEE. | .....
+..... | ..E..
+..... | .....
+..E.. | .....
+..... | ..P..
+\`,
+    legend: {
+      ".": { id: "empty" },
+      "P": { id: "player.start" },
+      "E": { id: "enemy.basic" },
+      "2": { id: "pickup.unitMultiplier.2x", speed: 0.8 },
+      "G": { id: "pickup.weapon.gun.pulsePistol", speed: 0.8 },
+      "S": { id: "pickup.weapon.shield.lightGuard", speed: 0.8 },
+      "a": { id: "pickup.weapon.sword.arcBlade", speed: 0.8 },
+    },
+    balance: {
+      enemyHp: ${enemyHp},
+      enemySpeed: ${enemySpeed},
+    },
+  },
+} satisfies TrackMember;
+\`\`\`
+
+Ensure the code you output compiles perfectly, uses the correct types, and adheres strictly to the layout rules!
+`;
 }
-function updateDetails() {
-  simDetails.innerHTML = `
-    <dt>Scenario</dt><dd>${assertions[activeScenarioIdx][0]}</dd>
-    <dt>Squad Size</dt><dd>${squad.count} wingmates</dd>
-    <dt>Time Elapsed</dt><dd>${simTimeMs.toFixed(0)} ms</dd>
-    <dt>Status</dt><dd>${simOutcome || "Simulating"}</dd>
-  `;
+function updatePreview() {
+  promptPreview.textContent = buildPrompt();
 }
-function loop(now) {
-  if (isPaused) {
-    lastTimeMs = now;
-    animationFrameId = requestAnimationFrame(loop);
-    return;
-  }
-  if (lastTimeMs === 0) lastTimeMs = now;
-  const dt = Math.min((now - lastTimeMs) / 1e3, 0.05);
-  lastTimeMs = now;
-  updateSim(dt);
-  drawSim();
-  if (!simFinished) {
-    animationFrameId = requestAnimationFrame(loop);
+async function copyToClipboard() {
+  const text = buildPrompt();
+  try {
+    await navigator.clipboard.writeText(text);
+    copyBtn.classList.add("copied");
+    const btnText = copyBtn.querySelector(".btn-text");
+    btnText.textContent = "Copied!";
+    setTimeout(() => {
+      copyBtn.classList.remove("copied");
+      btnText.textContent = "Copy to Clipboard";
+    }, 2e3);
+  } catch (err) {
+    console.error("Failed to copy text: ", err);
+    alert("Failed to copy to clipboard. You can manually copy the preview panel text.");
   }
 }
-function updateSim(dt) {
-  simTimeMs += dt * 1e3;
-  squad.update(dt);
-  const playerY = 650;
-  const spec = multiplierFamily.members.squadPlusOne;
-  if (activeScenarioIdx === 0) {
-    for (let i = pickups.length - 1; i >= 0; i--) {
-      const p = pickups[i];
-      p.y += 250 * dt;
-      if (p.y >= playerY - 10) {
-        squad.add(spec.squadAdded);
-        pickups.splice(i, 1);
-        simFinished = true;
-        simOutcome = "PASSED \xB7 Added 1 wingmate";
-        simStatusText.textContent = "PASSED";
-      }
-    }
-  } else if (activeScenarioIdx === 1) {
-    if (simTimeMs >= nextPickupTime && squad.count < 12) {
-      pickups.push({ y: 50, lane: 0 });
-      nextPickupTime = simTimeMs + 500;
-    }
-    for (let i = pickups.length - 1; i >= 0; i--) {
-      const p = pickups[i];
-      p.y += 350 * dt;
-      if (p.y >= playerY - 10) {
-        squad.add(spec.squadAdded);
-        pickups.splice(i, 1);
-      }
-    }
-    if (squad.count >= 10 && pickups.length === 0) {
-      simFinished = true;
-      simOutcome = "PASSED \xB7 Checked up to 12 additions, squad capped at 10";
-      simStatusText.textContent = "PASSED";
-    }
-  }
-  updateDetails();
-}
-function drawSim() {
-  const primitives = [];
-  const playerY = 650;
-  const points = squad.points(playerY, 1);
-  for (const point of points) {
-    primitives.push({
-      x: point.x,
-      y: point.y,
-      width: multiplierFamily.members.squadPlusOne.memberRadius,
-      color: neonPalette.cyan,
-      secondaryColor: neonPalette.deepBlue,
-      glow: 0.85,
-      shape: "orb",
-      rimIntensity: 0.8
-    });
-    if (showBeams) {
-      if (activeScenarioIdx === 3 && point.row === 0) {
-        primitives.push({
-          x: point.x,
-          y: (point.y + 100) / 2,
-          width: 1.5,
-          height: point.y - 100,
-          color: neonPalette.green,
-          secondaryColor: neonPalette.whiteHot,
-          glow: 0.5,
-          shape: "bolt"
-        });
-      }
-    }
-  }
-  if (activeScenarioIdx === 4 && beamTargets.length > 0) {
-    const firstRowPoints = points.filter((p) => p.row === 0);
-    for (let i = 0; i < Math.min(firstRowPoints.length, beamTargets.length); i++) {
-      const sp = firstRowPoints[i];
-      const tp = beamTargets[i];
-      primitives.push({
-        x: (sp.x + tp.x) / 2,
-        y: (sp.y + tp.y) / 2,
-        width: 2,
-        height: Math.abs(sp.y - tp.y),
-        color: neonPalette.pink,
-        secondaryColor: neonPalette.whiteHot,
-        glow: 0.6,
-        shape: "bolt"
-      });
-      primitives.push({
-        x: tp.x,
-        y: tp.y,
-        width: 5,
-        color: neonPalette.gold,
-        secondaryColor: neonPalette.whiteHot,
-        glow: 0.8,
-        shape: "ring"
-      });
-    }
-  }
-  if (activeScenarioIdx === 2) {
-    primitives.push({
-      x: squad.x,
-      y: playerY,
-      width: 100,
-      height: 1,
-      color: neonPalette.cyan,
-      secondaryColor: neonPalette.cyan,
-      glow: 0.1,
-      shape: "bolt"
-    });
-    primitives.push({
-      x: squad.x,
-      y: playerY + multiplierFamily.members.squadPlusOne.spacing,
-      width: 100,
-      height: 1,
-      color: neonPalette.cyan,
-      secondaryColor: neonPalette.cyan,
-      glow: 0.1,
-      shape: "bolt"
-    });
-  }
-  for (const pickup of pickups) {
-    const spec = multiplierFamily.members.squadPlusOne;
-    primitives.push({
-      x: squad.x,
-      y: pickup.y,
-      width: 18,
-      color: neonPalette[spec.pickupColor],
-      secondaryColor: neonPalette[spec.coreColor],
-      glow: 0.6,
-      shape: "ring"
-    });
-    primitives.push({
-      x: squad.x,
-      y: pickup.y,
-      width: 10,
-      color: neonPalette[spec.coreColor],
-      secondaryColor: neonPalette[spec.pickupColor],
-      glow: 0.75,
-      shape: "spark"
-    });
-  }
-  renderer.render(primitives, simTimeMs / 1e3);
-}
-closeSimBtn.addEventListener("click", () => {
-  if (animationFrameId) cancelAnimationFrame(animationFrameId);
-  pageContainer.classList.remove("simulator-active");
-  simulatorPanel.setAttribute("hidden", "true");
-});
-replayBtn.addEventListener("click", () => {
-  resetSimulation();
-  loop(performance.now());
-});
-pauseBtn.addEventListener("click", () => {
-  isPaused = !isPaused;
-  pauseBtn.textContent = isPaused ? "Resume" : "Pause";
-});
-//# sourceMappingURL=smoke.js.map
+customRequirements.addEventListener("input", updatePreview);
+startGunSelect.addEventListener("change", updatePreview);
+startGunLevelSelect.addEventListener("change", updatePreview);
+startShieldSelect.addEventListener("change", updatePreview);
+startSwordSelect.addEventListener("change", updatePreview);
+trackLabelInput.addEventListener("input", updatePreview);
+enemyHpInput.addEventListener("input", updatePreview);
+enemySpeedInput.addEventListener("input", updatePreview);
+copyBtn.addEventListener("click", copyToClipboard);
+initializeSelectors();
+updatePreview();
+//# sourceMappingURL=track-generator.js.map

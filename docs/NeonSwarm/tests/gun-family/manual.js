@@ -1251,11 +1251,11 @@ function parseTrackDefinition(track) {
   return entities.sort((a, b) => a.distanceFromPlayer - b.distanceFromPlayer || a.rowIndex - b.rowIndex || a.side.localeCompare(b.side) || a.laneIndex - b.laneIndex);
 }
 
-// projects/NeonSwarm/CombatDefinition/tracks/firstTrack.ts
-var firstTrack = {
-  label: "Electric Causeway",
-  description: "A short cyan causeway with fractured power seams and alternating lane pressure.",
-  durationSeconds: 26,
+// projects/NeonSwarm/CombatDefinition/tracks/Track1.ts
+var generatedTrack = {
+  label: "Level 1: First Glow",
+  description: "A gentle onboarding run: early tension, a quick power-up beat, then easy escalating waves for a first-time player.",
+  durationSeconds: 25,
   startingGun: "pulsePistol",
   startingGunLevel: 1,
   viewport: {
@@ -1270,187 +1270,131 @@ var firstTrack = {
     crackColor: "cyan",
     airColor: "violet",
     horizonColor: "pink",
-    pulseRate: 1.35,
-    crackDensity: 14,
-    airStreakCount: 11
+    pulseRate: 1.05,
+    crackDensity: 9,
+    airStreakCount: 7
   },
   definition: {
     layout: `
 ..... | .....
-..... | ..E..
-..... | .....
 ..E.. | .....
+..... | ..E..
+.E... | .....
+..... | .....
+..G.. | .....
+..... | ..2..
+..... | .....
+..E.. | ..E..
+..... | .....
+.S... | .....
+..... | .....
+.E.E. | .....
+..... | ..E..
+..a.. | .....
 ..... | .....
 .E.E. | ..E..
 ..... | .....
 ..E.. | .E.E.
-.S... | .....
 ..... | .....
-.EEE. | .....
-..... | .....
-..E.. | .EEE.
-..... | .....
-....A | .....
-.EE.. | ..EE.
+.E.E. | ..E..
 ..... | .....
 ..E.. | .E.E.
 ..... | .....
-..2.. | .....
-.EEE. | .....
+..P.. | .....
+`,
+    legend: {
+      ".": { id: "empty" },
+      "P": { id: "player.start" },
+      "E": { id: "enemy.basic" },
+      "G": { id: "pickup.weapon.gun.pulsePistol", speed: 0.75 },
+      "S": { id: "pickup.weapon.shield.lightGuard", speed: 0.8 },
+      "a": { id: "pickup.weapon.sword.arcBlade", speed: 0.85 },
+      "2": { id: "pickup.unitMultiplier.2x", speed: 0.8 }
+    },
+    balance: {
+      enemyHp: 1,
+      enemySpeed: 0.9
+    }
+  }
+};
+
+// projects/NeonSwarm/CombatDefinition/tracks/Track2.ts
+var generatedTrack2 = {
+  label: "Level 2: Neon Wake",
+  description: "The second onboarding run: a slightly denser opening, early recovery pickups, and a gentle finale that teaches the player to trust their growing squad.",
+  durationSeconds: 30,
+  startingGun: "pulsePistol",
+  startingGunLevel: 1,
+  viewport: {
+    orientation: "portrait",
+    aspectWidth: 9,
+    aspectHeight: 16,
+    logicalWidth: 450,
+    logicalHeight: 800
+  },
+  environment: {
+    floorColor: "deepBlue",
+    crackColor: "violet",
+    airColor: "cyan",
+    horizonColor: "pink",
+    pulseRate: 1.15,
+    crackDensity: 11,
+    airStreakCount: 8
+  },
+  definition: {
+    layout: `
+..... | .....
+..E.. | ..E..
+..... | .....
+.E.E. | .....
 ..... | ..E..
 ..... | .....
-..E.. | .....
-..... | ..P..
+..2.. | .....
+..... | ..G..
+..... | .....
+..E.. | ..E..
+..... | .....
+.S... | .....
+..... | .....
+.E.E. | ..E..
+..... | .....
+..a.. | .....
+..... | .....
+.E.E. | .E.E.
+..... | .....
+..I.. | .....
+..... | .....
+..E.. | ..E..
+.E.E. | .....
+..... | .E.E.
+..E.. | ..E..
+..... | .....
+.E.E. | ..E..
+..... | .....
+..E.. | .E.E.
+..P.. | .....
 `,
     legend: {
       ".": { id: "empty" },
       "P": { id: "player.start" },
       "E": { id: "enemy.basic" },
       "2": { id: "pickup.unitMultiplier.2x", speed: 0.8 },
-      "S": { id: "pickup.weapon.shield.satelliteGuard", speed: 0.8 },
-      "A": { id: "pickup.weapon.sword.arcBlade", speed: 0.8 }
+      "G": { id: "pickup.weapon.gun.pulsePistol", speed: 0.75 },
+      "I": { id: "pickup.weapon.gun.burstCarbine", speed: 0.85 },
+      "S": { id: "pickup.weapon.shield.lightGuard", speed: 0.8 },
+      "a": { id: "pickup.weapon.sword.arcBlade", speed: 0.85 }
     },
     balance: {
       enemyHp: 1,
-      enemySpeed: 1
-    }
-  }
-};
-
-// projects/NeonSwarm/CombatDefinition/tracks/secondTrack.ts
-var secondTrack = {
-  label: "Violet Crossfire",
-  description: "Faster enemies alternate sides in short bursts, with fewer recovery pickups.",
-  durationSeconds: 24,
-  startingGun: "pulsePistol",
-  startingGunLevel: 1,
-  viewport: {
-    orientation: "portrait",
-    aspectWidth: 9,
-    aspectHeight: 16,
-    logicalWidth: 450,
-    logicalHeight: 800
-  },
-  environment: {
-    floorColor: "violet",
-    crackColor: "pink",
-    airColor: "cyan",
-    horizonColor: "orange",
-    pulseRate: 1.8,
-    crackDensity: 10,
-    airStreakCount: 15
-  },
-  definition: {
-    layout: `
-..... | ..E..
-..E.. | .....
-..... | .....
-.E.E. | .....
-..... | .E.E.
-..... | .....
-..E.. | ..E..
-.H... | .....
-...E. | .E...
-..... | .....
-..2.. | .....
-..... | ..E..
-.E.E. | .....
-..... | .E.E.
-..... | .....
-..E.. | ..E..
-....C | .....
-.EEE. | .....
-..... | .EEE.
-..... | .....
-..E.. | .....
-..... | ..E..
-..... | .....
-..P.. | ..P..
-`,
-    legend: {
-      ".": { id: "empty" },
-      "P": { id: "player.start" },
-      "E": { id: "enemy.basic", speed: 1.15 },
-      "2": { id: "pickup.unitMultiplier.2x" },
-      "H": { id: "pickup.weapon.shield.hexGuard", speed: 0.75 },
-      "C": { id: "pickup.weapon.sword.cleaver", speed: 0.75 }
-    },
-    balance: {
-      enemyHp: 1,
-      enemySpeed: 1.1
-    }
-  }
-};
-
-// projects/NeonSwarm/CombatDefinition/tracks/editedTrack.ts
-var editedTrack = {
-  label: "New Track",
-  description: "A hand-authored Neon Swarm track.",
-  durationSeconds: 26,
-  startingGun: "pulsePistol",
-  startingGunLevel: 1,
-  viewport: {
-    orientation: "portrait",
-    aspectWidth: 9,
-    aspectHeight: 16,
-    logicalWidth: 450,
-    logicalHeight: 800
-  },
-  environment: {
-    floorColor: "deepBlue",
-    crackColor: "cyan",
-    airColor: "violet",
-    horizonColor: "pink",
-    pulseRate: 1.35,
-    crackDensity: 14,
-    airStreakCount: 11
-  },
-  definition: {
-    layout: `
-..... | .....
-..... | .....
-..... | ..P..
-..... | .....
-..... | .....
-..... | .....
-..... | .....
-..... | ..P..
-..... | .....
-..... | .....
-..... | .....
-..... | ..P..
-..... | .....
-..... | .....
-..P.. | .....
-..... | ..E..
-..... | .....
-..... | .....
-..P.. | .....
-..... | .....
-..... | .....
-..... | .....
-..... | .....
-..... | .....
-..G.. | .....
-`,
-    legend: {
-      ".": { id: "empty" },
-      "P": { id: "enemy.basic" },
-      "E": { id: "pickup.weapon.gun.splitterRifle" },
-      "G": { id: "player.start" }
-    },
-    balance: {
-      enemyHp: 1,
-      enemySpeed: 1
+      enemySpeed: 0.95
     }
   }
 };
 
 // projects/NeonSwarm/CombatDefinition/tracks/index.ts
 var tracks = {
-  editedTrack,
-  electricCauseway: firstTrack,
-  violetCrossfire: secondTrack
+  "track1": generatedTrack,
+  "track2": generatedTrack2
 };
 
 // projects/NeonSwarm/CombatDefinition/TrackFamily.ts
