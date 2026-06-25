@@ -400,7 +400,7 @@ var AutoAimControlState = class {
     this.manual = false;
   }
 };
-function selectAutoAimOffset(targets, laneCenter, currentOffset = 0) {
+function selectAutoAimOffset(targets, laneCenter, columnOffsets, currentOffset = 0) {
   if (!targets.length) return 0;
   const explicitRows = /* @__PURE__ */ new Map();
   for (const target of targets) {
@@ -409,13 +409,21 @@ function selectAutoAimOffset(targets, laneCenter, currentOffset = 0) {
     row.push(target);
     explicitRows.set(target.rowId, row);
   }
-  const closestRow = explicitRows.size ? [...explicitRows.values()].sort((left, right) => Math.max(...right.map((target) => target.y)) - Math.max(...left.map((target) => target.y)))[0] : targets.filter((target) => Math.abs(target.y - Math.max(...targets.map((candidate) => candidate.y))) < 3);
-  const currentAimX = laneCenter + currentOffset;
-  const selected = [...closestRow].sort((left, right) => {
-    const distanceDifference = Math.abs(left.x - currentAimX) - Math.abs(right.x - currentAimX);
-    return distanceDifference || left.x - right.x;
-  })[0];
-  return selected.x - laneCenter;
+  const frontRow = explicitRows.size ? [...explicitRows.values()].sort((left, right) => Math.max(...right.map((t) => t.y)) - Math.max(...left.map((t) => t.y)))[0] : targets.filter((t) => Math.abs(t.y - Math.max(...targets.map((c) => c.y))) < 3);
+  const cols = columnOffsets.length > 0 ? columnOffsets : [0];
+  let bestOffset = currentOffset;
+  let bestDist = Infinity;
+  for (const enemy of frontRow) {
+    for (const colOffset of cols) {
+      const candidateOffset = enemy.x - laneCenter - colOffset;
+      const dist = Math.abs(candidateOffset - currentOffset);
+      if (dist < bestDist) {
+        bestDist = dist;
+        bestOffset = candidateOffset;
+      }
+    }
+  }
+  return bestOffset;
 }
 
 // projects/NeonSwarm/test-pages/auto-aim/smoke.ts
@@ -426,10 +434,10 @@ var run = () => {
   const remaining = [{ x: 170, y: 120, rowId: 1 }, { x: 230, y: 120, rowId: 1 }];
   const fartherCenteredRow = [{ x: 200, y: 80, rowId: 2 }];
   const allTargets = [...remaining, ...fartherCenteredRow];
-  const firstOffset = selectAutoAimOffset(allTargets, laneCenter);
+  const firstOffset = selectAutoAimOffset(allTargets, laneCenter, [0]);
   const firstTarget = firstOffset < 0 ? remaining[0] : firstOffset > 0 ? remaining[1] : null;
   const afterFirstKill = firstTarget ? allTargets.filter((target) => target !== firstTarget) : allTargets;
-  const secondOffset = selectAutoAimOffset(afterFirstKill, laneCenter);
+  const secondOffset = selectAutoAimOffset(afterFirstKill, laneCenter, [0]);
   const control = new AutoAimControlState();
   control.laneSelected();
   const autoAimAfterLaneTap = !control.manual;
@@ -575,7 +583,7 @@ function updateSim(dt) {
   simTimeMs += dt * 1e3;
   if (activeScenarioIdx === 0 || activeScenarioIdx === 1) {
     const laneCenter = 200;
-    const offset = selectAutoAimOffset(enemies, laneCenter, 0);
+    const offset = selectAutoAimOffset(enemies, laneCenter, [0], 0);
     targetSquadAimX = laneCenter + offset;
     if (simTimeMs > 2500) {
       simFinished = true;
@@ -585,13 +593,13 @@ function updateSim(dt) {
   } else if (activeScenarioIdx === 2) {
     const laneCenter = 200;
     if (simTimeMs < 1500) {
-      const offset = selectAutoAimOffset(enemies, laneCenter, 0);
+      const offset = selectAutoAimOffset(enemies, laneCenter, [0], 0);
       targetSquadAimX = laneCenter + offset;
     } else if (simTimeMs >= 1500 && simTimeMs < 3e3) {
       if (enemies.length === 2) {
         enemies.splice(0, 1);
       }
-      const offset = selectAutoAimOffset(enemies, laneCenter, squadAimX - laneCenter);
+      const offset = selectAutoAimOffset(enemies, laneCenter, [0], squadAimX - laneCenter);
       targetSquadAimX = laneCenter + offset;
     } else {
       simFinished = true;
@@ -600,7 +608,7 @@ function updateSim(dt) {
     }
   } else if (activeScenarioIdx === 3) {
     const laneCenter = 200;
-    const offset = selectAutoAimOffset(enemies, laneCenter, 0);
+    const offset = selectAutoAimOffset(enemies, laneCenter, [0], 0);
     targetSquadAimX = laneCenter + offset;
     if (simTimeMs > 2500) {
       simFinished = true;
@@ -609,7 +617,7 @@ function updateSim(dt) {
     }
   } else if (activeScenarioIdx === 4) {
     const laneCenter = 200;
-    const offset = selectAutoAimOffset(enemies, laneCenter, 0);
+    const offset = selectAutoAimOffset(enemies, laneCenter, [0], 0);
     targetSquadAimX = laneCenter + offset;
     if (simTimeMs > 2500) {
       simFinished = true;
@@ -623,7 +631,7 @@ function updateSim(dt) {
       targetSquadAimX = 140;
     } else if (simTimeMs >= 1200 && simTimeMs < 3e3) {
       manualMode = false;
-      const offset = selectAutoAimOffset(enemies, laneCenter, 0);
+      const offset = selectAutoAimOffset(enemies, laneCenter, [0], 0);
       targetSquadAimX = laneCenter + offset;
     } else {
       simFinished = true;

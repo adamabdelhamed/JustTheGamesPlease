@@ -9,10 +9,10 @@ const run = () => {
   const remaining = [{ x: 170, y: 120, rowId: 1 }, { x: 230, y: 120, rowId: 1 }];
   const fartherCenteredRow = [{ x: 200, y: 80, rowId: 2 }];
   const allTargets = [...remaining, ...fartherCenteredRow];
-  const firstOffset = selectAutoAimOffset(allTargets, laneCenter);
+  const firstOffset = selectAutoAimOffset(allTargets, laneCenter, [0]);
   const firstTarget = firstOffset < 0 ? remaining[0] : firstOffset > 0 ? remaining[1] : null;
   const afterFirstKill = firstTarget ? allTargets.filter(target => target !== firstTarget) : allTargets;
-  const secondOffset = selectAutoAimOffset(afterFirstKill, laneCenter);
+  const secondOffset = selectAutoAimOffset(afterFirstKill, laneCenter, [0]);
   const control = new AutoAimControlState();
   control.laneSelected();
   const autoAimAfterLaneTap = !control.manual;
@@ -192,7 +192,7 @@ function updateSim(dt: number) {
   if (activeScenarioIdx === 0 || activeScenarioIdx === 1) {
     // Highlight auto aim choosing target
     const laneCenter = 200;
-    const offset = selectAutoAimOffset(enemies, laneCenter, 0);
+    const offset = selectAutoAimOffset(enemies, laneCenter, [0], 0);
     targetSquadAimX = laneCenter + offset;
     
     if (simTimeMs > 2500) {
@@ -204,14 +204,14 @@ function updateSim(dt: number) {
     // Focus first survivor, shoot/destroy it, then shift to the second one
     const laneCenter = 200;
     if (simTimeMs < 1500) {
-      const offset = selectAutoAimOffset(enemies, laneCenter, 0);
+      const offset = selectAutoAimOffset(enemies, laneCenter, [0], 0);
       targetSquadAimX = laneCenter + offset;
     } else if (simTimeMs >= 1500 && simTimeMs < 3000) {
       // First survivor gets destroyed
       if (enemies.length === 2) {
         enemies.splice(0, 1); // Kill left survivor
       }
-      const offset = selectAutoAimOffset(enemies, laneCenter, squadAimX - laneCenter);
+      const offset = selectAutoAimOffset(enemies, laneCenter, [0], squadAimX - laneCenter);
       targetSquadAimX = laneCenter + offset;
     } else {
       simFinished = true;
@@ -221,7 +221,7 @@ function updateSim(dt: number) {
   } else if (activeScenarioIdx === 3) {
     // Closer row vs farther centered
     const laneCenter = 200;
-    const offset = selectAutoAimOffset(enemies, laneCenter, 0);
+    const offset = selectAutoAimOffset(enemies, laneCenter, [0], 0);
     targetSquadAimX = laneCenter + offset;
     
     if (simTimeMs > 2500) {
@@ -232,7 +232,7 @@ function updateSim(dt: number) {
   } else if (activeScenarioIdx === 4) {
     // Lane tap does not permanently disable auto aim
     const laneCenter = 200;
-    const offset = selectAutoAimOffset(enemies, laneCenter, 0);
+    const offset = selectAutoAimOffset(enemies, laneCenter, [0], 0);
     targetSquadAimX = laneCenter + offset;
     
     if (simTimeMs > 2500) {
@@ -250,7 +250,7 @@ function updateSim(dt: number) {
     } else if (simTimeMs >= 1200 && simTimeMs < 3000) {
       // Released joystick, snap back to target (x = 230)
       manualMode = false;
-      const offset = selectAutoAimOffset(enemies, laneCenter, 0);
+      const offset = selectAutoAimOffset(enemies, laneCenter, [0], 0);
       targetSquadAimX = laneCenter + offset;
     } else {
       simFinished = true;

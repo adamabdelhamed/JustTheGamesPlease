@@ -129,16 +129,23 @@ try {
     const tuning = gun.levels.find(item => item.level === gunLevel) ?? gun.levels[0];
     const points = squad.points(playerY(), scale());
     for (const point of points) {
-      projectiles.push({
-        lane: playerLane,
-        x: point.x,
-        y: playerY() - 20 * scale(),
-        damage: tuning.damage,
-        speed: tuning.projectileSpeed * scale(),
-        radius: tuning.projectileRadius * scale(),
-        color: neonPalette[gun.visualIdentity.projectileColor],
-        trail: neonPalette[gun.visualIdentity.trailColor],
-      });
+      const count = gun.shotPattern === "pairedSpread" ? tuning.projectileCount : 1;
+      for (let pi = 0; pi < count; pi++) {
+        // For pairedSpread guns, spread projectiles symmetrically around the aim point.
+        const spreadOffset = count > 1
+          ? (pi - (count - 1) / 2) * Math.tan((tuning.spreadDegrees * Math.PI) / 180) * tuning.projectileSpeed * .05
+          : 0;
+        projectiles.push({
+          lane: playerLane,
+          x: point.x + spreadOffset,
+          y: playerY() - 20 * scale(),
+          damage: tuning.damage,
+          speed: tuning.projectileSpeed * scale(),
+          radius: tuning.projectileRadius * scale(),
+          color: neonPalette[gun.visualIdentity.projectileColor],
+          trail: neonPalette[gun.visualIdentity.trailColor],
+        });
+      }
     }
     cooldown += 1 / tuning.fireRatePerSecond;
     window.gameAudio?.playRotated("Primary", 3);
@@ -203,8 +210,10 @@ try {
     }
 
     if (!aimControl.manual) {
-      const laneEnemies = enemies.filter(enemy => enemy.lane === squad.lane);
-      const offset = selectAutoAimOffset(laneEnemies, laneX(squad.lane), squad.aimOffset);
+      // Exclude dying enemies so the aim switches column the moment a kill lands.
+      const laneEnemies = enemies.filter(enemy => enemy.lane === squad.lane && !enemy.dying);
+      const colOffsets = squad.frontRowColumnOffsets(scale());
+      const offset = selectAutoAimOffset(laneEnemies, laneX(squad.lane), colOffsets, squad.aimOffset);
       squad.autoAim(offset, canvas.width * .22, laneX);
     }
     squad.update(delta);
@@ -219,7 +228,8 @@ try {
       if (shot.y < 0) projectiles.splice(projectiles.indexOf(shot), 1);
       for (const enemy of [...enemies]) {
         if (enemy.dying) continue;
-        const hitRadius = shot.radius + orbFamily.members.basicOrb.radius * scale();
+        // Add 4 px of forgiveness so visually-aligned shots always register a hit.
+        const hitRadius = shot.radius + orbFamily.members.basicOrb.radius * scale() + 4;
         if (shot.lane !== enemy.lane || Math.hypot(shot.x - enemy.x, shot.y - enemy.y) > hitRadius) continue;
         enemy.health -= shot.damage;
         const impactMagnitude = (shot.damage + shot.radius * .12) / orbFamily.members.basicOrb.impactResistance;

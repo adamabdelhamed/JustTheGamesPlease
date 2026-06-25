@@ -27,7 +27,11 @@ export class SquadModel {
   }
 
   setLane(lane: 0 | 1, laneCenter: (lane: 0 | 1) => number, now: number): void {
-    if (lane !== this.lane) this.laneShiftStartedAt = now;
+    if (lane !== this.lane) {
+      this.laneShiftStartedAt = now;
+      // Reset aim offset so the player snaps to the correct column in the new lane.
+      this.aimOffset = 0;
+    }
     this.lane = lane;
     this.targetX = laneCenter(lane) + this.aimOffset;
   }
@@ -38,13 +42,23 @@ export class SquadModel {
   }
 
   autoAim(targetOffset: number, laneWidth: number, laneCenter: (lane: 0 | 1) => number): void {
-    this.aimOffset += (Math.max(-laneWidth * .28, Math.min(laneWidth * .28, targetOffset)) - this.aimOffset) * .075;
+    // High lerp factor (0.85) so auto-aim snaps almost instantaneously each frame.
+    this.aimOffset += (Math.max(-laneWidth * .28, Math.min(laneWidth * .28, targetOffset)) - this.aimOffset) * .85;
     this.targetX = laneCenter(this.lane) + this.aimOffset;
   }
 
   update(deltaSeconds: number): void {
     const response = 1 - Math.pow(.00008, deltaSeconds);
     this.x += (this.targetX - this.x) * response;
+  }
+
+  /** X offsets of each column in the front row, relative to squad center. */
+  frontRowColumnOffsets(scale: number): number[] {
+    const spec = multiplierFamily.members.squadPlusOne;
+    const rowCount = Math.min(spec.membersPerRow, this.count);
+    return Array.from({ length: rowCount }, (_, col) =>
+      (col - (rowCount - 1) / 2) * spec.spacing * scale,
+    );
   }
 
   points(baseY: number, scale: number): SquadPoint[] {

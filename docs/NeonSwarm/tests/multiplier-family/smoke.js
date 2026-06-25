@@ -876,7 +876,10 @@ var SquadModel = class {
     return this.count;
   }
   setLane(lane, laneCenter, now) {
-    if (lane !== this.lane) this.laneShiftStartedAt = now;
+    if (lane !== this.lane) {
+      this.laneShiftStartedAt = now;
+      this.aimOffset = 0;
+    }
     this.lane = lane;
     this.targetX = laneCenter(lane) + this.aimOffset;
   }
@@ -885,12 +888,21 @@ var SquadModel = class {
     this.targetX = laneCenter(this.lane) + this.aimOffset;
   }
   autoAim(targetOffset, laneWidth, laneCenter) {
-    this.aimOffset += (Math.max(-laneWidth * 0.28, Math.min(laneWidth * 0.28, targetOffset)) - this.aimOffset) * 0.075;
+    this.aimOffset += (Math.max(-laneWidth * 0.28, Math.min(laneWidth * 0.28, targetOffset)) - this.aimOffset) * 0.85;
     this.targetX = laneCenter(this.lane) + this.aimOffset;
   }
   update(deltaSeconds) {
     const response = 1 - Math.pow(8e-5, deltaSeconds);
     this.x += (this.targetX - this.x) * response;
+  }
+  /** X offsets of each column in the front row, relative to squad center. */
+  frontRowColumnOffsets(scale) {
+    const spec = multiplierFamily.members.squadPlusOne;
+    const rowCount = Math.min(spec.membersPerRow, this.count);
+    return Array.from(
+      { length: rowCount },
+      (_, col) => (col - (rowCount - 1) / 2) * spec.spacing * scale
+    );
   }
   points(baseY, scale) {
     const spec = multiplierFamily.members.squadPlusOne;

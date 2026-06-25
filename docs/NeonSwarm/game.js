@@ -1622,7 +1622,10 @@ var SquadModel = class {
     return this.count;
   }
   setLane(lane, laneCenter, now) {
-    if (lane !== this.lane) this.laneShiftStartedAt = now;
+    if (lane !== this.lane) {
+      this.laneShiftStartedAt = now;
+      this.aimOffset = 0;
+    }
     this.lane = lane;
     this.targetX = laneCenter(lane) + this.aimOffset;
   }
@@ -1631,12 +1634,21 @@ var SquadModel = class {
     this.targetX = laneCenter(this.lane) + this.aimOffset;
   }
   autoAim(targetOffset, laneWidth, laneCenter) {
-    this.aimOffset += (Math.max(-laneWidth * 0.28, Math.min(laneWidth * 0.28, targetOffset)) - this.aimOffset) * 0.075;
+    this.aimOffset += (Math.max(-laneWidth * 0.28, Math.min(laneWidth * 0.28, targetOffset)) - this.aimOffset) * 0.85;
     this.targetX = laneCenter(this.lane) + this.aimOffset;
   }
   update(deltaSeconds) {
     const response = 1 - Math.pow(8e-5, deltaSeconds);
     this.x += (this.targetX - this.x) * response;
+  }
+  /** X offsets of each column in the front row, relative to squad center. */
+  frontRowColumnOffsets(scale) {
+    const spec = multiplierFamily.members.squadPlusOne;
+    const rowCount = Math.min(spec.membersPerRow, this.count);
+    return Array.from(
+      { length: rowCount },
+      (_, col) => (col - (rowCount - 1) / 2) * spec.spacing * scale
+    );
   }
   points(baseY, scale) {
     const spec = multiplierFamily.members.squadPlusOne;
@@ -1668,7 +1680,7 @@ var AutoAimControlState = class {
     this.manual = false;
   }
 };
-function selectAutoAimOffset(targets, laneCenter, currentOffset = 0) {
+function selectAutoAimOffset(targets, laneCenter, columnOffsets, currentOffset = 0) {
   if (!targets.length) return 0;
   const explicitRows = /* @__PURE__ */ new Map();
   for (const target of targets) {
@@ -1677,13 +1689,21 @@ function selectAutoAimOffset(targets, laneCenter, currentOffset = 0) {
     row.push(target);
     explicitRows.set(target.rowId, row);
   }
-  const closestRow = explicitRows.size ? [...explicitRows.values()].sort((left, right) => Math.max(...right.map((target) => target.y)) - Math.max(...left.map((target) => target.y)))[0] : targets.filter((target) => Math.abs(target.y - Math.max(...targets.map((candidate) => candidate.y))) < 3);
-  const currentAimX = laneCenter + currentOffset;
-  const selected = [...closestRow].sort((left, right) => {
-    const distanceDifference = Math.abs(left.x - currentAimX) - Math.abs(right.x - currentAimX);
-    return distanceDifference || left.x - right.x;
-  })[0];
-  return selected.x - laneCenter;
+  const frontRow = explicitRows.size ? [...explicitRows.values()].sort((left, right) => Math.max(...right.map((t) => t.y)) - Math.max(...left.map((t) => t.y)))[0] : targets.filter((t) => Math.abs(t.y - Math.max(...targets.map((c) => c.y))) < 3);
+  const cols = columnOffsets.length > 0 ? columnOffsets : [0];
+  let bestOffset = currentOffset;
+  let bestDist = Infinity;
+  for (const enemy of frontRow) {
+    for (const colOffset of cols) {
+      const candidateOffset = enemy.x - laneCenter - colOffset;
+      const dist = Math.abs(candidateOffset - currentOffset);
+      if (dist < bestDist) {
+        bestDist = dist;
+        bestOffset = candidateOffset;
+      }
+    }
+  }
+  return bestOffset;
 }
 
 // projects/NeonSwarm/src/viewport.ts
@@ -1813,16 +1833,20 @@ try {
     const tuning = gun.levels.find((item) => item.level === gunLevel) ?? gun.levels[0];
     const points = squad.points(playerY(), scale());
     for (const point of points) {
-      projectiles.push({
-        lane: playerLane,
-        x: point.x,
-        y: playerY() - 20 * scale(),
-        damage: tuning.damage,
-        speed: tuning.projectileSpeed * scale(),
-        radius: tuning.projectileRadius * scale(),
-        color: neonPalette[gun.visualIdentity.projectileColor],
-        trail: neonPalette[gun.visualIdentity.trailColor]
-      });
+      const count = gun.shotPattern === "pairedSpread" ? tuning.projectileCount : 1;
+      for (let pi = 0; pi < count; pi++) {
+        const spreadOffset = count > 1 ? (pi - (count - 1) / 2) * Math.tan(tuning.spreadDegrees * Math.PI / 180) * tuning.projectileSpeed * 0.05 : 0;
+        projectiles.push({
+          lane: playerLane,
+          x: point.x + spreadOffset,
+          y: playerY() - 20 * scale(),
+          damage: tuning.damage,
+          speed: tuning.projectileSpeed * scale(),
+          radius: tuning.projectileRadius * scale(),
+          color: neonPalette[gun.visualIdentity.projectileColor],
+          trail: neonPalette[gun.visualIdentity.trailColor]
+        });
+      }
     }
     cooldown += 1 / tuning.fireRatePerSecond;
     window.gameAudio?.playRotated("Primary", 3);
@@ -1885,8 +1909,9 @@ try {
       }
     }
     if (!aimControl.manual) {
-      const laneEnemies = enemies.filter((enemy) => enemy.lane === squad.lane);
-      const offset = selectAutoAimOffset(laneEnemies, laneX(squad.lane), squad.aimOffset);
+      const laneEnemies = enemies.filter((enemy) => enemy.lane === squad.lane && !enemy.dying);
+      const colOffsets = squad.frontRowColumnOffsets(scale());
+      const offset = selectAutoAimOffset(laneEnemies, laneX(squad.lane), colOffsets, squad.aimOffset);
       squad.autoAim(offset, canvas.width * 0.22, laneX);
     }
     squad.update(delta);
@@ -1900,7 +1925,7 @@ try {
       if (shot.y < 0) projectiles.splice(projectiles.indexOf(shot), 1);
       for (const enemy of [...enemies]) {
         if (enemy.dying) continue;
-        const hitRadius = shot.radius + orbFamily.members.basicOrb.radius * scale();
+        const hitRadius = shot.radius + orbFamily.members.basicOrb.radius * scale() + 4;
         if (shot.lane !== enemy.lane || Math.hypot(shot.x - enemy.x, shot.y - enemy.y) > hitRadius) continue;
         enemy.health -= shot.damage;
         const impactMagnitude = (shot.damage + shot.radius * 0.12) / orbFamily.members.basicOrb.impactResistance;

@@ -320,8 +320,9 @@ try {
     }
     recoil *= Math.pow(0.001, delta);
     if (!aimControl.manual) {
-      const laneEnemies = enemies.filter(enemy => enemy.lane === squad.lane);
-      const offset = selectAutoAimOffset(laneEnemies, laneX(squad.lane), squad.aimOffset);
+      const laneEnemies = enemies.filter(enemy => enemy.lane === squad.lane && !enemy.dying);
+      const colOffsets = squad.frontRowColumnOffsets(scale());
+      const offset = selectAutoAimOffset(laneEnemies, laneX(squad.lane), colOffsets, squad.aimOffset);
       squad.autoAim(offset, canvas.width * .22, laneX);
     }
     squad.update(delta);
