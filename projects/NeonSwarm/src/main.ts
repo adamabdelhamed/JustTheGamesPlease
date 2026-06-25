@@ -579,58 +579,6 @@ try {
         primitives.push(...new NeonProjectile({x:shot.x,y:shot.y,velocityY:-shot.speed,radius:shot.radius,length:shot.radius*2.5,trailLength:18*s,trailWidth:Math.max(1.2*s,shot.radius*.5),color:shot.color,trailColor:shot.trail,shape:"dart"}).primitives());
       }
 
-      // --- Gun pickups ---
-      for (const pickup of gunPickups) {
-        const gun = gunFamily.members[pickup.gunId];
-        const pColor = neonPalette[gun.visualIdentity.projectileColor];
-        const tColor = neonPalette[gun.visualIdentity.trailColor];
-        const px = laneX(pickup.lane);
-        const wobble = Math.sin(now / 420 + pickup.y * 0.07) * 4.5 * s;
-        const wx = px + wobble;
-        const pulse = 1 + Math.sin(now / 600 + pickup.y * 0.05) * 0.08;
-        primitives.push({ x: wx, y: pickup.y, width: 28 * s * pulse, color: pColor, secondaryColor: tColor, glow: .9, intensity: .22, shape: "circle" });
-        primitives.push({ x: wx, y: pickup.y, width: 18 * s * pulse, color: pColor, secondaryColor: tColor, glow: .85, intensity: 1.05, shape: "diamond" });
-        const iconShape = gun.visualIdentity.projectileShape;
-        if (iconShape === "needle") {
-          for (let n = -1; n <= 1; n++) primitives.push({ x: wx + n * 3.2 * s, y: pickup.y, width: 1.2 * s, height: 8 * s, color: pColor, secondaryColor: tColor, glow: .6, intensity: 1.1, shape: "bolt" });
-        } else if (iconShape === "slug") {
-          primitives.push({ x: wx, y: pickup.y, width: 3.5 * s, height: 9 * s, color: pColor, secondaryColor: tColor, glow: .7, intensity: 1.15, shape: "bolt" });
-        } else if (iconShape === "splitBolt") {
-          primitives.push({ x: wx - 2.5 * s, y: pickup.y - 1 * s, width: 1.5 * s, height: 8 * s, color: pColor, secondaryColor: tColor, glow: .6, intensity: 1.1, shape: "bolt" });
-          primitives.push({ x: wx + 2.5 * s, y: pickup.y - 1 * s, width: 1.5 * s, height: 8 * s, color: pColor, secondaryColor: tColor, glow: .6, intensity: 1.1, shape: "bolt" });
-        } else {
-          primitives.push({ x: wx, y: pickup.y - 1 * s, width: 2 * s, height: 9 * s, color: pColor, secondaryColor: tColor, glow: .65, intensity: 1.1, shape: "bolt" });
-        }
-        for (let sp = 0; sp < 3; sp++) {
-          const angle = now / 900 + sp * 2.09 + pickup.y;
-          const dist = (9 + sp * 3) * s * pulse;
-          primitives.push({ x: wx + Math.cos(angle) * dist, y: pickup.y + Math.sin(angle) * dist * 0.7, width: 1.4 * s, color: pColor, glow: .9, intensity: .55 + Math.sin(now / 300 + sp) * .25, shape: "circle" });
-        }
-      }
-
-      // --- Multiplier pickups ---
-      // The multiplier's geometric actor already supplies its complete visual.
-      // Do not layer the experimental primitive badge over it.
-      if (false) for (const pickup of multipliers) {
-        const spec = multiplierFamily.members[pickup.multiplierId];
-        const pColor = neonPalette[spec.pickupColor];
-        const tColor = neonPalette[spec.coreColor];
-        const px = laneX(pickup.lane);
-        const wobble = Math.sin(now / 420 + pickup.y * 0.07) * 4.5 * s;
-        const wx = px + wobble;
-        const pulse = 1 + Math.sin(now / 600 + pickup.y * 0.05) * 0.08;
-        primitives.push({ x: wx, y: pickup.y, width: 28 * s * pulse, color: pColor, secondaryColor: tColor, glow: .95, intensity: .25, shape: "circle" });
-        primitives.push({ x: wx, y: pickup.y, width: 19 * s * pulse, color: pColor, secondaryColor: tColor, glow: .9, intensity: 1.1, shape: "pentagon" });
-        primitives.push({ x: wx - 3.5 * s, y: pickup.y, width: 1.0 * s, height: 6.0 * s, color: pColor, secondaryColor: tColor, glow: .6, intensity: 1.15, shape: "bolt" });
-        primitives.push({ x: wx - 3.5 * s, y: pickup.y, width: 6.0 * s, height: 1.0 * s, color: pColor, secondaryColor: tColor, glow: .6, intensity: 1.15, shape: "bolt" });
-        primitives.push({ x: wx + 2.5 * s, y: pickup.y, width: 1.4 * s, height: 7.0 * s, color: pColor, secondaryColor: tColor, glow: .75, intensity: 1.2, shape: "bolt" });
-        primitives.push({ x: wx + 1.2 * s, y: pickup.y - 2.5 * s, width: 1.5 * s, height: 1.0 * s, color: pColor, secondaryColor: tColor, glow: .6, intensity: 1.15, shape: "bolt" });
-        for (let sp = 0; sp < 3; sp++) {
-          const angle = now / 900 + sp * 2.09 + pickup.y;
-          const dist = (10 + sp * 3.5) * s * pulse;
-          primitives.push({ x: wx + Math.cos(angle) * dist, y: pickup.y + Math.sin(angle) * dist * 0.7, width: 1.4 * s, color: pColor, glow: .95, intensity: .6 + Math.sin(now / 300 + sp) * .25, shape: "circle" });
-        }
-      }
     }
 
     if (victory) primitives.push(...victory.primitives(now));

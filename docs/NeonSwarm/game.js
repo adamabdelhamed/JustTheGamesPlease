@@ -1443,10 +1443,116 @@ var generatedTrack2 = {
   }
 };
 
+// projects/NeonSwarm/CombatDefinition/tracks/Track3.ts
+var generatedTrack3 = {
+  label: "Level 3: Prism Pressure",
+  description: "The third onboarding run stretches the player\u2019s endurance with longer pacing, safer upgrade windows, and denser but still forgiving enemy patterns.",
+  durationSeconds: 60,
+  startingGun: "pulsePistol",
+  startingGunLevel: 1,
+  viewport: {
+    orientation: "portrait",
+    aspectWidth: 9,
+    aspectHeight: 16,
+    logicalWidth: 450,
+    logicalHeight: 800
+  },
+  environment: {
+    floorColor: "violet",
+    crackColor: "cyan",
+    airColor: "pink",
+    horizonColor: "deepBlue",
+    pulseRate: 1.25,
+    crackDensity: 14,
+    airStreakCount: 10
+  },
+  definition: {
+    layout: `
+..... | .....
+..E.. | .....
+..... | ..E..
+.E... | .....
+..... | .....
+..G.. | .....
+..... | ..2..
+..... | .....
+..E.. | ..E..
+..... | .....
+.S... | .....
+..... | .....
+.E.E. | .....
+..... | ..E..
+..a.. | .....
+..... | .....
+.E.E. | ..E..
+..... | .....
+..E.. | .E.E.
+..... | .....
+..I.. | .....
+..... | .....
+.E.E. | ..E..
+..... | .....
+..E.. | .E.E.
+..... | .....
+.E.E. | .E.E.
+..... | .....
+..2.. | .....
+..... | .....
+..E.. | ..E..
+.E.E. | .....
+..... | .E.E.
+..E.. | ..E..
+..... | .....
+....b | .....
+..... | .....
+.E.E. | ..E..
+..E.. | .....
+..... | .E.E.
+.E.E. | ..E..
+..... | .....
+..J.. | .....
+..... | .....
+.E.E. | .E.E.
+..E.. | .....
+..... | ..E..
+.E.E. | ..E..
+..... | .....
+..S.. | .....
+..... | .....
+.E.E. | .E.E.
+..E.. | ..E..
+..... | .....
+.E.E. | ..E..
+..... | .E.E.
+..E.. | .....
+..... | .....
+..E.. | .E.E.
+..P.. | .....
+`,
+    legend: {
+      ".": { id: "empty" },
+      "P": { id: "player.start" },
+      "E": { id: "enemy.basic" },
+      "2": { id: "pickup.unitMultiplier.2x", speed: 0.8 },
+      "G": { id: "pickup.weapon.gun.pulsePistol", speed: 0.75 },
+      "I": { id: "pickup.weapon.gun.burstCarbine", speed: 0.85 },
+      "J": { id: "pickup.weapon.gun.heavyCannon", speed: 0.9 },
+      "S": { id: "pickup.weapon.shield.lightGuard", speed: 0.8 },
+      "a": { id: "pickup.weapon.sword.arcBlade", speed: 0.85 },
+      "b": { id: "pickup.weapon.sword.cleaver", speed: 0.9 }
+    },
+    balance: {
+      enemyHp: 1,
+      enemySpeed: 1
+    }
+  }
+};
+
 // projects/NeonSwarm/CombatDefinition/tracks/index.ts
 var tracks = {
   "track1": generatedTrack,
-  "track2": generatedTrack2
+  "track2": generatedTrack2,
+  "track3": generatedTrack3
 };
 
 // projects/NeonSwarm/CombatDefinition/TrackFamily.ts
@@ -2668,53 +2774,6 @@ try {
       }
       for (const shot of projectiles) {
         primitives.push(...new NeonProjectile({ x: shot.x, y: shot.y, velocityY: -shot.speed, radius: shot.radius, length: shot.radius * 2.5, trailLength: 18 * s, trailWidth: Math.max(1.2 * s, shot.radius * 0.5), color: shot.color, trailColor: shot.trail, shape: "dart" }).primitives());
-      }
-      for (const pickup of gunPickups) {
-        const gun = gunFamily.members[pickup.gunId];
-        const pColor = neonPalette[gun.visualIdentity.projectileColor];
-        const tColor = neonPalette[gun.visualIdentity.trailColor];
-        const px = laneX(pickup.lane);
-        const wobble = Math.sin(now / 420 + pickup.y * 0.07) * 4.5 * s;
-        const wx = px + wobble;
-        const pulse = 1 + Math.sin(now / 600 + pickup.y * 0.05) * 0.08;
-        primitives.push({ x: wx, y: pickup.y, width: 28 * s * pulse, color: pColor, secondaryColor: tColor, glow: 0.9, intensity: 0.22, shape: "circle" });
-        primitives.push({ x: wx, y: pickup.y, width: 18 * s * pulse, color: pColor, secondaryColor: tColor, glow: 0.85, intensity: 1.05, shape: "diamond" });
-        const iconShape = gun.visualIdentity.projectileShape;
-        if (iconShape === "needle") {
-          for (let n = -1; n <= 1; n++) primitives.push({ x: wx + n * 3.2 * s, y: pickup.y, width: 1.2 * s, height: 8 * s, color: pColor, secondaryColor: tColor, glow: 0.6, intensity: 1.1, shape: "bolt" });
-        } else if (iconShape === "slug") {
-          primitives.push({ x: wx, y: pickup.y, width: 3.5 * s, height: 9 * s, color: pColor, secondaryColor: tColor, glow: 0.7, intensity: 1.15, shape: "bolt" });
-        } else if (iconShape === "splitBolt") {
-          primitives.push({ x: wx - 2.5 * s, y: pickup.y - 1 * s, width: 1.5 * s, height: 8 * s, color: pColor, secondaryColor: tColor, glow: 0.6, intensity: 1.1, shape: "bolt" });
-          primitives.push({ x: wx + 2.5 * s, y: pickup.y - 1 * s, width: 1.5 * s, height: 8 * s, color: pColor, secondaryColor: tColor, glow: 0.6, intensity: 1.1, shape: "bolt" });
-        } else {
-          primitives.push({ x: wx, y: pickup.y - 1 * s, width: 2 * s, height: 9 * s, color: pColor, secondaryColor: tColor, glow: 0.65, intensity: 1.1, shape: "bolt" });
-        }
-        for (let sp = 0; sp < 3; sp++) {
-          const angle = now / 900 + sp * 2.09 + pickup.y;
-          const dist = (9 + sp * 3) * s * pulse;
-          primitives.push({ x: wx + Math.cos(angle) * dist, y: pickup.y + Math.sin(angle) * dist * 0.7, width: 1.4 * s, color: pColor, glow: 0.9, intensity: 0.55 + Math.sin(now / 300 + sp) * 0.25, shape: "circle" });
-        }
-      }
-      if (false) for (const pickup of multipliers) {
-        const spec = multiplierFamily.members[pickup.multiplierId];
-        const pColor = neonPalette[spec.pickupColor];
-        const tColor = neonPalette[spec.coreColor];
-        const px = laneX(pickup.lane);
-        const wobble = Math.sin(now / 420 + pickup.y * 0.07) * 4.5 * s;
-        const wx = px + wobble;
-        const pulse = 1 + Math.sin(now / 600 + pickup.y * 0.05) * 0.08;
-        primitives.push({ x: wx, y: pickup.y, width: 28 * s * pulse, color: pColor, secondaryColor: tColor, glow: 0.95, intensity: 0.25, shape: "circle" });
-        primitives.push({ x: wx, y: pickup.y, width: 19 * s * pulse, color: pColor, secondaryColor: tColor, glow: 0.9, intensity: 1.1, shape: "pentagon" });
-        primitives.push({ x: wx - 3.5 * s, y: pickup.y, width: 1 * s, height: 6 * s, color: pColor, secondaryColor: tColor, glow: 0.6, intensity: 1.15, shape: "bolt" });
-        primitives.push({ x: wx - 3.5 * s, y: pickup.y, width: 6 * s, height: 1 * s, color: pColor, secondaryColor: tColor, glow: 0.6, intensity: 1.15, shape: "bolt" });
-        primitives.push({ x: wx + 2.5 * s, y: pickup.y, width: 1.4 * s, height: 7 * s, color: pColor, secondaryColor: tColor, glow: 0.75, intensity: 1.2, shape: "bolt" });
-        primitives.push({ x: wx + 1.2 * s, y: pickup.y - 2.5 * s, width: 1.5 * s, height: 1 * s, color: pColor, secondaryColor: tColor, glow: 0.6, intensity: 1.15, shape: "bolt" });
-        for (let sp = 0; sp < 3; sp++) {
-          const angle = now / 900 + sp * 2.09 + pickup.y;
-          const dist = (10 + sp * 3.5) * s * pulse;
-          primitives.push({ x: wx + Math.cos(angle) * dist, y: pickup.y + Math.sin(angle) * dist * 0.7, width: 1.4 * s, color: pColor, glow: 0.95, intensity: 0.6 + Math.sin(now / 300 + sp) * 0.25, shape: "circle" });
-        }
       }
     }
     if (victory) primitives.push(...victory.primitives(now));
