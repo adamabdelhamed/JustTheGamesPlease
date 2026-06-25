@@ -80,6 +80,7 @@ await mkdir(resolve(docs, "NeonSwarm/tests/gun-family"), { recursive: true });
 await mkdir(resolve(docs, "NeonSwarm/tests/gun-family/manual/audio"), { recursive: true });
 await mkdir(resolve(docs, "NeonSwarm/tests/multiplier-family"), { recursive: true });
 await mkdir(resolve(docs, "NeonSwarm/tests/auto-aim"), { recursive: true });
+await mkdir(resolve(docs, "NeonSwarm/tests/track-editor"), { recursive: true });
 await Promise.all([
   cp(resolve(docs, "Swarm/audio"), resolve(docs, "NeonSwarm/audio"), { recursive: true }),
   cp(resolve(docs, "Swarm/audio"), resolve(docs, "NeonSwarm/tests/gun-family/manual/audio"), { recursive: true }),
@@ -95,6 +96,8 @@ await Promise.all([
   cp(resolve(root, "projects/NeonSwarm/test-pages/gun-family/smoke.css"), resolve(docs, "NeonSwarm/tests/gun-family/smoke.css")),
   cp(resolve(root, "projects/NeonSwarm/test-pages/multiplier-family/smoke.html"), resolve(docs, "NeonSwarm/tests/multiplier-family/smoke.html")),
   cp(resolve(root, "projects/NeonSwarm/test-pages/auto-aim/smoke.html"), resolve(docs, "NeonSwarm/tests/auto-aim/smoke.html")),
+  cp(resolve(root, "projects/NeonSwarm/test-pages/track-editor/index.html"), resolve(docs, "NeonSwarm/tests/track-editor/index.html")),
+  cp(resolve(root, "projects/NeonSwarm/test-pages/track-editor/track-editor.css"), resolve(docs, "NeonSwarm/tests/track-editor/track-editor.css")),
 ]);
 
 await Promise.all([
@@ -116,6 +119,11 @@ await Promise.all([
   build({
     entryPoints: [resolve(root, "projects/NeonSwarm/test-pages/auto-aim/smoke.ts")],
     outfile: resolve(docs, "NeonSwarm/tests/auto-aim/smoke.js"),
+    bundle: true, format: "esm", platform: "browser", target: "es2022", sourcemap: true,
+  }),
+  build({
+    entryPoints: [resolve(root, "projects/NeonSwarm/test-pages/track-editor/track-editor.ts")],
+    outfile: resolve(docs, "NeonSwarm/tests/track-editor/track-editor.js"),
     bundle: true, format: "esm", platform: "browser", target: "es2022", sourcemap: true,
   }),
 ]);

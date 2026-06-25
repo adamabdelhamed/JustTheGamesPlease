@@ -90,304 +90,6 @@ var neonShapeCatalog = [
   make("elite", "elite-emperor", "Emperor", star(8, 0.48), "roll", [regular(8, 0, 0.24, 0.24)])
 ];
 
-// projects/NeonFactory/src/primitive-renderer.ts
-var maxPrimitives = 1024;
-var floatsPerPrimitive = 20;
-var shader = (
-  /* wgsl */
-  `
-struct Scene { resolution: vec2f, count: f32, time: f32 }
-struct Primitive {
-  position: vec2f,
-  size: vec2f,
-  color: vec4f,
-  secondaryColor: vec4f,
-  glow: f32,
-  intensity: f32,
-  shape: f32,
-  texture: f32,
-  rimIntensity: f32,
-  shadowStrength: f32,
-  padding: vec2f,
-}
-@group(0) @binding(0) var<uniform> scene: Scene;
-@group(0) @binding(1) var<storage, read> items: array<Primitive>;
-
-struct VertexOutput {
-  @builtin(position) position: vec4f,
-  @location(0) local: vec2f,
-  @location(1) color: vec4f,
-  @location(2) glow: f32,
-  @location(3) intensity: f32,
-  @location(4) shape: f32,
-  @location(5) secondaryColor: vec4f,
-  @location(6) texture: f32,
-  @location(7) rimIntensity: f32,
-  @location(8) shadowStrength: f32,
-}
-
-@vertex fn vertexMain(@builtin(vertex_index) vertex: u32, @builtin(instance_index) instance: u32) -> VertexOutput {
-  var corners = array<vec2f, 6>(
-    vec2f(-1,-1), vec2f(1,-1), vec2f(-1,1),
-    vec2f(-1,1), vec2f(1,-1), vec2f(1,1)
-  );
-  let item = items[instance];
-  let local = corners[vertex];
-  let pixel = item.position + local * item.size;
-  var output: VertexOutput;
-  output.position = vec4f(pixel.x / scene.resolution.x * 2 - 1, 1 - pixel.y / scene.resolution.y * 2, 0, 1);
-  output.local = local;
-  output.color = item.color;
-  output.glow = item.glow;
-  output.intensity = item.intensity;
-  output.shape = item.shape;
-  output.secondaryColor = item.secondaryColor;
-  output.texture = item.texture;
-  output.rimIntensity = item.rimIntensity;
-  output.shadowStrength = item.shadowStrength;
-  return output;
-}
-
-@fragment fn fragmentMain(input: VertexOutput) -> @location(0) vec4f {
-  if (input.shape > 5.5) {
-    // Pentagon SDF
-    // local is in [-1, 1] range. Let's find pentagon distance.
-    let px = abs(input.local.x);
-    let py = input.local.y;
-    // Pentagon constants for vertices/edges
-    let k = vec3f(-0.809016994, 0.587785252, 1.37638192); // cos/sin of 72, plus height factor
-    // Project/Mirror across the symmetry axes of regular pentagon
-    var p = vec2f(px, py);
-    p = p - 2 * min(dot(vec2f(-k.x, k.y), p), 0) * vec2f(-k.x, k.y);
-    p = p - 2 * min(dot(vec2f(k.x, k.y), p), 0) * vec2f(k.x, k.y);
-    p.x = p.x - clamp(p.x, -k.z * 0.5, k.z * 0.5);
-    let d = length(p - vec2f(0, 0.72)) * sign(p.y - 0.72);
-    // Map d to a normalized radius scale
-    let scaleD = d + 0.35; // offset pentagon to fit bounds nicely
-    if (scaleD > 0.8) { discard; }
-    
-    let edge = 1 - smoothstep(0.5, 0.65, scaleD);
-    let border = smoothstep(0.45, 0.53, scaleD) * (1 - smoothstep(0.65, 0.75, scaleD));
-    let fill = 1 - smoothstep(-0.2, 0.5, scaleD);
-    let halo = (1 - smoothstep(0.55, 0.8, scaleD)) * input.glow;
-    let glass = fill * 0.38 + border * 1.35;
-    let energy = (glass + halo * 0.5) * input.intensity;
-    let edgeColor = input.color.rgb * (border * 1.75 + edge * 0.3);
-    let fillColor = mix(input.secondaryColor.rgb, input.color.rgb, fill * 0.45) * fill * 0.35;
-    let bloom = input.color.rgb * halo * 0.4;
-    let rgb = edgeColor + fillColor + bloom;
-    return vec4f(rgb, clamp(energy, 0, 0.95));
-  }
-  if (input.shape > 4.5) {
-    let d = abs(input.local.x) + abs(input.local.y);
-    if (d > 1.08) { discard; }
-    let edge = 1 - smoothstep(0.78, 0.92, d);
-    let border = smoothstep(0.72, 0.82, d) * (1 - smoothstep(0.92, 1.02, d));
-    let fill = 1 - smoothstep(0.0, 0.78, d);
-    let halo = (1 - smoothstep(0.82, 1.08, d)) * input.glow;
-    let glass = fill * 0.35 + border * 1.2;
-    let energy = (glass + halo * 0.45) * input.intensity;
-    let edgeColor = input.color.rgb * (border * 1.6 + edge * 0.3);
-    let fillColor = mix(input.secondaryColor.rgb, input.color.rgb, fill * 0.5) * fill * 0.38;
-    let bloom = input.color.rgb * halo * 0.35;
-    let rgb = edgeColor + fillColor + bloom;
-    return vec4f(rgb, clamp(energy, 0, 0.95));
-  }
-  if (input.shape > 1.5) {
-    let r2 = dot(input.local, input.local);
-    if (r2 > 1) { discard; }
-    let z = sqrt(max(0, 1 - r2));
-    let normal = normalize(vec3f(input.local.x, -input.local.y, z));
-    let light = normalize(vec3f(-0.55, -0.7, 0.9));
-    let diffuse = max(dot(normal, light), 0);
-    let rim = pow(1 - z, 2.2) * input.rimIntensity;
-    let shadow = mix(1 - input.shadowStrength, 1, smoothstep(-0.65, 0.45, dot(normal.xy, light.xy)));
-    let grain = sin(input.local.x * 23 + input.local.y * 17) * sin(input.local.y * 31 - input.local.x * 11);
-    let texture = 1 + grain * input.texture * 0.22;
-    let specular = pow(max(dot(reflect(-light, normal), vec3f(0,0,1)), 0), 28) * 1.8;
-    let body = mix(input.secondaryColor.rgb, input.color.rgb, diffuse * 0.8 + 0.2) * shadow * texture;
-    let halo = pow(max(0, 1 - length(input.local)), 0.35) * input.glow;
-    let rgb = body * (0.38 + diffuse * 0.95) + input.color.rgb * rim + vec3f(specular) + input.color.rgb * halo * 0.3;
-    return vec4f(rgb * input.intensity, 1);
-  }
-  var distance = length(input.local);
-  if (input.shape > 3.5) {
-    let axis = min(abs(input.local.x), abs(input.local.y));
-    let arm = 1 - smoothstep(0.04, 0.18, axis);
-    let fade = 1 - smoothstep(0.2, 1, max(abs(input.local.x), abs(input.local.y)));
-    let energy = arm * fade * input.intensity;
-    let rgb = mix(input.secondaryColor.rgb, input.color.rgb, arm) * energy;
-    return vec4f(rgb, clamp(energy, 0, 0.92));
-  }
-  if (input.shape > 2.5) {
-    let ringDistance = abs(length(input.local) - 0.62);
-    let ring = 1 - smoothstep(0.055, 0.18, ringDistance);
-    let halo = (1 - smoothstep(0.12, 0.42, ringDistance)) * input.glow;
-    let energy = (ring + halo * 0.45) * input.intensity;
-    let rgb = mix(input.secondaryColor.rgb, input.color.rgb, ring) * energy;
-    return vec4f(rgb, clamp(energy, 0, 0.9));
-  }
-  if (input.shape > 0.5) {
-    distance = max(abs(input.local.x), abs(input.local.y));
-  }
-  let core = 1 - smoothstep(0.38, 0.76, distance);
-  let halo = (1 - smoothstep(0.3, 1, distance)) * input.glow;
-  let energy = (core + halo * 0.55) * input.intensity;
-  let chromaticCore = mix(input.color.rgb, input.secondaryColor.rgb, pow(max(core, 0), 2));
-  let raw = chromaticCore * (core * 1.05 + halo * 0.42);
-  let rgb = raw / (vec3f(1) + raw * 0.32);
-  return vec4f(rgb, clamp(energy, 0, 0.92));
-}
-`
-);
-function rgba(hex) {
-  const value = hex.replace("#", "");
-  if (!/^[0-9a-f]{6}$/i.test(value)) throw new Error(`Expected six-digit hex color, received "${hex}".`);
-  return [
-    Number.parseInt(value.slice(0, 2), 16) / 255,
-    Number.parseInt(value.slice(2, 4), 16) / 255,
-    Number.parseInt(value.slice(4, 6), 16) / 255,
-    1
-  ];
-}
-var NeonPrimitiveRenderer = class _NeonPrimitiveRenderer {
-  canvas;
-  device;
-  #context;
-  #pipeline;
-  #sceneBuffer;
-  #primitiveBuffer;
-  #bindGroup;
-  #logicalSize = null;
-  constructor(canvas2, device, context, format) {
-    this.canvas = canvas2;
-    this.device = device;
-    this.#context = context;
-    const module = device.createShaderModule({ code: shader });
-    this.#pipeline = device.createRenderPipeline({
-      layout: "auto",
-      vertex: { module, entryPoint: "vertexMain" },
-      fragment: {
-        module,
-        entryPoint: "fragmentMain",
-        targets: [{ format, blend: { color: { srcFactor: "src-alpha", dstFactor: "one" }, alpha: { srcFactor: "one", dstFactor: "one" } } }]
-      },
-      primitive: { topology: "triangle-list" }
-    });
-    this.#sceneBuffer = device.createBuffer({ size: 16, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
-    this.#primitiveBuffer = device.createBuffer({
-      size: maxPrimitives * floatsPerPrimitive * 4,
-      usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST
-    });
-    this.#bindGroup = device.createBindGroup({
-      layout: this.#pipeline.getBindGroupLayout(0),
-      entries: [
-        { binding: 0, resource: { buffer: this.#sceneBuffer } },
-        { binding: 1, resource: { buffer: this.#primitiveBuffer } }
-      ]
-    });
-  }
-  static async create(canvas2) {
-    if (!navigator.gpu) throw new Error("WebGPU is required for NeonFactory.");
-    const adapter = await navigator.gpu.requestAdapter();
-    if (!adapter) throw new Error("No compatible WebGPU adapter was found.");
-    const device = await adapter.requestDevice();
-    const context = canvas2.getContext("webgpu");
-    if (!context) throw new Error("The canvas could not create a WebGPU context.");
-    const format = navigator.gpu.getPreferredCanvasFormat();
-    context.configure({ device, format, alphaMode: "premultiplied" });
-    return new _NeonPrimitiveRenderer(canvas2, device, context, format);
-  }
-  setLogicalSize(width, height) {
-    this.#logicalSize = { width, height };
-    this.canvas.width = width;
-    this.canvas.height = height;
-    return this;
-  }
-  render(primitives, timeSeconds = 0, preserveColor = false, targetView) {
-    this.#resize();
-    const visible = primitives.slice(0, maxPrimitives);
-    const data = new Float32Array(visible.length * floatsPerPrimitive);
-    visible.forEach((item, index) => {
-      const offset = index * floatsPerPrimitive;
-      data.set([
-        item.x,
-        item.y,
-        item.width,
-        item.height ?? item.width,
-        ...rgba(item.color),
-        ...rgba(item.secondaryColor ?? item.color),
-        item.glow ?? 0.5,
-        item.intensity ?? 1,
-        item.shape === "pentagon" ? 6 : item.shape === "diamond" ? 5 : item.shape === "spark" ? 4 : item.shape === "ring" ? 3 : item.shape === "orb" ? 2 : item.shape === "bolt" ? 1 : 0,
-        item.texture ?? 0,
-        item.rimIntensity ?? 0,
-        item.shadowStrength ?? 0,
-        0,
-        0
-      ], offset);
-    });
-    this.device.queue.writeBuffer(this.#sceneBuffer, 0, new Float32Array([this.canvas.width, this.canvas.height, visible.length, timeSeconds]));
-    if (data.length) this.device.queue.writeBuffer(this.#primitiveBuffer, 0, data);
-    const encoder = this.device.createCommandEncoder();
-    const pass = encoder.beginRenderPass({
-      colorAttachments: [{
-        view: targetView ?? this.#context.getCurrentTexture().createView(),
-        clearValue: { r: 6e-3, g: 9e-3, b: 0.025, a: 1 },
-        loadOp: preserveColor ? "load" : "clear",
-        storeOp: "store"
-      }]
-    });
-    if (visible.length) {
-      pass.setPipeline(this.#pipeline);
-      pass.setBindGroup(0, this.#bindGroup);
-      pass.draw(6, visible.length);
-    }
-    pass.end();
-    this.device.queue.submit([encoder.finish()]);
-  }
-  #resize() {
-    if (this.#logicalSize) {
-      if (this.canvas.width !== this.#logicalSize.width) this.canvas.width = this.#logicalSize.width;
-      if (this.canvas.height !== this.#logicalSize.height) this.canvas.height = this.#logicalSize.height;
-      return;
-    }
-    const ratio = Math.min(devicePixelRatio || 1, 2);
-    const width = Math.max(1, Math.floor(this.canvas.clientWidth * ratio));
-    const height = Math.max(1, Math.floor(this.canvas.clientHeight * ratio));
-    if (this.canvas.width !== width || this.canvas.height !== height) {
-      this.canvas.width = width;
-      this.canvas.height = height;
-    }
-  }
-};
-
-// projects/NeonFactory/src/test-harness.ts
-function createTestPage(id, driver, statusElement) {
-  const snapshot = { id, status: "booting", assertions: [] };
-  const publish = () => {
-    statusElement.dataset.status = snapshot.status;
-    statusElement.textContent = `${snapshot.status.toUpperCase()} \xB7 ${snapshot.assertions.filter((a) => a.passed).length}/${snapshot.assertions.length} assertions`;
-    document.documentElement.dataset.testStatus = snapshot.status;
-  };
-  const api = {
-    ...driver,
-    getSnapshot: () => structuredClone(snapshot),
-    ready() {
-      snapshot.status = "ready";
-      publish();
-    },
-    assert(name, passed, detail) {
-      snapshot.assertions.push({ name, passed, detail });
-      snapshot.status = snapshot.assertions.every((assertion) => assertion.passed) ? "passed" : "failed";
-      publish();
-    }
-  };
-  window.neonFactoryTest = api;
-  publish();
-  return api;
-}
-
 // projects/NeonSwarm/CombatDefinition/FamilyDefinition.ts
 var FamilyDefinition = class {
   require(condition, message) {
@@ -858,401 +560,184 @@ var MultiplierFamilyDefinition = class extends FamilyDefinition {
 };
 var multiplierFamily = new MultiplierFamilyDefinition();
 
-// projects/NeonSwarm/src/combat/gunEvaluator.ts
-function evaluateGunAgainstOrb(gunId, gun, orb, levelNumber = 1) {
-  const level2 = gun.levels.find((candidate) => candidate.level === levelNumber) ?? gun.levels[0];
-  const distance = 540;
-  const enemyArrivalMs = distance / orb.speed * 1e3;
-  let enemyHealth2 = orb.health;
-  let damageDealt = 0;
-  let shotsFired = 0;
-  const hits = [];
-  const cycleMs = 1e3 / level2.fireRatePerSecond;
-  for (let cycleAt = 0; cycleAt < enemyArrivalMs; cycleAt += cycleMs) {
-    for (let burstIndex = 0; burstIndex < level2.burstCount; burstIndex++) {
-      const firedAt = cycleAt + burstIndex * level2.burstIntervalMs;
-      const travelMs = distance / level2.projectileSpeed * 1e3;
-      const hitAt = firedAt + travelMs;
-      if (hitAt < enemyArrivalMs) {
-        const currentLaneProjectiles = gun.shotPattern === "pairedSpread" ? level2.projectileCount : Math.max(1, level2.projectileCount);
-        for (let projectileIndex = 0; projectileIndex < currentLaneProjectiles; projectileIndex++) hits.push(hitAt);
-        shotsFired += currentLaneProjectiles;
-      }
+// projects/NeonSwarm/test-pages/track-editor/track-editor.ts
+var developer = new URLSearchParams(location.search).get("dev") === "1";
+document.querySelector("#editor").hidden = !developer;
+document.querySelector("#dev-required").hidden = developer;
+var rowCount = 25;
+var laneWidth = 5;
+var empty = { id: "empty", label: "Empty", symbol: "." };
+var paletteItems = [
+  empty,
+  { id: "player.start", label: "Player Start", symbol: "P" },
+  ...Object.entries(orbFamily.members).map(([id, enemy], index) => ({
+    id: `enemy.${id === "basicOrb" ? "basic" : id}`,
+    label: enemy.label,
+    symbol: "EABCDEFGHIJKLMNOPQRSTUVWXYZ"[index]
+  })),
+  ...Object.entries(gunFamily.members).map(([id, gun], index) => ({
+    id: `pickup.weapon.gun.${id}`,
+    label: gun.label,
+    symbol: "GHIJKLMNOQRSTUVWXYZ"[index]
+  })),
+  { id: "pickup.unitMultiplier.2x", label: "2x Squad", symbol: "2" }
+];
+var cells = Array.from(
+  { length: rowCount },
+  () => Array.from({ length: 2 }, () => Array.from({ length: laneWidth }, () => ({ ...empty, speed: 1 })))
+);
+var selected = { row: rowCount - 1, side: 0, column: 0 };
+var selectedItem = paletteItems[0];
+var grid = document.querySelector("#track-grid");
+var palette = document.querySelector("#palette");
+var speedInput = document.querySelector("#entity-speed");
+var selectionReadout = document.querySelector("#selection");
+var cellAt = (row, side, column) => grid.querySelector(`[data-row="${row}"][data-side="${side}"][data-column="${column}"]`);
+function updateSelection() {
+  grid.querySelectorAll(".cell.selected").forEach((cell) => cell.classList.remove("selected"));
+  cellAt(selected.row, selected.side, selected.column).classList.add("selected");
+  const distance = rowCount - 1 - selected.row;
+  selectionReadout.textContent = `Selected: row ${distance + 1} from player, ${selected.side === 0 ? "left" : "right"} lane, column ${selected.column + 1}`;
+}
+function renderCell(row, side, column) {
+  const value = cells[row][side][column];
+  const button = cellAt(row, side, column);
+  button.textContent = value.symbol;
+  button.dataset.id = value.id;
+  button.title = `${value.label}${value.speed === 1 ? "" : ` \xB7 ${value.speed}x speed`}`;
+}
+function placeSelected() {
+  const speed = Number(speedInput.value);
+  cells[selected.row][selected.side][selected.column] = {
+    ...selectedItem,
+    speed: Number.isFinite(speed) && speed > 0 ? speed : 1
+  };
+  renderCell(selected.row, selected.side, selected.column);
+}
+for (let row = 0; row < rowCount; row++) {
+  const rowElement = document.createElement("div");
+  rowElement.className = "track-row";
+  rowElement.innerHTML = `<span class="row-number">${rowCount - row}</span>`;
+  for (let side = 0; side < 2; side++) {
+    if (side === 1) rowElement.insertAdjacentHTML("beforeend", `<span class="divider">|</span>`);
+    for (let column = 0; column < laneWidth; column++) {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "cell";
+      button.dataset.row = String(row);
+      button.dataset.side = String(side);
+      button.dataset.column = String(column);
+      button.setAttribute("aria-label", `Row ${rowCount - row}, ${side === 0 ? "left" : "right"} lane, column ${column + 1}`);
+      button.addEventListener("click", () => {
+        selected = { row, side, column };
+        updateSelection();
+        placeSelected();
+      });
+      rowElement.append(button);
     }
   }
-  hits.sort((a, b) => a - b);
-  let killTimeMs = null;
-  for (const hitAt of hits) {
-    enemyHealth2 -= level2.damage;
-    damageDealt += level2.damage;
-    if (enemyHealth2 <= 0) {
-      killTimeMs = hitAt;
-      break;
-    }
+  grid.append(rowElement);
+}
+paletteItems.forEach((item) => {
+  const button = document.createElement("button");
+  button.type = "button";
+  button.innerHTML = `<span class="symbol">${item.symbol}</span><span>${item.label}<br><small>${item.id}</small></span>`;
+  button.addEventListener("click", () => {
+    selectedItem = item;
+    palette.querySelectorAll("button").forEach((candidate) => candidate.classList.toggle("selected", candidate === button));
+    placeSelected();
+  });
+  palette.append(button);
+});
+palette.querySelector("button").classList.add("selected");
+for (let row = 0; row < rowCount; row++) {
+  for (let side = 0; side < 2; side++) {
+    for (let column = 0; column < laneWidth; column++) renderCell(row, side, column);
   }
+}
+updateSelection();
+document.querySelector("#clear-grid").addEventListener("click", () => {
+  for (const row of cells) for (const side of row) for (let column = 0; column < side.length; column++) side[column] = { ...empty, speed: 1 };
+  grid.querySelectorAll(".cell").forEach((button) => renderCell(+button.dataset.row, +button.dataset.side, +button.dataset.column));
+});
+var quoted = (value) => JSON.stringify(value);
+var safeIdentifier = (value) => {
+  const cleaned = value.replace(/[^a-zA-Z0-9_$]/g, "");
+  return /^[a-zA-Z_$]/.test(cleaned) ? cleaned : `track${cleaned}`;
+};
+function exportSource() {
+  const exportName = safeIdentifier(document.querySelector("#export-name").value || "newTrack");
+  const symbols = ".PEGHIJKLMNOQRSTUVWXYZABCDEFGHIJKLMNOQRSTUVWXYZ23456789".split("");
+  const entries = /* @__PURE__ */ new Map();
+  entries.set("empty@1", { symbol: ".", value: { ...empty, speed: 1 } });
+  const symbolFor = (value) => {
+    const key = `${value.id}@${value.speed}`;
+    const existing = entries.get(key);
+    if (existing) return existing.symbol;
+    const symbol = symbols.find((candidate) => ![...entries.values()].some((entry) => entry.symbol === candidate));
+    if (!symbol) throw new Error("This track uses more distinct entity/speed combinations than the one-character layout can represent.");
+    entries.set(key, { symbol, value });
+    return symbol;
+  };
+  const layout = cells.map((row) => `${row[0].map(symbolFor).join("")} | ${row[1].map(symbolFor).join("")}`).join("\n");
+  const used = [...entries.values()];
+  const legend = used.map(
+    ({ symbol, value }) => `      ${quoted(symbol)}: { id: ${quoted(value.id)}${value.speed === 1 ? "" : `, speed: ${value.speed}`} },`
+  ).join("\n");
+  const displayName = document.querySelector("#display-name").value;
+  const description = document.querySelector("#description").value;
+  const hp = Number(document.querySelector("#enemy-hp").value) || 1;
+  const speed = Number(document.querySelector("#enemy-speed").value) || 1;
   return {
-    gunId,
-    passed: killTimeMs !== null && killTimeMs < enemyArrivalMs,
-    killTimeMs,
-    enemyArrivalMs,
-    shotsFired,
-    damageDealt
+    fileName: `${exportName}.ts`,
+    source: `import type { TrackMember } from "../TrackDefinition";
+
+export const ${exportName} = {
+  label: ${quoted(displayName)},
+  description: ${quoted(description)},
+  durationSeconds: ${rowCount + 1},
+  startingGun: "pulsePistol",
+  startingGunLevel: 1,
+  viewport: {
+    orientation: "portrait",
+    aspectWidth: 9,
+    aspectHeight: 16,
+    logicalWidth: 450,
+    logicalHeight: 800,
+  },
+  environment: {
+    floorColor: "deepBlue",
+    crackColor: "cyan",
+    airColor: "violet",
+    horizonColor: "pink",
+    pulseRate: 1.35,
+    crackDensity: 14,
+    airStreakCount: 11,
+  },
+  definition: {
+    layout: \`
+${layout}
+\`,
+    legend: {
+${legend}
+    },
+    balance: {
+      enemyHp: ${hp},
+      enemySpeed: ${speed},
+    },
+  },
+} satisfies TrackMember;
+`
   };
 }
-
-// projects/NeonSwarm/test-pages/gun-family/smoke.ts
-var status = document.querySelector("#test-status");
-var resultsElement = document.querySelector("#results");
-var results = [];
-var run = () => {
-  results = Object.entries(gunFamily.members).map(([gunId, gun]) => evaluateGunAgainstOrb(gunId, gun, orbFamily.members.basicOrb));
-  resultsElement.innerHTML = results.map((result) => `
-    <li data-passed="${result.passed}" data-gun-id="${result.gunId}">
-      <strong>${gunFamily.members[result.gunId].label}</strong>
-      <span>${result.passed ? "PASS" : "FAIL"}</span>
-      <span class="detail">kill ${result.killTimeMs?.toFixed(0) ?? "never"}ms \xB7 arrival ${result.enemyArrivalMs.toFixed(0)}ms \xB7 ${result.shotsFired} shots</span>
-    </li>`).join("");
-  const items = resultsElement.querySelectorAll("li");
-  items.forEach((item) => {
-    item.addEventListener("click", () => {
-      const gunId = item.getAttribute("data-gun-id");
-      if (gunId) {
-        startSimulation(gunId);
-      }
-    });
-  });
-  return results;
-};
-var test = createTestPage("neon-swarm-gun-family-smoke", { suite: "smoke", run }, status);
-test.ready();
-for (const result of run()) {
-  test.assert(
-    `${result.gunId} kills weakest orb before contact`,
-    result.passed,
-    `kill=${result.killTimeMs ?? "never"}ms arrival=${result.enemyArrivalMs.toFixed(0)}ms`
-  );
-}
-var pageContainer = document.getElementById("page-container");
-var simulatorPanel = document.getElementById("simulator-panel");
-var closeSimBtn = document.getElementById("close-sim");
-var replayBtn = document.getElementById("replay-btn");
-var pauseBtn = document.getElementById("pause-btn");
-var simStatusText = document.getElementById("sim-status");
-var simTitle = document.getElementById("sim-title");
-var simDetails = document.getElementById("sim-details");
-var canvas = document.getElementById("game-canvas");
-var renderer = null;
-var animationFrameId = null;
-var isPaused = false;
-var activeGunId = null;
-var simTimeMs = 0;
-var lastTimeMs = 0;
-var enemyHealth = 0;
-var enemyY = 0;
-var enemyX = 225;
-var playerY = 650;
-var playerX = 225;
-var projectiles = [];
-var effects = [];
-var cooldown = 0;
-var shotSequence = 0;
-var simFinished = false;
-var simOutcome = "";
-var simEndingTime = null;
-async function startSimulation(gunId) {
-  if (!renderer) {
-    try {
-      renderer = await NeonPrimitiveRenderer.create(canvas);
-      renderer.setLogicalSize(450, 800);
-    } catch (e) {
-      console.error("Failed to initialize renderer", e);
-      return;
-    }
-  }
-  activeGunId = gunId;
-  pageContainer.classList.add("simulator-active");
-  simulatorPanel.removeAttribute("hidden");
-  const gun = gunFamily.members[gunId];
-  simTitle.textContent = `${gun.label} Simulation`;
-  resetSimulation();
-  loop(performance.now());
-}
-function resetSimulation() {
-  if (animationFrameId) {
-    cancelAnimationFrame(animationFrameId);
-  }
-  const gun = gunFamily.members[activeGunId];
-  const orb = orbFamily.members.basicOrb;
-  simTimeMs = 0;
-  lastTimeMs = 0;
-  enemyHealth = orb.health;
-  enemyY = 110;
-  projectiles = [];
-  effects = [];
-  cooldown = 0;
-  shotSequence = 0;
-  simFinished = false;
-  simEndingTime = null;
-  simOutcome = "";
-  isPaused = false;
-  pauseBtn.textContent = "Pause";
-  simStatusText.textContent = "Simulating...";
-  simStatusText.className = "sim-status";
-  updateDetails();
-}
-function updateDetails() {
-  if (!activeGunId) return;
-  const gun = gunFamily.members[activeGunId];
-  const orb = orbFamily.members.basicOrb;
-  const level2 = gun.levels[0];
-  simDetails.innerHTML = `
-    <dt>Weapon</dt><dd>${gun.label} (Lvl ${level2.level})</dd>
-    <dt>Fire Rate</dt><dd>${level2.fireRatePerSecond}/s</dd>
-    <dt>Damage</dt><dd>${level2.damage}</dd>
-    <dt>Speed</dt><dd>${level2.projectileSpeed} px/s</dd>
-    <dt>Enemy Health</dt><dd>${enemyHealth.toFixed(2)} / ${orb.health}</dd>
-    <dt>Enemy Speed</dt><dd>${orb.speed} px/s</dd>
-    <dt>Time Elapsed</dt><dd>${simTimeMs.toFixed(0)} ms</dd>
-    <dt>Outcome</dt><dd>${simOutcome || "In Progress"}</dd>
-  `;
-}
-function loop(now) {
-  if (isPaused) {
-    lastTimeMs = now;
-    animationFrameId = requestAnimationFrame(loop);
-    return;
-  }
-  if (lastTimeMs === 0) lastTimeMs = now;
-  const dt = Math.min((now - lastTimeMs) / 1e3, 0.05);
-  lastTimeMs = now;
-  updateSim(dt);
-  drawSim();
-  if (!simFinished) {
-    animationFrameId = requestAnimationFrame(loop);
-  }
-}
-function updateSim(dt) {
-  simTimeMs += dt * 1e3;
-  const gun = gunFamily.members[activeGunId];
-  const orb = orbFamily.members.basicOrb;
-  const level2 = gun.levels[0];
-  cooldown -= dt;
-  if (cooldown <= 0 && !simFinished) {
-    const count = Math.max(1, level2.projectileCount);
-    for (let index = 0; index < count; index++) {
-      const offset = count === 1 ? 0 : (index / (count - 1) - 0.5) * level2.spreadDegrees;
-      const angle = offset * Math.PI / 180;
-      const speed = level2.projectileSpeed;
-      shotSequence++;
-      projectiles.push({
-        x: playerX,
-        y: playerY - 22,
-        vx: Math.sin(angle) * speed,
-        vy: -Math.cos(angle) * speed,
-        radius: level2.projectileRadius,
-        damage: level2.damage,
-        color: neonPalette[gun.visualIdentity.projectileColor],
-        trailColor: neonPalette[gun.visualIdentity.trailColor],
-        coreColor: neonPalette[gun.visualIdentity.coreColor],
-        shape: gun.visualIdentity.projectileShape,
-        aspect: gun.visualIdentity.projectileAspect,
-        trailWidthScale: gun.visualIdentity.trailWidthScale,
-        visualIntensity: gun.visualIdentity.visualIntensity,
-        trailLength: level2.trailLength,
-        tracer: level2.tracerEveryNthShot > 0 && shotSequence % level2.tracerEveryNthShot === 0
-      });
-    }
-    effects.push({
-      kind: "muzzle",
-      style: gun.visualIdentity.muzzleEffect,
-      x: playerX,
-      y: playerY - 22,
-      color: neonPalette[gun.visualIdentity.projectileColor],
-      secondaryColor: neonPalette[gun.visualIdentity.trailColor],
-      radius: 10 * level2.muzzleFlashScale,
-      expiresAt: simTimeMs + gun.visualIdentity.muzzleDurationMs,
-      duration: gun.visualIdentity.muzzleDurationMs,
-      seed: shotSequence
-    });
-    cooldown += 1 / level2.fireRatePerSecond;
-  }
-  for (let i = projectiles.length - 1; i >= 0; i--) {
-    const p = projectiles[i];
-    p.x += p.vx * dt;
-    p.y += p.vy * dt;
-    if (p.y < 0) {
-      projectiles.splice(i, 1);
-      continue;
-    }
-    if (!simFinished) {
-      const dx = p.x - enemyX;
-      const dy = p.y - enemyY;
-      const hitRadius = p.radius + orb.radius;
-      if (dx * dx + dy * dy <= hitRadius * hitRadius) {
-        enemyHealth -= p.damage;
-        enemyY -= level2.knockback;
-        effects.push({
-          kind: "impact",
-          style: p.shape === "needle" ? "pinSpark" : "impactRing",
-          x: p.x,
-          y: p.y,
-          color: p.color,
-          secondaryColor: p.trailColor,
-          radius: p.radius * level2.hitFlashScale * 4,
-          expiresAt: simTimeMs + gun.visualIdentity.impactDurationMs,
-          duration: gun.visualIdentity.impactDurationMs,
-          seed: i
-        });
-        projectiles.splice(i, 1);
-        if (enemyHealth <= 0 && !simEndingTime) {
-          enemyHealth = 0;
-          simEndingTime = simTimeMs + 1200;
-          simOutcome = `PASSED \xB7 Defeated at ${simTimeMs.toFixed(0)}ms`;
-          simStatusText.textContent = "PASSED";
-          simStatusText.className = "sim-status";
-          effects.push({
-            kind: "death",
-            style: "deathBloom",
-            x: enemyX,
-            y: enemyY,
-            color: neonPalette[orb.baseColor],
-            secondaryColor: neonPalette[orb.rimColor],
-            radius: orb.radius * orb.deathFlashScale,
-            expiresAt: simTimeMs + orb.hitFlashDurationMs * 2,
-            duration: orb.hitFlashDurationMs * 2,
-            seed: 99
-          });
-        }
-      }
-    }
-  }
-  if (!simFinished && !simEndingTime) {
-    enemyY += orb.speed * dt;
-    if (enemyY >= playerY) {
-      enemyY = playerY;
-      simEndingTime = simTimeMs + 800;
-      simOutcome = "FAILED \xB7 Orb reached contact";
-      simStatusText.textContent = "FAILED";
-      simStatusText.className = "sim-status failed";
-    }
-  }
-  if (simEndingTime && simTimeMs >= simEndingTime) {
-    simFinished = true;
-  }
-  for (let i = effects.length - 1; i >= 0; i--) {
-    if (effects[i].expiresAt <= simTimeMs) {
-      effects.splice(i, 1);
-    }
-  }
-  updateDetails();
-}
-function drawSim() {
-  const primitives = [];
-  primitives.push({
-    x: playerX,
-    y: playerY,
-    width: 6,
-    color: neonPalette.cyan,
-    secondaryColor: neonPalette.deepBlue,
-    glow: 0.85,
-    shape: "orb",
-    rimIntensity: 0.8
-  });
-  for (const p of projectiles) {
-    primitives.push({
-      x: p.x,
-      y: p.y + p.trailLength / 2,
-      width: Math.max(p.radius * p.trailWidthScale, 1.1),
-      height: p.trailLength,
-      color: p.trailColor,
-      secondaryColor: p.color,
-      glow: p.tracer ? 1.25 : 0.45,
-      intensity: p.visualIntensity * (p.tracer ? 1.45 : 0.72),
-      shape: "bolt"
-    });
-    primitives.push({
-      x: p.x,
-      y: p.y,
-      width: p.radius,
-      height: p.radius * p.aspect,
-      color: p.color,
-      secondaryColor: p.coreColor,
-      glow: p.tracer ? 1.4 : 0.72,
-      intensity: p.visualIntensity * (p.tracer ? 1.35 : 1),
-      shape: p.shape === "needle" ? "circle" : "bolt"
-    });
-  }
-  if (!simFinished || enemyHealth > 0) {
-    const orb = orbFamily.members.basicOrb;
-    primitives.push({
-      x: enemyX,
-      y: enemyY,
-      width: orb.radius,
-      color: neonPalette[orb.rimColor],
-      secondaryColor: neonPalette[orb.baseColor],
-      glow: orb.glow,
-      texture: orb.surfaceTexture,
-      rimIntensity: orb.rimIntensity,
-      shadowStrength: orb.shadowStrength,
-      intensity: 1,
-      shape: "orb"
-    });
-  }
-  for (const effect of effects) {
-    const life = Math.max(0, (effect.expiresAt - simTimeMs) / effect.duration);
-    const progress = 1 - life;
-    const size = effect.radius * (1 + progress * 1.35);
-    if (effect.kind === "muzzle") {
-      primitives.push({
-        x: effect.x,
-        y: effect.y,
-        width: size,
-        color: effect.color,
-        secondaryColor: effect.secondaryColor,
-        glow: 0.75 * life,
-        intensity: life,
-        shape: "ring"
-      });
-    } else if (effect.kind === "impact") {
-      primitives.push({
-        x: effect.x,
-        y: effect.y,
-        width: size,
-        color: effect.color,
-        secondaryColor: effect.secondaryColor,
-        glow: 0.72 * life,
-        intensity: life,
-        shape: "ring"
-      });
-    } else if (effect.kind === "death") {
-      primitives.push({
-        x: effect.x,
-        y: effect.y,
-        width: size,
-        color: effect.color,
-        secondaryColor: effect.secondaryColor,
-        glow: life,
-        intensity: life,
-        shape: "ring"
-      });
-    }
-  }
-  renderer.render(primitives, simTimeMs / 1e3);
-}
-closeSimBtn.addEventListener("click", () => {
-  if (animationFrameId) cancelAnimationFrame(animationFrameId);
-  pageContainer.classList.remove("simulator-active");
-  simulatorPanel.setAttribute("hidden", "true");
-  activeGunId = null;
+document.querySelector("#export-track").addEventListener("click", () => {
+  const exported = exportSource();
+  const url = URL.createObjectURL(new Blob([exported.source], { type: "text/typescript" }));
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = exported.fileName;
+  link.click();
+  window.setTimeout(() => URL.revokeObjectURL(url), 1e3);
+  document.querySelector("#export-status").textContent = `Generated ${exported.fileName}. Add it to CombatDefinition/tracks and register it in tracks/index.ts.`;
 });
-replayBtn.addEventListener("click", () => {
-  if (activeGunId) {
-    resetSimulation();
-    loop(performance.now());
-  }
-});
-pauseBtn.addEventListener("click", () => {
-  isPaused = !isPaused;
-  pauseBtn.textContent = isPaused ? "Resume" : "Pause";
-});
-//# sourceMappingURL=smoke.js.map
+//# sourceMappingURL=track-editor.js.map

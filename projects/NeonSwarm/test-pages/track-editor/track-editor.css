@@ -1,0 +1,22 @@
+body{background:radial-gradient(circle at 18% 8%,#102849,transparent 42rem),#03050d}
+#editor{width:min(1400px,calc(100% - 32px))}
+.editor-layout{display:grid;grid-template-columns:320px minmax(560px,1fr);gap:24px;align-items:start}
+.tool-panel{position:sticky;top:16px;display:grid;gap:14px}
+.tool-panel section,.grid-panel{padding:18px;border:1px solid #55e7ff2e;border-radius:18px;background:#080d1a}
+.tool-panel h2{margin:0 0 14px}
+label{display:grid;gap:6px;margin:10px 0;color:#9bb0c7;font-size:.78rem;letter-spacing:.06em}
+input,textarea,button{font:inherit;color:#eefcff;background:#0d1528;border:1px solid #ffffff20;border-radius:9px;padding:10px}
+textarea{min-height:70px;resize:vertical}
+button{cursor:pointer;font-weight:700}button:hover,button.selected{border-color:#55e7ff;box-shadow:0 0 18px #55e7ff24}
+button.secondary{width:100%;color:#9bb0c7}.palette{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.palette button{display:grid;grid-template-columns:auto 1fr;gap:8px;align-items:center;text-align:left;padding:9px}
+.palette .symbol{display:grid;place-items:center;width:25px;height:25px;border-radius:6px;background:#172643;color:#55e7ff}
+.palette small{color:#91a4ba;font-size:.68rem}.selection{color:#91a4ba;font-size:.75rem;line-height:1.4}
+.grid-panel{overflow:auto}.lane-headings{display:grid;grid-template-columns:44px 1fr 24px 1fr;align-items:center;margin-bottom:9px;color:#55e7ff;font-size:.7rem;letter-spacing:.12em;text-align:center}
+.lane-headings span{writing-mode:vertical-rl;font-size:.6rem}.track-grid{display:grid;gap:4px;min-width:540px}
+.track-row{display:grid;grid-template-columns:44px repeat(5,1fr) 24px repeat(5,1fr);gap:4px}
+.row-number{display:grid;place-items:center;color:#64758b;font-size:.68rem}.divider{display:grid;place-items:center;color:#ff4fd8;font-weight:800}
+.cell{min-height:36px;padding:2px;border-radius:6px;background:#0d1528;color:#b6c5d8}
+.cell:hover{background:#13223d}.cell.selected{outline:2px solid #55e7ff;outline-offset:1px}.cell:not([data-id="empty"]){color:#fff;background:#172643}
+.near-label{text-align:center;color:#ff4fd8;font-size:.65rem;letter-spacing:.18em;margin-top:9px}
+@media(max-width:900px){.editor-layout{grid-template-columns:1fr}.tool-panel{position:static}.grid-panel{order:-1}}
