@@ -41,7 +41,7 @@ export interface SwordMember {
   slashDurationMs: number;
   /** Primary slash color. */
   color: NeonColorName;
-  /** Visual thickness multiplier for slashArcPrimitives(). 1.0 = default. */
+  /** Visual thickness multiplier for the shared sword trail. 1.0 = default. */
   slashThickness: number;
   /**
    * Optional design notes. Not used by runtime — documents intent for future agents.

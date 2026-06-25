@@ -51,6 +51,7 @@ export const neonShapeCatalog: readonly NeonGeometricShapeDefinition[] = [
   make("player", "triad-pod", "Triad Pod", regular(3), "yaw", [regular(3, -Math.PI/2, .38, .38)]),
   make("player", "spike-lance", "Spike Lance", [[0,-1],[.48,.65],[.18,.42],[0,1],[-.18,.42],[-.48,.65]], "pitch"),
   make("player", "orbit-drone", "Orbit Drone", regular(12), "orbit", [regular(12, 0, .58, .58)]),
+  make("player", "shield-ring", "Shield Ring", regular(32), "orbit", [regular(32, 0, .91, .91)]),
 
   make("hunter", "hunter-dart", "Dart", [[-1,-.7],[1,0],[-1,.7],[-.45,0]], "pitch"),
   make("hunter", "hunter-kite", "Kite", [[-1,-.75],[1,0],[-1,.75],[-.55,0]], "roll", [regular(3,0,.35,.35)]),
@@ -105,4 +106,3 @@ export const neonShapeCatalog: readonly NeonGeometricShapeDefinition[] = [
 
 export const getNeonShape = (id: string): NeonGeometricShapeDefinition | undefined =>
   neonShapeCatalog.find(shape => shape.id === id);
-

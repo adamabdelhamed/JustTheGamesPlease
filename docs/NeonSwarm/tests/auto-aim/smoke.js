@@ -43,6 +43,7 @@ var neonShapeCatalog = [
   make("player", "triad-pod", "Triad Pod", regular(3), "yaw", [regular(3, -Math.PI / 2, 0.38, 0.38)]),
   make("player", "spike-lance", "Spike Lance", [[0, -1], [0.48, 0.65], [0.18, 0.42], [0, 1], [-0.18, 0.42], [-0.48, 0.65]], "pitch"),
   make("player", "orbit-drone", "Orbit Drone", regular(12), "orbit", [regular(12, 0, 0.58, 0.58)]),
+  make("player", "shield-ring", "Shield Ring", regular(32), "orbit", [regular(32, 0, 0.91, 0.91)]),
   make("hunter", "hunter-dart", "Dart", [[-1, -0.7], [1, 0], [-1, 0.7], [-0.45, 0]], "pitch"),
   make("hunter", "hunter-kite", "Kite", [[-1, -0.75], [1, 0], [-1, 0.75], [-0.55, 0]], "roll", [regular(3, 0, 0.35, 0.35)]),
   make("hunter", "hunter-needle", "Needle", [[-1, -0.42], [1, 0], [-1, 0.42], [-0.55, 0]], "yaw"),
@@ -421,12 +422,6 @@ function createTestPage(id, driver, statusElement) {
   publish();
   return api;
 }
-
-// projects/NeonFactory/src/shield-primitives.ts
-var shieldFieldPoints = Array.from({ length: 32 }, (_, index) => {
-  const angle = -Math.PI / 2 + index * Math.PI * 2 / 32;
-  return [Math.cos(angle), Math.sin(angle)];
-});
 
 // projects/NeonSwarm/src/autoAim.ts
 var AutoAimControlState = class {

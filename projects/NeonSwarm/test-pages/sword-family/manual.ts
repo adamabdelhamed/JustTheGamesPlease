@@ -1,6 +1,6 @@
 import {
-  getNeonShape, NeonShapeActor, NeonShapeDisposal, NeonTopDownSceneRenderer,
-  neonPalette, slashArcPrimitives, swordPickupPrimitives,
+  NeonShapeActor, NeonShapeDisposal, NeonTopDownSceneRenderer,
+  neonPalette,
   type NeonPrimitive, type NeonTopDownShape,
 } from "@just-the-games-please/neon-factory";
 import {
@@ -14,6 +14,7 @@ import { applyPortraitStage } from "../../src/viewport";
 import { actorInTopDownScene, shapeLabel, swarmShapes } from "../../src/shapeVisuals";
 import { SwordState, tickSword } from "../../src/combat/swordEvaluator";
 import { queryNearbyThreats } from "../../src/combat/nearbyThreatQuery";
+import { swordPickupVisual, swordVisuals } from "../../src/familyVisuals";
 
 interface Enemy {
   id: number;
@@ -220,54 +221,22 @@ try {
 
     const def = swordFamily.members[activeSwordId];
     const swordColor = neonPalette[def.color];
-    // Sword slash animation
-    if (swordState.activeSlash) {
-      const slash = swordState.activeSlash;
-      primitives.push(...slashArcPrimitives({
-        x: slash.x, y: slash.y,
-        reach: slash.reach, arcDegrees: slash.arcDegrees,
-        headingDeg: -90, color: slash.color,
-        progress: slash.progress, thickness: slash.thickness, scale: s,
-      }));
-    }
-
-    // Sword pickups
-    for (const pickup of pickups) {
-      const pDef = swordFamily.members[pickup.swordId];
-      const pColor = neonPalette[pDef.color];
-      const pickupX = laneX(pickup.lane);
-      const wobble = Math.sin(now / 420 + pickup.y * 0.07) * 4.5 * s;
-      const wx = pickupX + wobble;
-      const pulse = 1 + Math.sin(now / 600 + pickup.y * 0.05) * 0.08;
-      primitives.push(...swordPickupPrimitives({ x: wx, y: pickup.y, color: pColor, now, scale: s }));
-      for (let sp = 0; sp < 3; sp++) {
-        const angle = now / 900 + sp * 2.09 + pickup.y;
-        const dist = (9 + sp * 3) * s * pulse;
-        primitives.push({ x: wx + Math.cos(angle) * dist, y: pickup.y + Math.sin(angle) * dist * 0.7, width: 1.4 * s, color: pColor, glow: .9, intensity: .55 + Math.sin(now / 300 + sp) * .25, shape: "circle" });
-      }
-    }
-
-    // 3D shapes
     const shapes: NeonTopDownShape[] = [];
-    if (playerAlive) {
-      const slash = swordState.activeSlash;
-      const halfArc = def.arcDegrees * Math.PI / 360;
-      const sweep = slash ? (slash.progress < .62 ? 1 - Math.pow(1 - slash.progress / .62, 3) : 1) : .5;
-      const swordAngle = -Math.PI / 2 - halfArc + sweep * halfArc * 2;
-      shapes.push({
-        shape: getNeonShape("spike-lance")!,
-        x: px,
-        y: py,
-        size: Math.min(17, def.range * .28) * s,
-        color: swordColor,
-        rotationZ: swordAngle + Math.PI / 2,
-        lineThickness: .82,
-        glow: slash ? 1.35 : 1,
-        energyIntensity: slash ? 1.8 : 1.15,
-        energyCoverage: slash ? .72 : .42,
-        energySpeed: slash ? 2.1 : 1.2,
-        energyBleed: slash ? .8 : .5,
-      });
+    const swordScene = swordVisuals({
+      definition: def,
+      slash: swordState.activeSlash,
+      x: px, y: py, scale: s,
+      visible: playerAlive,
+    });
+    primitives.push(...swordScene.primitives);
+    shapes.push(...swordScene.shapes);
+    for (const pickup of pickups) {
+      const pickupDef = swordFamily.members[pickup.swordId];
+      shapes.push(swordPickupVisual({
+        x: laneX(pickup.lane), y: pickup.y,
+        color: neonPalette[pickupDef.color],
+        now, scale: s,
+      }));
     }
     shapes.push(actorInTopDownScene(playerActor, squad.x, py, 14));
     for (const e of enemies) shapes.push(actorInTopDownScene(e.actor, e.x, e.y, 18, { rotationY: Math.sin(now / 700 + e.id) * .18 }));

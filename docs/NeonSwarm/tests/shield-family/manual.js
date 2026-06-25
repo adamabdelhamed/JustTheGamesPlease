@@ -43,6 +43,7 @@ var neonShapeCatalog = [
   make("player", "triad-pod", "Triad Pod", regular(3), "yaw", [regular(3, -Math.PI / 2, 0.38, 0.38)]),
   make("player", "spike-lance", "Spike Lance", [[0, -1], [0.48, 0.65], [0.18, 0.42], [0, 1], [-0.18, 0.42], [-0.48, 0.65]], "pitch"),
   make("player", "orbit-drone", "Orbit Drone", regular(12), "orbit", [regular(12, 0, 0.58, 0.58)]),
+  make("player", "shield-ring", "Shield Ring", regular(32), "orbit", [regular(32, 0, 0.91, 0.91)]),
   make("hunter", "hunter-dart", "Dart", [[-1, -0.7], [1, 0], [-1, 0.7], [-0.45, 0]], "pitch"),
   make("hunter", "hunter-kite", "Kite", [[-1, -0.75], [1, 0], [-1, 0.75], [-0.55, 0]], "roll", [regular(3, 0, 0.35, 0.35)]),
   make("hunter", "hunter-needle", "Needle", [[-1, -0.42], [1, 0], [-1, 0.42], [-0.55, 0]], "yaw"),
@@ -965,59 +966,6 @@ var NeonTopDownSceneRenderer = class _NeonTopDownSceneRenderer {
   }
 };
 
-// projects/NeonFactory/src/shield-primitives.ts
-var shieldFieldPoints = Array.from({ length: 32 }, (_, index) => {
-  const angle = -Math.PI / 2 + index * Math.PI * 2 / 32;
-  return [Math.cos(angle), Math.sin(angle)];
-});
-var shieldFieldShape = {
-  id: "shield-field",
-  name: "Shield Field",
-  family: "player",
-  color: "#48f6ff",
-  points: shieldFieldPoints,
-  rock: "pulse",
-  depth: 0.025
-};
-function shieldPulsePrimitives(opts) {
-  const { x, y, maxRadius, color, progress, scale = 1 } = opts;
-  if (progress >= 1) return [];
-  const life = 1 - progress;
-  const r = maxRadius * scale * (0.1 + progress * 0.9);
-  return [
-    // Outer expanding ring
-    {
-      x,
-      y,
-      width: r * 2,
-      color,
-      glow: life * 0.85,
-      intensity: life * 0.9,
-      shape: "ring"
-    },
-    // Inner secondary ring slightly behind
-    {
-      x,
-      y,
-      width: r * 2 * 0.72,
-      color,
-      glow: life * 0.5,
-      intensity: life * 0.6,
-      shape: "ring"
-    }
-  ];
-}
-
-// projects/NeonFactory/src/sword-primitives.ts
-function shieldPickupPrimitives(opts) {
-  const { x, y, color, secondaryColor = color, now, scale = 1 } = opts;
-  const pulse = 1 + Math.sin(now / 700) * 0.07;
-  return [
-    { x, y, width: 10 * scale * pulse, color, secondaryColor, glow: 0.8, intensity: 0.9, shape: "pentagon" },
-    { x, y: y - 0.5 * scale, width: 3.2 * scale * pulse, color: secondaryColor, secondaryColor: color, glow: 0.6, intensity: 1, shape: "diamond" }
-  ];
-}
-
 // projects/NeonSwarm/CombatDefinition/FamilyDefinition.ts
 var FamilyDefinition = class {
   require(condition, message) {
@@ -1903,6 +1851,91 @@ function queryNearbyThreats(enemies, opts) {
   return maxTargets !== void 0 ? results.slice(0, maxTargets) : results;
 }
 
+// projects/NeonSwarm/src/familyVisuals.ts
+var emptyScene = () => ({ primitives: [], shapes: [] });
+var requiredShape = (id) => {
+  const shape = getNeonShape(id);
+  if (!shape) throw new Error(`NeonFactory shape "${id}" is required by family visuals.`);
+  return shape;
+};
+function shieldVisuals(options) {
+  const scene = emptyScene();
+  const {
+    definition,
+    x,
+    y,
+    now,
+    scale = 1,
+    hitProgress = 1,
+    visible = true
+  } = options;
+  const strength = Math.max(0, options.strength);
+  const initialStrength = Math.max(1, options.initialStrength);
+  const impact = Math.max(0, 1 - hitProgress);
+  const exploding = strength <= 0 && hitProgress < 1;
+  const color = neonPalette[definition.color];
+  const radius = definition.radius * scale;
+  if (visible || exploding) {
+    scene.shapes.push({
+      shape: requiredShape("shield-ring"),
+      x,
+      y,
+      size: radius,
+      color,
+      lineThickness: 0.72,
+      glow: 1 + impact * 0.8,
+      opacity: 1,
+      energyIntensity: 1.15 + impact * 1.5,
+      energyCoverage: 0.42 + impact * 0.3,
+      energySpeed: 1.15 + impact * 1.2,
+      energyBleed: 0.5 + impact * 0.35,
+      explodeProgress: exploding ? Math.min(1, hitProgress) : 0,
+      explodeMagnitude: 0.9
+    });
+  }
+  if (!visible) return scene;
+  const orbiterShape = requiredShape(definition.orbiterShape === "hex" ? "hex-fighter" : "star-core");
+  const orbiterCount = Math.ceil(definition.orbiterCount * strength / initialStrength);
+  const angleStep = Math.PI * 2 / definition.orbiterCount;
+  const baseAngle = now / 1e3 * definition.orbiterSpeed;
+  for (let i = 0; i < orbiterCount; i++) {
+    const angle = baseAngle + i * angleStep;
+    scene.shapes.push({
+      shape: orbiterShape,
+      x: x + Math.cos(angle) * radius,
+      y: y + Math.sin(angle) * radius,
+      size: definition.orbiterSize * 1.8 * scale,
+      color,
+      rotationZ: angle + now / 1400,
+      lineThickness: 0.72,
+      glow: 1,
+      energyIntensity: 1.1,
+      energyCoverage: 0.4,
+      energySpeed: 1.25,
+      energyBleed: 0.5
+    });
+  }
+  return scene;
+}
+function pickupShape(shapeId, options) {
+  const { x, y, color, now, scale = 1 } = options;
+  return {
+    shape: requiredShape(shapeId),
+    x: x + Math.sin(now / 420 + y * 0.07) * 4.5 * scale,
+    y,
+    size: 10 * scale * (1 + Math.sin(now / 600 + y * 0.05) * 0.08),
+    color,
+    rotationZ: now / 1100,
+    lineThickness: 0.76,
+    glow: 1.05,
+    energyIntensity: 1.25,
+    energyCoverage: 0.48,
+    energySpeed: 1.35,
+    energyBleed: 0.55
+  };
+}
+var shieldPickupVisual = (options) => pickupShape("shield-ring", options);
+
 // projects/NeonSwarm/test-pages/shield-family/manual.ts
 var canvas = document.querySelector("#game-canvas");
 var error = document.querySelector("#error");
@@ -2105,67 +2138,29 @@ try {
     const shieldColor = neonPalette[def.color];
     const px = squad.x;
     const py = playerY();
-    const r = def.radius * s;
-    const baseEnergy = 1;
-    const orbCount = playerAlive ? Math.ceil(def.orbiterCount * Math.max(0, shieldStrength) / Math.max(1, initialShieldStrength)) : 0;
-    const orbAngleStep = def.orbiterCount > 0 ? Math.PI * 2 / def.orbiterCount : 0;
-    const orbBaseAngle = now / 1e3 * def.orbiterSpeed;
-    for (const pulse of shieldState.pulseEffects) {
-      primitives.push(...shieldPulsePrimitives({ x: pulse.x, y: pulse.y, maxRadius: pulse.maxRadius, color: shieldColor, progress: pulse.progress }));
-    }
-    for (const pickup of pickups) {
-      const pDef = shieldFamily.members[pickup.shieldId];
-      const pColor = neonPalette[pDef.color];
-      const pickupX = laneX(pickup.lane);
-      const wobble = Math.sin(now / 420 + pickup.y * 0.07) * 4.5 * s;
-      const wx = pickupX + wobble;
-      const pulse2 = 1 + Math.sin(now / 600 + pickup.y * 0.05) * 0.08;
-      primitives.push(...shieldPickupPrimitives({ x: wx, y: pickup.y, color: pColor, now, scale: s }));
-      for (let sp = 0; sp < 3; sp++) {
-        const angle = now / 900 + sp * 2.09 + pickup.y;
-        const dist = (9 + sp * 3) * s * pulse2;
-        primitives.push({ x: wx + Math.cos(angle) * dist, y: pickup.y + Math.sin(angle) * dist * 0.7, width: 1.4 * s, color: pColor, glow: 0.85, intensity: 0.5 + Math.sin(now / 300 + sp) * 0.25, shape: "circle" });
-      }
-    }
     const shapes = [];
-    const shieldExploding = def.mode === "charge" && shieldStrength <= 0 && shieldState.hitFlashProgress < 1;
-    if (playerAlive || shieldExploding) {
-      const impact = Math.max(0, 1 - shieldState.hitFlashProgress);
-      const exploding = shieldStrength <= 0;
-      shapes.push({
-        shape: shieldFieldShape,
-        x: px,
-        y: py,
-        size: r,
-        color: shieldColor,
-        lineThickness: 0.72,
-        glow: 1 + impact * 0.8,
-        opacity: 1,
-        energyIntensity: 1.15 + impact * 1.5,
-        energyCoverage: 0.42 + impact * 0.3,
-        energySpeed: 1.15 + impact * 1.2,
-        energyBleed: 0.5 + impact * 0.35,
-        explodeProgress: exploding ? Math.min(1, shieldState.hitFlashProgress) : 0,
-        explodeMagnitude: 0.9
-      });
-    }
-    const orbiterShape = def.orbiterShape === "hex" ? getNeonShape("hex-fighter") : getNeonShape("star-core");
-    for (let i = 0; i < orbCount; i++) {
-      const angle = orbBaseAngle + i * orbAngleStep;
-      shapes.push({
-        shape: orbiterShape,
-        x: px + Math.cos(angle) * r,
-        y: py + Math.sin(angle) * r,
-        size: def.orbiterSize * 1.8 * s,
-        color: shieldColor,
-        rotationZ: angle + now / 1400,
-        lineThickness: 0.72,
-        glow: 1,
-        energyIntensity: 1.1,
-        energyCoverage: 0.4,
-        energySpeed: 1.25,
-        energyBleed: 0.5
-      });
+    const shieldScene = shieldVisuals({
+      definition: def,
+      strength: shieldStrength,
+      initialStrength: initialShieldStrength,
+      x: px,
+      y: py,
+      now,
+      scale: s,
+      hitProgress: shieldState.hitFlashProgress,
+      visible: playerAlive
+    });
+    primitives.push(...shieldScene.primitives);
+    shapes.push(...shieldScene.shapes);
+    for (const pickup of pickups) {
+      const pickupDef = shieldFamily.members[pickup.shieldId];
+      shapes.push(shieldPickupVisual({
+        x: laneX(pickup.lane),
+        y: pickup.y,
+        color: neonPalette[pickupDef.color],
+        now,
+        scale: s
+      }));
     }
     shapes.push(actorInTopDownScene(playerActor, squad.x, playerY(), 14));
     for (const e of enemies) shapes.push(actorInTopDownScene(e.actor, e.x, e.y, 18, { rotationY: Math.sin(now / 700 + e.id) * 0.18 }));

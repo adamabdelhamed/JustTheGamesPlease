@@ -1,4 +1,4 @@
-import { getNeonShape, NeonProjectile, NeonShapeActor, NeonShapeDisposal, NeonTopDownSceneRenderer, NeonVictoryExperience, neonPalette, shieldFieldShape, shieldPulsePrimitives, slashArcPrimitives, swordPickupPrimitives, shieldPickupPrimitives, type NeonPrimitive, type NeonTopDownShape } from "@just-the-games-please/neon-factory";
+import { NeonProjectile, NeonShapeActor, NeonShapeDisposal, NeonTopDownSceneRenderer, NeonVictoryExperience, neonPalette, type NeonPrimitive, type NeonTopDownShape } from "@just-the-games-please/neon-factory";
 import { gunFamily, multiplierFamily, orbFamily, parseTrackDefinition, shieldFamily, swordFamily, trackFamily, type GunId, type MultiplierId, type ParsedTrackEntity, type ShieldId, type SwordId, type TrackMember, type SwordTargetingMode } from "../CombatDefinition";
 import { bindSquadInput } from "./input";
 import { SquadModel } from "./squad";
@@ -8,6 +8,7 @@ import { actorInTopDownScene, shapeLabel, swarmShapes } from "./shapeVisuals";
 import { ShieldState, tickShield, tryAbsorbHit } from "./combat/shieldEvaluator";
 import { SwordState, tickSword } from "./combat/swordEvaluator";
 import { queryNearbyThreats } from "./combat/nearbyThreatQuery";
+import { shieldPickupVisual, shieldVisuals, swordPickupVisual, swordVisuals } from "./familyVisuals";
 
 // ---------------------------------------------------------------------------
 // Interfaces
@@ -578,54 +579,6 @@ try {
         primitives.push(...new NeonProjectile({x:shot.x,y:shot.y,velocityY:-shot.speed,radius:shot.radius,length:shot.radius*2.5,trailLength:18*s,trailWidth:Math.max(1.2*s,shot.radius*.5),color:shot.color,trailColor:shot.trail,shape:"dart"}).primitives());
       }
 
-      // --- Shield rendering ---
-      if (activeByFamily.shield) {
-        const shieldState = activeByFamily.shield;
-        const shieldDef = shieldFamily.members[shieldState.shieldId];
-        const shieldColor = neonPalette[shieldDef.color];
-        const px = squad.x;
-        const py = playerY();
-        const r = shieldDef.radius * s;
-        const baseEnergy = 1;
-
-        // Orbiters
-        const orbCount = shieldDef.orbiterShape === "hex" && shieldDef.mode === "charge"
-          ? shieldState.charges  // Hex Guard shows live charge count
-          : shieldDef.orbiterCount;
-        const orbAngleStep = orbCount > 0 ? (Math.PI * 2) / shieldDef.orbiterCount : 0;
-        const orbBaseAngle = (now / 1000) * shieldDef.orbiterSpeed;
-
-        // Pulse rings (Pulse Core)
-        for (const pulse of shieldState.pulseEffects) {
-          primitives.push(...shieldPulsePrimitives({
-            x: pulse.x, y: pulse.y,
-            maxRadius: pulse.maxRadius,
-            color: shieldColor,
-            progress: pulse.progress,
-            scale: s,
-          }));
-        }
-      }
-
-      // --- Sword slash rendering ---
-      if (activeByFamily.sword) {
-        const swordState = activeByFamily.sword;
-        if (swordState.activeSlash) {
-          const slash = swordState.activeSlash;
-          primitives.push(...slashArcPrimitives({
-            x: slash.x,
-            y: slash.y,
-            reach: slash.reach,
-            arcDegrees: slash.arcDegrees,
-            headingDeg: -90, // pointing upward toward enemies
-            color: slash.color,
-            progress: slash.progress,
-            thickness: slash.thickness,
-            scale: s,
-          }));
-        }
-      }
-
       // --- Gun pickups ---
       for (const pickup of gunPickups) {
         const gun = gunFamily.members[pickup.gunId];
@@ -648,40 +601,6 @@ try {
         } else {
           primitives.push({ x: wx, y: pickup.y - 1 * s, width: 2 * s, height: 9 * s, color: pColor, secondaryColor: tColor, glow: .65, intensity: 1.1, shape: "bolt" });
         }
-        for (let sp = 0; sp < 3; sp++) {
-          const angle = now / 900 + sp * 2.09 + pickup.y;
-          const dist = (9 + sp * 3) * s * pulse;
-          primitives.push({ x: wx + Math.cos(angle) * dist, y: pickup.y + Math.sin(angle) * dist * 0.7, width: 1.4 * s, color: pColor, glow: .9, intensity: .55 + Math.sin(now / 300 + sp) * .25, shape: "circle" });
-        }
-      }
-
-      // --- Shield pickups ---
-      for (const pickup of shieldPickups) {
-        const def = shieldFamily.members[pickup.shieldId];
-        const pColor = neonPalette[def.color];
-        const px = laneX(pickup.lane);
-        const wobble = Math.sin(now / 420 + pickup.y * 0.07) * 4.5 * s;
-        const wx = px + wobble;
-        const pulse = 1 + Math.sin(now / 600 + pickup.y * 0.05) * 0.08;
-        primitives.push(...shieldPickupPrimitives({ x: wx, y: pickup.y, color: pColor, now, scale: s }));
-        // Sparkles
-        for (let sp = 0; sp < 3; sp++) {
-          const angle = now / 900 + sp * 2.09 + pickup.y;
-          const dist = (9 + sp * 3) * s * pulse;
-          primitives.push({ x: wx + Math.cos(angle) * dist, y: pickup.y + Math.sin(angle) * dist * 0.7, width: 1.4 * s, color: pColor, glow: .85, intensity: .5 + Math.sin(now / 300 + sp) * .25, shape: "circle" });
-        }
-      }
-
-      // --- Sword pickups ---
-      for (const pickup of swordPickups) {
-        const def = swordFamily.members[pickup.swordId];
-        const pColor = neonPalette[def.color];
-        const px = laneX(pickup.lane);
-        const wobble = Math.sin(now / 420 + pickup.y * 0.07) * 4.5 * s;
-        const wx = px + wobble;
-        const pulse = 1 + Math.sin(now / 600 + pickup.y * 0.05) * 0.08;
-        primitives.push(...swordPickupPrimitives({ x: wx, y: pickup.y, color: pColor, now, scale: s }));
-        // Sparkles
         for (let sp = 0; sp < 3; sp++) {
           const angle = now / 900 + sp * 2.09 + pickup.y;
           const dist = (9 + sp * 3) * s * pulse;
@@ -720,67 +639,43 @@ try {
     if (activeByFamily.shield) {
       const liveShield = activeByFamily.shield;
       const liveDef = shieldFamily.members[liveShield.shieldId];
-      const impact = Math.max(0, 1 - liveShield.hitFlashProgress);
-      const exploding = liveDef.mode === "charge" && liveShield.charges <= 0;
-      shapeInstances.push({
-        shape: shieldFieldShape,
-        x: squad.x,
-        y: playerY(),
-        size: liveDef.radius * s,
-        color: neonPalette[liveDef.color],
-        lineThickness: 0.72,
-        glow: 1 + impact * 0.8,
-        opacity: 1,
-        energyIntensity: 1.15 + impact * 1.5,
-        energyCoverage: 0.42 + impact * 0.3,
-        energySpeed: 1.15 + impact * 1.2,
-        energyBleed: 0.5 + impact * 0.35,
-        explodeProgress: exploding ? Math.min(1, liveShield.hitFlashProgress) : 0,
-        explodeMagnitude: 0.9,
+      const scene = shieldVisuals({
+        definition: liveDef,
+        strength: liveShield.charges,
+        initialStrength: liveDef.maxCharges,
+        x: squad.x, y: playerY(), now, scale: s,
+        hitProgress: liveShield.hitFlashProgress,
       });
-      const orbiterShape = liveDef.orbiterShape === "hex" ? getNeonShape("hex-fighter")! : getNeonShape("star-core")!;
-      const orbCount = Math.ceil(liveDef.orbiterCount * liveShield.charges / liveDef.maxCharges);
-      const angleStep = orbCount > 0 ? Math.PI * 2 / liveDef.orbiterCount : 0;
-      const baseAngle = now / 1000 * liveDef.orbiterSpeed;
-      for (let i = 0; i < orbCount; i++) {
-        const angle = baseAngle + i * angleStep;
-        shapeInstances.push({
-          shape: orbiterShape,
-          x: squad.x + Math.cos(angle) * liveDef.radius * s,
-          y: playerY() + Math.sin(angle) * liveDef.radius * s,
-          size: liveDef.orbiterSize * 1.8 * s,
-          color: neonPalette[liveDef.color],
-          rotationZ: angle + now / 1400,
-          lineThickness: 0.72,
-          glow: 1,
-          energyIntensity: 1.1,
-          energyCoverage: 0.4,
-          energySpeed: 1.25,
-          energyBleed: 0.5,
-        });
-      }
+      primitives.push(...scene.primitives);
+      shapeInstances.push(...scene.shapes);
     }
     if (activeByFamily.sword) {
       const liveSword = activeByFamily.sword;
       const liveDef = swordFamily.members[liveSword.swordId];
-      const slash = liveSword.activeSlash;
-      const halfArc = liveDef.arcDegrees * Math.PI / 360;
-      const sweep = slash ? (slash.progress < .62 ? 1 - Math.pow(1 - slash.progress / .62, 3) : 1) : .5;
-      const swordAngle = -Math.PI / 2 - halfArc + sweep * halfArc * 2;
-      shapeInstances.push({
-        shape: getNeonShape("spike-lance")!,
-        x: squad.x,
-        y: playerY(),
-        size: Math.min(17, liveDef.range * .28) * s,
-        color: neonPalette[liveDef.color],
-        rotationZ: swordAngle + Math.PI / 2,
-        lineThickness: .82,
-        glow: slash ? 1.35 : 1,
-        energyIntensity: slash ? 1.8 : 1.15,
-        energyCoverage: slash ? .72 : .42,
-        energySpeed: slash ? 2.1 : 1.2,
-        energyBleed: slash ? .8 : .5,
+      const scene = swordVisuals({
+        definition: liveDef,
+        slash: liveSword.activeSlash,
+        x: squad.x, y: playerY(), scale: s,
+        visible: true,
       });
+      primitives.push(...scene.primitives);
+      shapeInstances.push(...scene.shapes);
+    }
+    for (const pickup of shieldPickups) {
+      const definition = shieldFamily.members[pickup.shieldId];
+      shapeInstances.push(shieldPickupVisual({
+        x: laneX(pickup.lane), y: pickup.y,
+        color: neonPalette[definition.color],
+        now, scale: s,
+      }));
+    }
+    for (const pickup of swordPickups) {
+      const definition = swordFamily.members[pickup.swordId];
+      shapeInstances.push(swordPickupVisual({
+        x: laneX(pickup.lane), y: pickup.y,
+        color: neonPalette[definition.color],
+        now, scale: s,
+      }));
     }
     const playerSize = 14;
     for (const [index, point] of squad.points(playerY(), s).entries()) {
