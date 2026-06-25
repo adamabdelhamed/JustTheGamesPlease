@@ -73,12 +73,16 @@ try {
     activeTrack = track;
     startedAt = performance.now();
     lastFrame = startedAt;
-    playerLane = 0;
+    const allEntities = parseTrackDefinition(track.definition);
+    // Determine starting lane from player.start entity (default left if absent).
+    const playerStart = allEntities.find(entity => entity.id === "player.start");
+    const startLane: 0 | 1 = playerStart?.side === "right" ? 1 : 0;
+    playerLane = startLane;
     gunId = track.startingGun;
     gunLevel = track.startingGunLevel;
     cooldown = 0;
     nextTrackEntity = 0;
-    trackEntities = parseTrackDefinition(track.definition).filter(entity => entity.id !== "player.start");
+    trackEntities = allEntities.filter(entity => entity.id !== "player.start");
     breaches = 0;
     enemies = [];
     projectiles = [];
@@ -89,13 +93,15 @@ try {
     playerActors.push(new NeonShapeActor({ shape: swarmShapes.player }));
     explodingPlayers.length = 0;
     squad.aimOffset = 0;
-    squad.x = laneX(0);
-    squad.targetX = laneX(0);
+    squad.lane = startLane;
+    squad.x = laneX(startLane);
+    squad.targetX = laneX(startLane);
     victory = null;
     trackSelect.hidden = true;
     result.hidden = true;
     status.textContent = "Tap a side to switch lanes. Small joystick motion aims; full motion crosses lanes.";
   };
+
 
   trackList.innerHTML = Object.entries(trackFamily.members).map(([id, track]) => `
     <button class="track-card" data-track="${id}">

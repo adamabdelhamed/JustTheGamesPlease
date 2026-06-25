@@ -1317,7 +1317,7 @@ var firstTrack = {
 ..... | ..E..
 ..... | .....
 ..E.. | .....
-..P.. | ..P..
+..... | ..P..
 `,
     legend: {
       ".": { id: "empty" },
@@ -1780,12 +1780,15 @@ try {
     activeTrack = track;
     startedAt = performance.now();
     lastFrame = startedAt;
-    playerLane = 0;
+    const allEntities = parseTrackDefinition(track.definition);
+    const playerStart = allEntities.find((entity) => entity.id === "player.start");
+    const startLane = playerStart?.side === "right" ? 1 : 0;
+    playerLane = startLane;
     gunId = track.startingGun;
     gunLevel = track.startingGunLevel;
     cooldown = 0;
     nextTrackEntity = 0;
-    trackEntities = parseTrackDefinition(track.definition).filter((entity) => entity.id !== "player.start");
+    trackEntities = allEntities.filter((entity) => entity.id !== "player.start");
     breaches = 0;
     enemies = [];
     projectiles = [];
@@ -1796,8 +1799,9 @@ try {
     playerActors.push(new NeonShapeActor({ shape: swarmShapes.player }));
     explodingPlayers.length = 0;
     squad.aimOffset = 0;
-    squad.x = laneX(0);
-    squad.targetX = laneX(0);
+    squad.lane = startLane;
+    squad.x = laneX(startLane);
+    squad.targetX = laneX(startLane);
     victory = null;
     trackSelect.hidden = true;
     result.hidden = true;

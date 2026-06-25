@@ -48,7 +48,7 @@ export const firstTrack = {
 ..... | ..E..
 ..... | .....
 ..E.. | .....
-..P.. | ..P..
+..... | ..P..
 `,
 
     legend: {
