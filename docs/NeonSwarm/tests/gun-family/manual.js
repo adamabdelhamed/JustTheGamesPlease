@@ -1925,6 +1925,152 @@ var swarmShapes = {
 var actorInTopDownScene = (actor, x, y, size, overrides = {}) => ({ ...actor.renderInstance(overrides), x, y, size });
 var shapeLabel = (text, position, fontSize, offset = 4) => ({ text, position, fontSize, offset, fontFamily: "Segoe UI, sans-serif", fontWeight: 700 });
 
+// projects/NeonSwarm/src/combat/gunSimulation.ts
+var GunSimulation = class {
+  projectiles = [];
+  effects = [];
+  scheduledVolleys = [];
+  sequence = 0;
+  shotSequence = 0;
+  clear() {
+    this.projectiles.length = 0;
+    this.effects.length = 0;
+    this.scheduledVolleys.length = 0;
+  }
+  fire(gun, level2, lane, origins, now, scale = 1) {
+    for (let burstIndex = 0; burstIndex < level2.burstCount; burstIndex++) {
+      this.scheduledVolleys.push({
+        firesAt: now + burstIndex * level2.burstIntervalMs,
+        gun,
+        level: level2,
+        lane,
+        origins: origins.map((origin) => ({ ...origin })),
+        scale
+      });
+    }
+  }
+  updateFiring(now) {
+    let fired = 0;
+    const due = this.scheduledVolleys.filter((volley) => volley.firesAt <= now);
+    this.scheduledVolleys = this.scheduledVolleys.filter((volley) => volley.firesAt > now);
+    for (const volley of due) {
+      this.spawnVolley(volley, now);
+      fired++;
+    }
+    return fired;
+  }
+  updateProjectiles(delta, now, targets, bounds, onHit) {
+    for (const projectile of [...this.projectiles]) {
+      projectile.x += projectile.vx * delta;
+      projectile.y += projectile.vy * delta;
+      if (projectile.y < bounds.top || projectile.x < (bounds.left ?? -Infinity) || projectile.x > (bounds.right ?? Infinity)) {
+        this.removeProjectile(projectile);
+        continue;
+      }
+      for (const target of targets) {
+        if (target.dying || projectile.lane !== target.lane || projectile.hitEnemyIds.has(target.id)) continue;
+        const dx = projectile.x - target.x;
+        const dy = projectile.y - target.y;
+        const hitRadius = projectile.radius + target.radius;
+        if (dx * dx + dy * dy > hitRadius * hitRadius) continue;
+        projectile.hitEnemyIds.add(target.id);
+        target.health -= projectile.damage;
+        target.y -= projectile.knockback;
+        this.effects.push({
+          kind: "impact",
+          style: projectile.impactEffect,
+          x: projectile.x,
+          y: projectile.y,
+          color: projectile.color,
+          secondaryColor: projectile.trailColor,
+          radius: projectile.radius * projectile.hitFlashScale * 4,
+          expiresAt: now + projectile.impactDurationMs,
+          duration: projectile.impactDurationMs,
+          seed: projectile.id
+        });
+        onHit(projectile, target);
+        if (projectile.pierceRemaining > 0) projectile.pierceRemaining--;
+        else this.removeProjectile(projectile);
+        if (!this.projectiles.includes(projectile)) break;
+      }
+    }
+    for (const effect of [...this.effects]) {
+      if (effect.expiresAt <= now) this.effects.splice(this.effects.indexOf(effect), 1);
+    }
+  }
+  projectilePrimitives() {
+    return this.projectiles.flatMap((projectile) => new NeonProjectile({
+      x: projectile.x,
+      y: projectile.y,
+      velocityX: projectile.vx,
+      velocityY: projectile.vy,
+      radius: projectile.radius,
+      length: projectile.radius * projectile.aspect,
+      trailLength: projectile.trailLength,
+      trailWidth: Math.max(projectile.radius * projectile.trailWidthScale, 1.1),
+      color: projectile.color,
+      trailColor: projectile.trailColor,
+      coreColor: projectile.coreColor,
+      shape: projectile.shape,
+      intensity: projectile.visualIntensity * (projectile.tracer ? 1.35 : 1),
+      glow: projectile.tracer ? 1.4 : 0.72
+    }).primitives());
+  }
+  spawnVolley(volley, now) {
+    const { gun, level: level2, lane, origins, scale } = volley;
+    for (const origin of origins) {
+      const count = Math.max(1, level2.projectileCount);
+      for (let index = 0; index < count; index++) {
+        const angleDegrees = count === 1 ? 0 : (index / (count - 1) - 0.5) * level2.spreadDegrees;
+        const angle = angleDegrees * Math.PI / 180;
+        const speed = level2.projectileSpeed * scale;
+        this.shotSequence++;
+        this.projectiles.push({
+          id: ++this.sequence,
+          lane,
+          x: origin.x + (Math.random() * 2 - 1) * gun.visualIdentity.horizontalJitter * scale,
+          y: origin.y,
+          vx: Math.sin(angle) * speed,
+          vy: -Math.cos(angle) * speed,
+          radius: level2.projectileRadius * scale,
+          damage: level2.damage,
+          pierceRemaining: level2.pierce,
+          color: neonPalette[gun.visualIdentity.projectileColor],
+          trailColor: neonPalette[gun.visualIdentity.trailColor],
+          coreColor: neonPalette[gun.visualIdentity.coreColor],
+          aspect: gun.visualIdentity.projectileAspect,
+          trailWidthScale: gun.visualIdentity.trailWidthScale,
+          visualIntensity: gun.visualIdentity.visualIntensity,
+          shape: gun.visualIdentity.projectileShape,
+          impactEffect: gun.visualIdentity.impactEffect,
+          impactDurationMs: gun.visualIdentity.impactDurationMs,
+          trailLength: level2.trailLength * scale,
+          tracer: level2.tracerEveryNthShot > 0 && this.shotSequence % level2.tracerEveryNthShot === 0,
+          knockback: level2.knockback * scale,
+          hitFlashScale: level2.hitFlashScale,
+          hitEnemyIds: /* @__PURE__ */ new Set()
+        });
+      }
+    }
+    this.effects.push({
+      kind: "muzzle",
+      style: gun.visualIdentity.muzzleEffect,
+      x: origins.reduce((sum, origin) => sum + origin.x, 0) / origins.length,
+      y: origins[0]?.y ?? 0,
+      color: neonPalette[gun.visualIdentity.projectileColor],
+      secondaryColor: neonPalette[gun.visualIdentity.trailColor],
+      radius: 10 * level2.muzzleFlashScale * scale,
+      expiresAt: now + gun.visualIdentity.muzzleDurationMs,
+      duration: gun.visualIdentity.muzzleDurationMs,
+      seed: this.shotSequence
+    });
+  }
+  removeProjectile(projectile) {
+    const index = this.projectiles.indexOf(projectile);
+    if (index >= 0) this.projectiles.splice(index, 1);
+  }
+};
+
 // projects/NeonSwarm/test-pages/gun-family/manual.ts
 var canvas = document.querySelector("#game-canvas");
 var error = document.querySelector("#error");
@@ -1943,9 +2089,10 @@ try {
   const guns = gunFamily.members;
   const orb = orbFamily.members.basicOrb;
   const enemies = [];
-  const projectiles = [];
+  const gunSimulation = new GunSimulation();
+  const projectiles = gunSimulation.projectiles;
   const pickups = [];
-  const effects = [];
+  const effects = gunSimulation.effects;
   const multipliers = [];
   const squad = new SquadModel();
   let playerLane = 0;
@@ -2057,82 +2204,19 @@ try {
       aimControl.aimReleased();
     }
   });
-  const spawnProjectile = (lane, spawnX, angleDegrees, level2, gun) => {
-    shotSequence += 1;
-    const angle = angleDegrees * Math.PI / 180;
-    const speed = level2.projectileSpeed * scale();
-    projectiles.push({
-      id: ++entitySequence,
-      lane,
-      x: spawnX + (pseudoRandom(entitySequence + shotSequence * 3.17) * 2 - 1) * gun.visualIdentity.horizontalJitter * scale(),
-      y: playerY() - 22 * scale(),
-      vx: Math.sin(angle) * speed,
-      radius: level2.projectileRadius * scale(),
-      damage: level2.damage,
-      speed: Math.cos(angle) * speed,
-      pierceRemaining: level2.pierce,
-      color: neonPalette[gun.visualIdentity.projectileColor],
-      trailColor: neonPalette[gun.visualIdentity.trailColor],
-      coreColor: neonPalette[gun.visualIdentity.coreColor],
-      aspect: gun.visualIdentity.projectileAspect,
-      trailWidthScale: gun.visualIdentity.trailWidthScale,
-      visualIntensity: gun.visualIdentity.visualIntensity,
-      shape: gun.visualIdentity.projectileShape,
-      impactEffect: gun.visualIdentity.impactEffect,
-      impactDurationMs: gun.visualIdentity.impactDurationMs,
-      trailLength: level2.trailLength * scale(),
-      tracer: level2.tracerEveryNthShot > 0 && shotSequence % level2.tracerEveryNthShot === 0,
-      knockback: level2.knockback * scale(),
-      hitFlashScale: level2.hitFlashScale,
-      hitEnemyIds: /* @__PURE__ */ new Set()
-    });
-  };
   const fireVolley = (gun, level2) => {
-    for (const point of squad.points(playerY(), scale())) {
-      const count = Math.max(1, level2.projectileCount);
-      for (let index = 0; index < count; index++) {
-        const offset = count === 1 ? 0 : (index / (count - 1) - 0.5) * level2.spreadDegrees;
-        spawnProjectile(playerLane, point.x, offset, level2, gun);
-      }
-    }
+    gunSimulation.fire(gun, level2, playerLane, squad.points(playerY(), scale()).map((point) => ({
+      x: point.x,
+      y: playerY() - 22 * scale()
+    })), performance.now(), scale());
     recoil = level2.muzzleFlashScale * 7 * scale();
-    effects.push({
-      kind: "muzzle",
-      style: gun.visualIdentity.muzzleEffect,
-      x: squad.x,
-      y: playerY() - 22 * scale(),
-      color: neonPalette[gun.visualIdentity.projectileColor],
-      secondaryColor: neonPalette[gun.visualIdentity.trailColor],
-      radius: 10 * level2.muzzleFlashScale * scale(),
-      expiresAt: performance.now() + gun.visualIdentity.muzzleDurationMs,
-      duration: gun.visualIdentity.muzzleDurationMs,
-      seed: shotSequence
-    });
-    window.gameAudio?.playRotated("Primary", 3);
   };
   const fire = (gun, level2) => {
     fireVolley(gun, level2);
-    for (let index = 1; index < level2.burstCount; index++) {
-      setTimeout(() => fireVolley(gun, level2), level2.burstIntervalMs * index);
-    }
   };
   const hitEnemy = (projectile, enemy, now) => {
-    projectile.hitEnemyIds.add(enemy.id);
-    enemy.health -= projectile.damage;
     enemy.actor.impact({ direction: { x: 0, y: 1 }, magnitude: (projectile.damage + projectile.knockback * 0.06) / orb.impactResistance });
     enemy.hitFlashUntil = now + orb.hitFlashDurationMs;
-    effects.push({
-      kind: "impact",
-      style: projectile.impactEffect,
-      x: projectile.x,
-      y: projectile.y,
-      color: projectile.color,
-      secondaryColor: projectile.trailColor,
-      radius: projectile.radius * projectile.hitFlashScale * 4,
-      expiresAt: now + projectile.impactDurationMs,
-      duration: projectile.impactDurationMs,
-      seed: projectile.id
-    });
     window.gameAudio?.play("Hit");
     if (enemy.health <= 0) {
       effects.push({
@@ -2154,8 +2238,6 @@ try {
       window.gameAudio?.play("EnemyDestroyed");
       updateReadout();
     }
-    if (projectile.pierceRemaining > 0) projectile.pierceRemaining -= 1;
-    else projectiles.splice(projectiles.indexOf(projectile), 1);
   };
   const update = (now) => {
     const delta = Math.min((now - lastFrame) / 1e3, 0.05);
@@ -2167,6 +2249,7 @@ try {
       fire(gun, level2);
       cooldown += 1 / level2.fireRatePerSecond;
     }
+    if (gunSimulation.updateFiring(now) > 0) window.gameAudio?.playRotated("Primary", 3);
     recoil *= Math.pow(1e-3, delta);
     if (!aimControl.manual) {
       const laneEnemies = enemies.filter((enemy) => enemy.lane === squad.lane && !enemy.dying);
@@ -2177,25 +2260,15 @@ try {
     squad.update(delta);
     gameElement.dataset.squadLane = String(squad.lane);
     gameElement.dataset.squadAim = squad.aimOffset.toFixed(2);
-    for (const projectile of [...projectiles]) {
-      projectile.x += projectile.vx * delta;
-      projectile.y -= projectile.speed * delta;
-      if (projectile.y < -40 * scale()) {
-        projectiles.splice(projectiles.indexOf(projectile), 1);
-        continue;
-      }
-      for (const enemy of [...enemies]) {
-        if (enemy.dying) continue;
-        if (projectile.hitEnemyIds.has(enemy.id)) continue;
-        const dx = projectile.x - enemy.x;
-        const dy = projectile.y - enemy.y;
-        const hitRadius = projectile.radius + orb.radius * scale();
-        if (dx * dx + dy * dy <= hitRadius * hitRadius) {
-          hitEnemy(projectile, enemy, now);
-          if (!projectiles.includes(projectile)) break;
-        }
-      }
-    }
+    gunSimulation.updateProjectiles(
+      delta,
+      now,
+      enemies.map((enemy) => Object.assign(enemy, {
+        radius: orb.radius * scale()
+      })),
+      { top: -40 * scale(), left: -40, right: canvas.width + 40 },
+      (projectile, target) => hitEnemy(projectile, target, now)
+    );
     for (const enemy of [...enemies]) {
       enemy.actor.update(delta);
       enemy.y += orb.speed * scale() * delta - enemy.actor.y * canvas.height / 2.5;
@@ -2224,17 +2297,12 @@ try {
         multipliers.splice(multipliers.indexOf(pickup), 1);
       } else if (pickup.y > canvas.height) multipliers.splice(multipliers.indexOf(pickup), 1);
     }
-    for (const effect of [...effects]) {
-      if (effect.expiresAt <= now) effects.splice(effects.indexOf(effect), 1);
-    }
   };
   const draw = (now) => {
     const s = scale();
     const primitives = [];
     for (const point of squad.points(playerY() + recoil, s)) void point;
-    for (const projectile of projectiles) {
-      primitives.push(...new NeonProjectile({ x: projectile.x, y: projectile.y, velocityX: projectile.vx, velocityY: -projectile.speed, radius: projectile.radius, length: projectile.radius * projectile.aspect, trailLength: projectile.trailLength, trailWidth: Math.max(projectile.radius * projectile.trailWidthScale, 1.1 * s), color: projectile.color, trailColor: projectile.trailColor, coreColor: projectile.coreColor, shape: projectile.shape, intensity: projectile.visualIntensity * (projectile.tracer ? 1.35 : 1), glow: projectile.tracer ? 1.4 : 0.72 }).primitives());
-    }
+    primitives.push(...gunSimulation.projectilePrimitives());
     if (false) for (const enemy of enemies) {
       primitives.push({
         x: enemy.x + orb.radius * 0.35 * s,

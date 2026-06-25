@@ -1,10 +1,11 @@
-import { NeonProjectile, NeonShapeActor, NeonShapeDisposal, NeonTopDownSceneRenderer, neonPalette, type NeonPrimitive, type NeonProjectileShape, type NeonTopDownShape } from "@just-the-games-please/neon-factory";
-import { gunFamily, multiplierFamily, orbFamily, type GunLevel, type GunMember, type ImpactEffect, type MuzzleEffect, type ProjectileShape } from "../../CombatDefinition";
+import { NeonShapeActor, NeonShapeDisposal, NeonTopDownSceneRenderer, neonPalette, type NeonPrimitive, type NeonTopDownShape } from "@just-the-games-please/neon-factory";
+import { gunFamily, multiplierFamily, orbFamily, type GunLevel, type GunMember } from "../../CombatDefinition";
 import { bindSquadInput } from "../../src/input";
 import { SquadModel } from "../../src/squad";
 import { AutoAimControlState, selectAutoAimOffset } from "../../src/autoAim";
 import { applyPortraitStage } from "../../src/viewport";
 import { actorInTopDownScene, shapeLabel, swarmShapes } from "../../src/shapeVisuals";
+import { GunSimulation } from "../../src/combat/gunSimulation";
 
 interface Enemy {
   id: number;
@@ -18,32 +19,6 @@ interface Enemy {
   dying: boolean;
 }
 
-interface Projectile {
-  id: number;
-  lane: number;
-  x: number;
-  y: number;
-  vx: number;
-  radius: number;
-  damage: number;
-  speed: number;
-  pierceRemaining: number;
-  color: string;
-  trailColor: string;
-  coreColor: string;
-  aspect: number;
-  trailWidthScale: number;
-  visualIntensity: number;
-  shape: ProjectileShape;
-  impactEffect: ImpactEffect;
-  impactDurationMs: number;
-  trailLength: number;
-  tracer: boolean;
-  knockback: number;
-  hitFlashScale: number;
-  hitEnemyIds: Set<number>;
-}
-
 interface Pickup {
   gunId: string;
   level: number;
@@ -53,19 +28,6 @@ interface Pickup {
 }
 
 interface MultiplierPickup { lane: number; y: number; actor: NeonShapeActor }
-
-interface Effect {
-  kind: "muzzle" | "impact" | "death";
-  style: MuzzleEffect | ImpactEffect | "deathBloom";
-  x: number;
-  y: number;
-  color: string;
-  secondaryColor: string;
-  radius: number;
-  expiresAt: number;
-  duration: number;
-  seed: number;
-}
 
 const canvas = document.querySelector<HTMLCanvasElement>("#game-canvas")!;
 const error = document.querySelector<HTMLElement>("#error")!;
@@ -85,9 +47,10 @@ try {
   const guns: Record<string, GunMember> = gunFamily.members;
   const orb = orbFamily.members.basicOrb;
   const enemies: Enemy[] = [];
-  const projectiles: Projectile[] = [];
+  const gunSimulation = new GunSimulation();
+  const projectiles = gunSimulation.projectiles;
   const pickups: Pickup[] = [];
-  const effects: Effect[] = [];
+  const effects = gunSimulation.effects;
   const multipliers: MultiplierPickup[] = [];
   const squad = new SquadModel();
   let playerLane = 0;
@@ -208,83 +171,20 @@ try {
     releaseAim: () => { aimControl.aimReleased(); },
   });
 
-  const spawnProjectile = (lane: number, spawnX: number, angleDegrees: number, level: GunLevel, gun: GunMember): void => {
-    shotSequence += 1;
-    const angle = angleDegrees * Math.PI / 180;
-    const speed = level.projectileSpeed * scale();
-    projectiles.push({
-      id: ++entitySequence,
-      lane,
-      x: spawnX + (pseudoRandom(entitySequence + shotSequence * 3.17) * 2 - 1) * gun.visualIdentity.horizontalJitter * scale(),
-      y: playerY() - 22 * scale(),
-      vx: Math.sin(angle) * speed,
-      radius: level.projectileRadius * scale(),
-      damage: level.damage,
-      speed: Math.cos(angle) * speed,
-      pierceRemaining: level.pierce,
-      color: neonPalette[gun.visualIdentity.projectileColor],
-      trailColor: neonPalette[gun.visualIdentity.trailColor],
-      coreColor: neonPalette[gun.visualIdentity.coreColor],
-      aspect: gun.visualIdentity.projectileAspect,
-      trailWidthScale: gun.visualIdentity.trailWidthScale,
-      visualIntensity: gun.visualIdentity.visualIntensity,
-      shape: gun.visualIdentity.projectileShape,
-      impactEffect: gun.visualIdentity.impactEffect,
-      impactDurationMs: gun.visualIdentity.impactDurationMs,
-      trailLength: level.trailLength * scale(),
-      tracer: level.tracerEveryNthShot > 0 && shotSequence % level.tracerEveryNthShot === 0,
-      knockback: level.knockback * scale(),
-      hitFlashScale: level.hitFlashScale,
-      hitEnemyIds: new Set(),
-    });
-  };
-
   const fireVolley = (gun: GunMember, level: GunLevel): void => {
-    for (const point of squad.points(playerY(), scale())) {
-      const count = Math.max(1, level.projectileCount);
-      for (let index = 0; index < count; index++) {
-        const offset = count === 1 ? 0 : (index / (count - 1) - 0.5) * level.spreadDegrees;
-        spawnProjectile(playerLane, point.x, offset, level, gun);
-      }
-    }
+    gunSimulation.fire(gun, level, playerLane, squad.points(playerY(), scale()).map(point => ({
+      x: point.x, y: playerY() - 22 * scale(),
+    })), performance.now(), scale());
     recoil = level.muzzleFlashScale * 7 * scale();
-    effects.push({
-      kind: "muzzle",
-      style: gun.visualIdentity.muzzleEffect,
-      x: squad.x,
-      y: playerY() - 22 * scale(),
-      color: neonPalette[gun.visualIdentity.projectileColor],
-      secondaryColor: neonPalette[gun.visualIdentity.trailColor],
-      radius: 10 * level.muzzleFlashScale * scale(),
-      expiresAt: performance.now() + gun.visualIdentity.muzzleDurationMs,
-      duration: gun.visualIdentity.muzzleDurationMs,
-      seed: shotSequence,
-    });
-    window.gameAudio?.playRotated("Primary", 3);
   };
 
   const fire = (gun: GunMember, level: GunLevel): void => {
     fireVolley(gun, level);
-    for (let index = 1; index < level.burstCount; index++) {
-      setTimeout(() => fireVolley(gun, level), level.burstIntervalMs * index);
-    }
   };
 
-  const hitEnemy = (projectile: Projectile, enemy: Enemy, now: number): void => {
-    projectile.hitEnemyIds.add(enemy.id);
-    enemy.health -= projectile.damage;
+  const hitEnemy = (projectile: typeof projectiles[number], enemy: Enemy, now: number): void => {
     enemy.actor.impact({ direction: { x: 0, y: 1 }, magnitude: (projectile.damage + projectile.knockback * .06) / orb.impactResistance });
     enemy.hitFlashUntil = now + orb.hitFlashDurationMs;
-    effects.push({
-      kind: "impact",
-      style: projectile.impactEffect,
-      x: projectile.x, y: projectile.y, color: projectile.color,
-      secondaryColor: projectile.trailColor,
-      radius: projectile.radius * projectile.hitFlashScale * 4,
-      expiresAt: now + projectile.impactDurationMs,
-      duration: projectile.impactDurationMs,
-      seed: projectile.id,
-    });
     window.gameAudio?.play("Hit");
     if (enemy.health <= 0) {
       effects.push({
@@ -304,8 +204,6 @@ try {
       window.gameAudio?.play("EnemyDestroyed");
       updateReadout();
     }
-    if (projectile.pierceRemaining > 0) projectile.pierceRemaining -= 1;
-    else projectiles.splice(projectiles.indexOf(projectile), 1);
   };
 
   const update = (now: number): void => {
@@ -318,6 +216,7 @@ try {
       fire(gun, level);
       cooldown += 1 / level.fireRatePerSecond;
     }
+    if (gunSimulation.updateFiring(now) > 0) window.gameAudio?.playRotated("Primary", 3);
     recoil *= Math.pow(0.001, delta);
     if (!aimControl.manual) {
       const laneEnemies = enemies.filter(enemy => enemy.lane === squad.lane && !enemy.dying);
@@ -329,25 +228,10 @@ try {
     gameElement.dataset.squadLane = String(squad.lane);
     gameElement.dataset.squadAim = squad.aimOffset.toFixed(2);
 
-    for (const projectile of [...projectiles]) {
-      projectile.x += projectile.vx * delta;
-      projectile.y -= projectile.speed * delta;
-      if (projectile.y < -40 * scale()) {
-        projectiles.splice(projectiles.indexOf(projectile), 1);
-        continue;
-      }
-      for (const enemy of [...enemies]) {
-        if (enemy.dying) continue;
-        if (projectile.hitEnemyIds.has(enemy.id)) continue;
-        const dx = projectile.x - enemy.x;
-        const dy = projectile.y - enemy.y;
-        const hitRadius = projectile.radius + orb.radius * scale();
-        if (dx * dx + dy * dy <= hitRadius * hitRadius) {
-          hitEnemy(projectile, enemy, now);
-          if (!projectiles.includes(projectile)) break;
-        }
-      }
-    }
+    gunSimulation.updateProjectiles(delta, now, enemies.map(enemy => Object.assign(enemy, {
+      radius: orb.radius * scale(),
+    })), { top: -40 * scale(), left: -40, right: canvas.width + 40 },
+    (projectile, target) => hitEnemy(projectile, target as unknown as Enemy, now));
 
     for (const enemy of [...enemies]) {
       enemy.actor.update(delta);
@@ -372,18 +256,13 @@ try {
         multipliers.splice(multipliers.indexOf(pickup), 1);
       } else if (pickup.y > canvas.height) multipliers.splice(multipliers.indexOf(pickup), 1);
     }
-    for (const effect of [...effects]) {
-      if (effect.expiresAt <= now) effects.splice(effects.indexOf(effect), 1);
-    }
   };
 
   const draw = (now: number): void => {
     const s = scale();
     const primitives: NeonPrimitive[] = [];
     for (const point of squad.points(playerY() + recoil, s)) void point;
-    for (const projectile of projectiles) {
-      primitives.push(...new NeonProjectile({x:projectile.x,y:projectile.y,velocityX:projectile.vx,velocityY:-projectile.speed,radius:projectile.radius,length:projectile.radius*projectile.aspect,trailLength:projectile.trailLength,trailWidth:Math.max(projectile.radius*projectile.trailWidthScale,1.1*s),color:projectile.color,trailColor:projectile.trailColor,coreColor:projectile.coreColor,shape:projectile.shape as NeonProjectileShape,intensity:projectile.visualIntensity*(projectile.tracer?1.35:1),glow:projectile.tracer?1.4:.72}).primitives());
-    }
+    primitives.push(...gunSimulation.projectilePrimitives());
     if (false) for (const enemy of enemies) {
       primitives.push({
         x: enemy.x + orb.radius * .35 * s,

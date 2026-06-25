@@ -1,4 +1,4 @@
-import { NeonProjectile, NeonShapeActor, NeonShapeDisposal, NeonTopDownSceneRenderer, NeonVictoryExperience, neonPalette, type NeonPrimitive, type NeonTopDownShape } from "@just-the-games-please/neon-factory";
+import { NeonShapeActor, NeonShapeDisposal, NeonTopDownSceneRenderer, NeonVictoryExperience, neonPalette, type NeonPrimitive, type NeonTopDownShape } from "@just-the-games-please/neon-factory";
 import { gunFamily, multiplierFamily, orbFamily, parseTrackDefinition, shieldFamily, swordFamily, trackFamily, type GunId, type MultiplierId, type ParsedTrackEntity, type ShieldId, type SwordId, type TrackMember, type SwordTargetingMode } from "../CombatDefinition";
 import { bindSquadInput } from "./input";
 import { SquadModel } from "./squad";
@@ -9,13 +9,13 @@ import { ShieldState, tickShield, tryAbsorbHit } from "./combat/shieldEvaluator"
 import { SwordState, tickSword } from "./combat/swordEvaluator";
 import { queryNearbyThreats } from "./combat/nearbyThreatQuery";
 import { shieldPickupVisual, shieldVisuals, swordPickupVisual, swordVisuals } from "./familyVisuals";
+import { GunSimulation } from "./combat/gunSimulation";
 
 // ---------------------------------------------------------------------------
 // Interfaces
 // ---------------------------------------------------------------------------
 
 interface Enemy { id: number; lane: 0 | 1; x: number; y: number; health: number; speedMultiplier: number; rowId: number; actor: NeonShapeActor; dying: boolean }
-interface Projectile { lane: 0 | 1; x: number; y: number; damage: number; speed: number; radius: number; color: string; trail: string }
 interface GunPickup { lane: 0 | 1; x: number; y: number; gunId: GunId; level: number; speedMultiplier: number; actor: NeonShapeActor }
 interface ShieldPickup { lane: 0 | 1; x: number; y: number; shieldId: ShieldId; speedMultiplier: number }
 interface SwordPickup { lane: 0 | 1; x: number; y: number; swordId: SwordId; speedMultiplier: number }
@@ -53,7 +53,7 @@ try {
   let nextTrackEntity = 0;
   let breaches = 0;
   let enemies: Enemy[] = [];
-  let projectiles: Projectile[] = [];
+  const gunSimulation = new GunSimulation();
   let gunPickups: GunPickup[] = [];
   let shieldPickups: ShieldPickup[] = [];
   let swordPickups: SwordPickup[] = [];
@@ -103,7 +103,7 @@ try {
     status.textContent = "Choose a track. Tap either side to switch lanes; use the joystick to fine aim.";
     runStatus.textContent = "";
     enemies = [];
-    projectiles = [];
+    gunSimulation.clear();
     gunPickups = [];
     shieldPickups = [];
     swordPickups = [];
@@ -130,7 +130,7 @@ try {
     trackEntities = allEntities.filter(entity => entity.id !== "player.start");
     breaches = 0;
     enemies = [];
-    projectiles = [];
+    gunSimulation.clear();
     gunPickups = [];
     shieldPickups = [];
     swordPickups = [];
@@ -184,25 +184,8 @@ try {
     const { id: gunId, level: gunLevel } = activeByFamily.gun;
     const gun = gunFamily.members[gunId];
     const tuning = gun.levels.find(item => item.level === gunLevel) ?? gun.levels[0];
-    const points = squad.points(playerY(), scale());
-    for (const point of points) {
-      const count = gun.shotPattern === "pairedSpread" ? tuning.projectileCount : 1;
-      for (let pi = 0; pi < count; pi++) {
-        const spreadOffset = count > 1
-          ? (pi - (count - 1) / 2) * Math.tan((tuning.spreadDegrees * Math.PI) / 180) * tuning.projectileSpeed * .05
-          : 0;
-        projectiles.push({
-          lane: playerLane,
-          x: point.x + spreadOffset,
-          y: playerY() - 20 * scale(),
-          damage: tuning.damage,
-          speed: tuning.projectileSpeed * scale(),
-          radius: tuning.projectileRadius * scale(),
-          color: neonPalette[gun.visualIdentity.projectileColor],
-          trail: neonPalette[gun.visualIdentity.trailColor],
-        });
-      }
-    }
+    const points = squad.points(playerY(), scale()).map(point => ({ x: point.x, y: playerY() - 20 * scale() }));
+    gunSimulation.fire(gun, tuning, playerLane, points, performance.now(), scale());
     cooldown += 1 / tuning.fireRatePerSecond;
     window.gameAudio?.playRotated("Primary", 3);
   };
@@ -301,29 +284,21 @@ try {
     // --- Gun fire ---
     cooldown -= delta;
     if (cooldown <= 0) fire();
+    if (gunSimulation.updateFiring(now) > 0) window.gameAudio?.playRotated("Primary", 3);
 
     // --- Projectile movement + hit detection ---
-    for (const shot of [...projectiles]) {
-      shot.y -= shot.speed * delta;
-      if (shot.y < 0) { projectiles.splice(projectiles.indexOf(shot), 1); continue; }
-      for (const enemy of [...enemies]) {
-        if (enemy.dying) continue;
-        const hitRadius = shot.radius + orbFamily.members.basicOrb.radius * scale() + 4;
-        if (shot.lane !== enemy.lane || Math.hypot(shot.x - enemy.x, shot.y - enemy.y) > hitRadius) continue;
-        enemy.health -= shot.damage;
-        enemy.actor.impact({ direction: { x: 0, y: 1 }, magnitude: (shot.damage + shot.radius * .12) / orbFamily.members.basicOrb.impactResistance });
-        projectiles.splice(projectiles.indexOf(shot), 1);
-        if (enemy.health <= 0) {
-          enemy.dying = true;
-          enemy.actor.explodeMagnitude = orbFamily.members.basicOrb.explosionMagnitude;
-          enemy.actor.dispose(NeonShapeDisposal.Explode);
-          window.gameAudio?.play("EnemyDestroyed");
-        } else {
-          window.gameAudio?.play("Hit");
-        }
-        break;
-      }
-    }
+    gunSimulation.updateProjectiles(delta, now, enemies.map(enemy => Object.assign(enemy, {
+      radius: orbFamily.members.basicOrb.radius * scale(),
+    })), { top: -40 * scale(), left: -40, right: canvas.width + 40 }, (shot, enemy) => {
+      const gameEnemy = enemy as Enemy & { radius: number };
+      gameEnemy.actor.impact({ direction: { x: 0, y: 1 }, magnitude: (shot.damage + shot.knockback * .06) / orbFamily.members.basicOrb.impactResistance });
+      if (gameEnemy.health <= 0) {
+        gameEnemy.dying = true;
+        gameEnemy.actor.explodeMagnitude = orbFamily.members.basicOrb.explosionMagnitude;
+        gameEnemy.actor.dispose(NeonShapeDisposal.Explode);
+        window.gameAudio?.play("EnemyDestroyed");
+      } else window.gameAudio?.play("Hit");
+    });
 
     // ---------------------------------------------------------------------------
     // Near-player effect system — explicit precedence order:
@@ -575,9 +550,7 @@ try {
       }
 
       // --- Projectiles ---
-      for (const shot of projectiles) {
-        primitives.push(...new NeonProjectile({x:shot.x,y:shot.y,velocityY:-shot.speed,radius:shot.radius,length:shot.radius*2.5,trailLength:18*s,trailWidth:Math.max(1.2*s,shot.radius*.5),color:shot.color,trailColor:shot.trail,shape:"dart"}).primitives());
-      }
+      primitives.push(...gunSimulation.projectilePrimitives());
 
     }
 
