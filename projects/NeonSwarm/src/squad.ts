@@ -21,6 +21,11 @@ export class SquadModel {
     return this.count;
   }
 
+  remove(amount = 1): number {
+    this.count = Math.max(0, this.count - amount);
+    return this.count;
+  }
+
   setLane(lane: 0 | 1, laneCenter: (lane: 0 | 1) => number, now: number): void {
     if (lane !== this.lane) this.laneShiftStartedAt = now;
     this.lane = lane;

@@ -1292,7 +1292,7 @@ var MultiplierFamilyDefinition = class extends FamilyDefinition {
       maxSquadSize: 10,
       membersPerRow: 5,
       memberRadius: 5.25,
-      spacing: 18,
+      spacing: 29,
       pickupColor: "gold",
       coreColor: "cyan",
       pulseRate: 2.2,
@@ -1410,6 +1410,10 @@ var SquadModel = class {
     this.count = Math.min(spec.maxSquadSize, this.count + amount);
     return this.count;
   }
+  remove(amount = 1) {
+    this.count = Math.max(0, this.count - amount);
+    return this.count;
+  }
   setLane(lane, laneCenter, now) {
     if (lane !== this.lane) this.laneShiftStartedAt = now;
     this.lane = lane;
@@ -1525,6 +1529,9 @@ try {
   const squad = new SquadModel();
   const aimControl = new AutoAimControlState();
   let victory = null;
+  let failureReason = "";
+  const playerActors = [];
+  const explodingPlayers = [];
   const scale = () => 1;
   const laneX = (lane) => canvas.width * (lane === 0 ? 0.32 : 0.68);
   const playerY = () => canvas.height * 0.82;
@@ -1539,6 +1546,7 @@ try {
     pickups = [];
     multipliers = [];
     victory = null;
+    failureReason = "";
   };
   const startTrack = (track) => {
     activeTrack = track;
@@ -1557,6 +1565,9 @@ try {
     pickups = [];
     multipliers = [];
     squad.count = 1;
+    playerActors.length = 0;
+    playerActors.push(new NeonShapeActor({ shape: swarmShapes.player }));
+    explodingPlayers.length = 0;
     squad.aimOffset = 0;
     squad.x = laneX(0);
     squad.targetX = laneX(0);
@@ -1613,7 +1624,7 @@ try {
     if (!activeTrack) return;
     result.hidden = false;
     resultTitle.textContent = won ? "FLAWLESS RUN" : "TRACK FAILED";
-    resultDetail.textContent = won ? "No enemy touched or escaped past you." : `${breaches} enemy${breaches === 1 ? "" : "ies"} breached the defense.`;
+    resultDetail.textContent = won ? "No enemy touched or escaped past you." : failureReason || `${breaches} enemy${breaches === 1 ? "" : "ies"} breached the defense.`;
     if (won) {
       victory = new NeonVictoryExperience({
         centerX: canvas.width / 2,
@@ -1628,10 +1639,18 @@ try {
     }
     activeTrack = null;
   };
+  const syncPlayerActors = () => {
+    while (playerActors.length < squad.count) playerActors.push(new NeonShapeActor({ shape: swarmShapes.player }));
+    if (playerActors.length > squad.count) playerActors.length = squad.count;
+  };
   const update = (now) => {
-    if (!activeTrack) return;
     const delta = Math.min(0.05, (now - lastFrame) / 1e3);
     lastFrame = now;
+    for (const item of [...explodingPlayers]) {
+      item.actor.update(delta);
+      if (item.actor.disposed) explodingPlayers.splice(explodingPlayers.indexOf(item), 1);
+    }
+    if (!activeTrack) return;
     const elapsed = (now - startedAt) / 1e3;
     runStatus.textContent = `${gunFamily.members[gunId].label} \xB7 ${Math.max(0, activeTrack.durationSeconds - elapsed).toFixed(1)}s`;
     while (nextEnemy < activeTrack.enemySchedule.length && activeTrack.enemySchedule[nextEnemy].atSeconds <= elapsed) {
@@ -1664,6 +1683,7 @@ try {
       squad.autoAim(offset, canvas.width * 0.22, laneX);
     }
     squad.update(delta);
+    syncPlayerActors();
     gameElement.dataset.squadLane = String(squad.lane);
     gameElement.dataset.squadAim = squad.aimOffset.toFixed(2);
     cooldown -= delta;
@@ -1698,10 +1718,33 @@ try {
         enemies.splice(enemies.indexOf(enemy), 1);
         continue;
       }
-      if (!enemy.dying && enemy.y >= playerY()) {
+      if (enemy.dying) continue;
+      const points = squad.points(playerY(), scale());
+      const hitIndex = points.findIndex((point) => Math.hypot(point.x - enemy.x, point.y - enemy.y) <= orbFamily.members.basicOrb.radius * 3.2);
+      if (hitIndex >= 0) {
+        const point = points[hitIndex];
+        const actor = playerActors[hitIndex] ?? new NeonShapeActor({ shape: swarmShapes.player });
+        actor.explodeMagnitude = 0.55;
+        actor.dispose("explode" /* Explode */);
+        explodingPlayers.push({ actor, x: point.x, y: point.y });
+        playerActors.splice(hitIndex, 1);
+        squad.remove();
+        enemies.splice(enemies.indexOf(enemy), 1);
+        window.gameAudio?.play("EnemyDestroyed");
+        if (squad.count === 0) {
+          failureReason = "The entire squad was destroyed on contact.";
+          finish(false);
+          return;
+        }
+        continue;
+      }
+      if (enemy.y >= playerY()) {
         breaches++;
         enemies.splice(enemies.indexOf(enemy), 1);
         window.gameAudio?.play("EnemyEscaped");
+        failureReason = "An enemy passed the defense line.";
+        finish(false);
+        return;
       }
     }
     for (const pickup of [...pickups]) {
@@ -1720,6 +1763,7 @@ try {
       pickup.y += 72 * scale() * delta;
       if (pickup.y >= playerY() - 15 * scale() && pickup.lane === playerLane) {
         squad.add(multiplierFamily.members[pickup.multiplierId].squadAdded);
+        syncPlayerActors();
         multipliers.splice(multipliers.indexOf(pickup), 1);
         window.gameAudio?.play("Pickup");
       } else if (pickup.y > canvas.height) multipliers.splice(multipliers.indexOf(pickup), 1);
@@ -1820,10 +1864,11 @@ try {
     if (victory) primitives.push(...victory.primitives(now));
     const shapeInstances = [];
     const playerSize = 14;
-    for (const point of squad.points(playerY(), s)) {
-      const actor = new NeonShapeActor({ shape: swarmShapes.player });
+    for (const [index, point] of squad.points(playerY(), s).entries()) {
+      const actor = playerActors[index] ?? new NeonShapeActor({ shape: swarmShapes.player });
       shapeInstances.push(actorInTopDownScene(actor, point.x, point.y, playerSize, { rotationX: Math.sin(now / 650) * 0.12 }));
     }
+    for (const item of explodingPlayers) shapeInstances.push(actorInTopDownScene(item.actor, item.x, item.y, playerSize));
     for (const enemy of enemies) shapeInstances.push(actorInTopDownScene(enemy.actor, enemy.x, enemy.y, 18, { rotationY: Math.sin(now / 700 + enemy.rowId) * 0.18 }));
     for (const pickup of pickups) {
       const gun = gunFamily.members[pickup.gunId];

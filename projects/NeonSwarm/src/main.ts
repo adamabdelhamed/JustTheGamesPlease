@@ -46,6 +46,9 @@ try {
   const squad = new SquadModel();
   const aimControl = new AutoAimControlState();
   let victory: NeonVictoryExperience | null = null;
+  let failureReason = "";
+  const playerActors: NeonShapeActor[] = [];
+  const explodingPlayers: Array<{ actor: NeonShapeActor; x: number; y: number }> = [];
 
   const scale = () => 1;
   const laneX = (lane: number) => canvas.width * (lane === 0 ? .32 : .68);
@@ -62,6 +65,7 @@ try {
     pickups = [];
     multipliers = [];
     victory = null;
+    failureReason = "";
   };
 
   const startTrack = (track: TrackMember): void => {
@@ -81,6 +85,9 @@ try {
     pickups = [];
     multipliers = [];
     squad.count = 1;
+    playerActors.length = 0;
+    playerActors.push(new NeonShapeActor({ shape: swarmShapes.player }));
+    explodingPlayers.length = 0;
     squad.aimOffset = 0;
     squad.x = laneX(0);
     squad.targetX = laneX(0);
@@ -141,7 +148,7 @@ try {
     if (!activeTrack) return;
     result.hidden = false;
     resultTitle.textContent = won ? "FLAWLESS RUN" : "TRACK FAILED";
-    resultDetail.textContent = won ? "No enemy touched or escaped past you." : `${breaches} enemy${breaches === 1 ? "" : "ies"} breached the defense.`;
+    resultDetail.textContent = won ? "No enemy touched or escaped past you." : failureReason || `${breaches} enemy${breaches === 1 ? "" : "ies"} breached the defense.`;
     if (won) {
       victory = new NeonVictoryExperience({
         centerX: canvas.width / 2, centerY: canvas.height * .38,
@@ -154,10 +161,19 @@ try {
     activeTrack = null;
   };
 
+  const syncPlayerActors = (): void => {
+    while (playerActors.length < squad.count) playerActors.push(new NeonShapeActor({ shape: swarmShapes.player }));
+    if (playerActors.length > squad.count) playerActors.length = squad.count;
+  };
+
   const update = (now: number): void => {
-    if (!activeTrack) return;
     const delta = Math.min(.05, (now - lastFrame) / 1000);
     lastFrame = now;
+    for (const item of [...explodingPlayers]) {
+      item.actor.update(delta);
+      if (item.actor.disposed) explodingPlayers.splice(explodingPlayers.indexOf(item), 1);
+    }
+    if (!activeTrack) return;
     const elapsed = (now - startedAt) / 1000;
     runStatus.textContent = `${gunFamily.members[gunId].label} · ${Math.max(0, activeTrack.durationSeconds - elapsed).toFixed(1)}s`;
 
@@ -192,6 +208,7 @@ try {
       squad.autoAim(offset, canvas.width * .22, laneX);
     }
     squad.update(delta);
+    syncPlayerActors();
     gameElement.dataset.squadLane = String(squad.lane);
     gameElement.dataset.squadAim = squad.aimOffset.toFixed(2);
 
@@ -224,10 +241,29 @@ try {
       enemy.y += orbFamily.members.basicOrb.speed * scale() * delta - enemy.actor.y * canvas.height / 2.5;
       enemy.actor.moveTo(0, 0);
       if (enemy.dying && enemy.actor.disposed) { enemies.splice(enemies.indexOf(enemy), 1); continue; }
-      if (!enemy.dying && enemy.y >= playerY()) {
+      if (enemy.dying) continue;
+      const points = squad.points(playerY(), scale());
+      const hitIndex = points.findIndex(point => Math.hypot(point.x - enemy.x, point.y - enemy.y) <= orbFamily.members.basicOrb.radius * 3.2);
+      if (hitIndex >= 0) {
+        const point = points[hitIndex];
+        const actor = playerActors[hitIndex] ?? new NeonShapeActor({ shape: swarmShapes.player });
+        actor.explodeMagnitude = .55;
+        actor.dispose(NeonShapeDisposal.Explode);
+        explodingPlayers.push({ actor, x: point.x, y: point.y });
+        playerActors.splice(hitIndex, 1);
+        squad.remove();
+        enemies.splice(enemies.indexOf(enemy), 1);
+        window.gameAudio?.play("EnemyDestroyed");
+        if (squad.count === 0) { failureReason = "The entire squad was destroyed on contact."; finish(false); return; }
+        continue;
+      }
+      if (enemy.y >= playerY()) {
         breaches++;
         enemies.splice(enemies.indexOf(enemy), 1);
         window.gameAudio?.play("EnemyEscaped");
+        failureReason = "An enemy passed the defense line.";
+        finish(false);
+        return;
       }
     }
     for (const pickup of [...pickups]) {
@@ -244,6 +280,7 @@ try {
       pickup.actor.update(delta); pickup.y += 72 * scale() * delta;
       if (pickup.y >= playerY() - 15 * scale() && pickup.lane === playerLane) {
         squad.add(multiplierFamily.members[pickup.multiplierId].squadAdded);
+        syncPlayerActors();
         multipliers.splice(multipliers.indexOf(pickup), 1);
         window.gameAudio?.play("Pickup");
       } else if (pickup.y > canvas.height) multipliers.splice(multipliers.indexOf(pickup), 1);
@@ -366,10 +403,11 @@ try {
     if (victory) primitives.push(...victory.primitives(now));
     const shapeInstances: NeonTopDownShape[] = [];
     const playerSize = 14;
-    for (const point of squad.points(playerY(), s)) {
-      const actor = new NeonShapeActor({ shape: swarmShapes.player });
+    for (const [index, point] of squad.points(playerY(), s).entries()) {
+      const actor = playerActors[index] ?? new NeonShapeActor({ shape: swarmShapes.player });
       shapeInstances.push(actorInTopDownScene(actor, point.x, point.y, playerSize, { rotationX: Math.sin(now / 650) * .12 }));
     }
+    for (const item of explodingPlayers) shapeInstances.push(actorInTopDownScene(item.actor, item.x, item.y, playerSize));
     for (const enemy of enemies) shapeInstances.push(actorInTopDownScene(enemy.actor, enemy.x, enemy.y, 18, { rotationY: Math.sin(now / 700 + enemy.rowId) * .18 }));
     for (const pickup of pickups) {
       const gun = gunFamily.members[pickup.gunId];

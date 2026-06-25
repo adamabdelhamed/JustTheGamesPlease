@@ -629,7 +629,7 @@ var MultiplierFamilyDefinition = class extends FamilyDefinition {
       maxSquadSize: 10,
       membersPerRow: 5,
       memberRadius: 5.25,
-      spacing: 18,
+      spacing: 29,
       pickupColor: "gold",
       coreColor: "cyan",
       pulseRate: 2.2,
@@ -662,6 +662,10 @@ var SquadModel = class {
   add(amount) {
     const spec = multiplierFamily.members.squadPlusOne;
     this.count = Math.min(spec.maxSquadSize, this.count + amount);
+    return this.count;
+  }
+  remove(amount = 1) {
+    this.count = Math.max(0, this.count - amount);
     return this.count;
   }
   setLane(lane, laneCenter, now) {
