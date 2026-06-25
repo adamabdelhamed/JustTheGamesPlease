@@ -579,11 +579,180 @@ var generatedTrack3 = {
   }
 };
 
+// projects/NeonSwarm/CombatDefinition/tracks/Track4.ts
+var generatedTrack4 = {
+  label: "Level 4: Violet Surge",
+  description: "The fourth run doubles the endurance test again, adding denser waves, bigger pickup timing decisions, and higher-tier tools while staying readable and fair.",
+  durationSeconds: 120,
+  startingGun: "pulsePistol",
+  startingGunLevel: 1,
+  viewport: {
+    orientation: "portrait",
+    aspectWidth: 9,
+    aspectHeight: 16,
+    logicalWidth: 450,
+    logicalHeight: 800
+  },
+  environment: {
+    floorColor: "violet",
+    crackColor: "pink",
+    airColor: "cyan",
+    horizonColor: "deepBlue",
+    pulseRate: 1.35,
+    crackDensity: 17,
+    airStreakCount: 12
+  },
+  definition: {
+    layout: `
+..... | .....
+..E.. | .....
+..... | ..E..
+.E... | .....
+..... | .E...
+..G.. | .....
+..... | ..2..
+..... | .....
+..E.. | ..E..
+..... | .....
+S.... | .....
+..... | .....
+.E.E. | .....
+..... | ..E..
+..a.. | .....
+..... | .....
+.E.E. | ..E..
+..... | .....
+..E.. | .E.E.
+..... | .....
+..I.. | .....
+..... | .....
+.E.E. | ..E..
+..... | .....
+..E.. | .E.E.
+..... | .....
+.E.E. | .E.E.
+..... | .....
+..2.. | .....
+..... | .....
+..E.. | ..E..
+.E.E. | .....
+..... | .E.E.
+..E.. | ..E..
+..... | .....
+....b | .....
+..... | .....
+.E.E. | ..E..
+..E.. | .....
+..... | .E.E.
+.E.E. | ..E..
+..... | .....
+..J.. | .....
+..... | .....
+.E.E. | .E.E.
+..E.. | .....
+..... | ..E..
+.E.E. | ..E..
+..... | .....
+..S.. | .....
+..... | .....
+.E.E. | .E.E.
+..E.. | ..E..
+..... | .....
+.E.E. | ..E..
+..... | .E.E.
+..E.. | .....
+..... | .....
+..E.. | .E.E.
+..... | .....
+..... | ..K..
+..... | .....
+.E.E. | .E.E.
+..E.. | ..E..
+..... | .....
+..2.. | .....
+..... | .....
+EEE.. | .....
+..... | ..EEE
+.E.E. | .E.E.
+..... | .....
+..X.. | .....
+..... | .....
+..E.. | ..E..
+.E.E. | .....
+..... | .E.E.
+..E.. | ..E..
+..... | .....
+....c | .....
+..... | .....
+.E.E. | .E.E.
+..E.. | ..E..
+..... | .....
+EEE.. | ..E..
+..... | ..EEE
+.E.E. | .....
+..... | .E.E.
+..E.. | ..E..
+..... | .....
+..2.. | .....
+..... | .....
+.E.E. | .E.E.
+..E.. | .....
+..... | ..E..
+EEE.. | .E.E.
+..... | .....
+..J.. | .....
+..... | .....
+.E.E. | .E.E.
+..E.. | ..E..
+..... | .....
+.E.E. | ..EEE
+..... | .....
+..X.. | .....
+..... | .....
+EEE.. | ..E..
+..... | .E.E.
+.E.E. | .E.E.
+..... | .....
+..E.. | ..E..
+.E.E. | .....
+..... | .E.E.
+..E.. | ..E..
+..... | .....
+.E.E. | .E.E.
+..E.. | ..E..
+..... | .....
+..E.. | .E.E.
+..... | .....
+..P.. | .....
+`,
+    legend: {
+      ".": { id: "empty" },
+      "P": { id: "player.start" },
+      "E": { id: "enemy.basic" },
+      "2": { id: "pickup.unitMultiplier.2x", speed: 0.8 },
+      "G": { id: "pickup.weapon.gun.pulsePistol", speed: 0.75 },
+      "I": { id: "pickup.weapon.gun.burstCarbine", speed: 0.85 },
+      "J": { id: "pickup.weapon.gun.heavyCannon", speed: 0.9 },
+      "K": { id: "pickup.weapon.gun.splitterRifle", speed: 0.95 },
+      "S": { id: "pickup.weapon.shield.lightGuard", speed: 0.8 },
+      "X": { id: "pickup.weapon.shield.hexGuard", speed: 0.95 },
+      "a": { id: "pickup.weapon.sword.arcBlade", speed: 0.85 },
+      "b": { id: "pickup.weapon.sword.cleaver", speed: 0.9 },
+      "c": { id: "pickup.weapon.sword.needleRapier", speed: 0.95 }
+    },
+    balance: {
+      enemyHp: 1,
+      enemySpeed: 1.05
+    }
+  }
+};
+
 // projects/NeonSwarm/CombatDefinition/tracks/index.ts
 var tracks = {
   "track1": generatedTrack,
   "track2": generatedTrack2,
-  "track3": generatedTrack3
+  "track3": generatedTrack3,
+  "track4": generatedTrack4
 };
 
 // projects/NeonSwarm/CombatDefinition/TrackFamily.ts
@@ -813,6 +982,57 @@ var SwordFamilyDefinition = class extends FamilyDefinition {
 };
 var swordFamily = new SwordFamilyDefinition();
 
+// projects/NeonSwarm/src/combat/shieldEvaluator.ts
+var ShieldState = class {
+  shieldId;
+  /** Remaining charges (charge-based shields). */
+  charges;
+  /** Seconds until cooldown completes. */
+  cooldownLeft;
+  /** ms timestamp after which the hit flash is done. */
+  hitFlashUntil;
+  /** Progress 0→1 of hit flash animation (1 = done). */
+  hitFlashProgress;
+  /** Active expanding pulse rings (Pulse Core). */
+  pulseEffects;
+  /** Enemy ids already resolved against this shield, preventing repeat damage per frame. */
+  interceptedEnemyIds = /* @__PURE__ */ new Set();
+  constructor(shieldId, maxCharges) {
+    this.shieldId = shieldId;
+    this.charges = maxCharges;
+    this.cooldownLeft = 0;
+    this.hitFlashUntil = 0;
+    this.hitFlashProgress = 1;
+    this.pulseEffects = [];
+  }
+};
+function resolveShieldContact(state2, shield, target, shieldX, shieldY, now, scale = 1) {
+  const result = {
+    contacted: false,
+    absorbed: false,
+    damageAbsorbed: 0,
+    enemyDestroyed: false
+  };
+  if (target.dying || state2.interceptedEnemyIds.has(target.id)) return result;
+  const radius = shield.radius * scale + target.radius;
+  const dx = target.x - shieldX;
+  const dy = target.y - shieldY;
+  if (dx * dx + dy * dy > radius * radius) return result;
+  result.contacted = true;
+  state2.interceptedEnemyIds.add(target.id);
+  if (state2.charges <= 0) return result;
+  const absorbed = Math.min(state2.charges, target.health);
+  state2.charges -= absorbed;
+  target.health -= absorbed;
+  state2.hitFlashUntil = now + 280;
+  state2.hitFlashProgress = 0;
+  state2.cooldownLeft = shield.cooldownSeconds;
+  result.absorbed = true;
+  result.damageAbsorbed = absorbed;
+  result.enemyDestroyed = target.health <= 0;
+  return result;
+}
+
 // projects/NeonSwarm/test-pages/shield-family/smoke.ts
 var status = document.querySelector("#test-status");
 var resultsElement = document.querySelector("#results");
@@ -845,4 +1065,19 @@ for (const result of run()) {
     result.failures.join("; ") || "all checks passed"
   );
 }
+var lightGuard = shieldFamily.members.lightGuard;
+var state = new ShieldState("lightGuard", lightGuard.maxCharges);
+var horizontalEnemy = { id: 1, x: 225 + lightGuard.radius, y: 650, radius: 6.25, health: 1, dying: false };
+var firstContact = resolveShieldContact(state, lightGuard, horizontalEnemy, 225, 650, 1e3);
+test.assert(
+  "shield intercepts horizontal lane-shift contact",
+  firstContact.absorbed && firstContact.enemyDestroyed && state.charges === lightGuard.maxCharges - 1,
+  `absorbed=${firstContact.absorbed} destroyed=${firstContact.enemyDestroyed} charges=${state.charges}`
+);
+var repeatedContact = resolveShieldContact(state, lightGuard, horizontalEnemy, 225, 650, 1016);
+test.assert(
+  "one enemy cannot drain shield repeatedly",
+  !repeatedContact.contacted && state.charges === lightGuard.maxCharges - 1,
+  `contacted=${repeatedContact.contacted} charges=${state.charges}`
+);
 //# sourceMappingURL=smoke.js.map

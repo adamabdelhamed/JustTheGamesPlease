@@ -11,7 +11,7 @@ import { SquadModel } from "../../src/squad";
 import { AutoAimControlState, selectAutoAimOffset } from "../../src/autoAim";
 import { applyPortraitStage } from "../../src/viewport";
 import { actorInTopDownScene, shapeLabel, swarmShapes } from "../../src/shapeVisuals";
-import { ShieldState, tickShield } from "../../src/combat/shieldEvaluator";
+import { resolveShieldContact, ShieldState, tickShield } from "../../src/combat/shieldEvaluator";
 import { queryNearbyThreats } from "../../src/combat/nearbyThreatQuery";
 import { shieldPickupVisual, shieldVisuals } from "../../src/familyVisuals";
 
@@ -59,7 +59,6 @@ try {
   let playerAlive = true;
   let restartAt = 0;
   let playerActor = new NeonShapeActor({ shape: swarmShapes.player });
-  const shieldInteractions = new Set<number>();
   let initialShieldStrength: number = shieldFamily.members[activeShieldId].maxCharges;
   let shieldStrength: number = initialShieldStrength;
 
@@ -113,7 +112,6 @@ try {
   const restartSimulation = (): void => {
     enemies.length = 0;
     pickups.length = 0;
-    shieldInteractions.clear();
     playerAlive = true;
     restartAt = 0;
     playerActor = new NeonShapeActor({ shape: swarmShapes.player });
@@ -177,8 +175,7 @@ try {
     const px = squad.x;
     const py = playerY();
     const def = shieldFamily.members[activeShieldId];
-    const threats = queryNearbyThreats(enemies, { origin: { x: px, y: py }, lane: playerLane as 0 | 1, range: def.radius + orb.radius, purpose: "shield" })
-      .filter(threat => !shieldInteractions.has(threat.target.id));
+    const threats = queryNearbyThreats(enemies, { origin: { x: px, y: py }, lane: playerLane as 0 | 1, range: def.radius + orb.radius, purpose: "shield" });
     tickShield(shieldState, def, [], px, py, now, delta);
 
     // Enemy movement + player contact
@@ -188,20 +185,11 @@ try {
       e.actor.moveTo(0, 0);
       if (e.dying && e.actor.disposed) { enemies.splice(enemies.indexOf(e), 1); continue; }
       if (e.dying) continue;
-      const shieldDistance = Math.hypot(e.x - px, e.y - py);
-      // The polygon vertices sit exactly at the authored radius.
-      const visibleShieldRadius = def.radius;
-      if (!shieldInteractions.has(e.id) && shieldDistance <= visibleShieldRadius + orb.radius) {
-        shieldInteractions.add(e.id);
-        const absorbedDamage = Math.min(shieldStrength, e.health);
-        shieldStrength = Math.max(0, shieldStrength - absorbedDamage);
-        e.health = Math.max(0, e.health - absorbedDamage);
-        shieldState.charges = Math.ceil(shieldStrength);
-        shieldState.cooldownLeft = def.cooldownSeconds;
-        shieldState.hitFlashUntil = now + 280;
-        shieldState.hitFlashProgress = 0;
+      const contact = resolveShieldContact(shieldState, def, Object.assign(e, { radius: orb.radius }), px, py, now);
+      if (contact.absorbed) {
+        shieldStrength = shieldState.charges;
         updateReadout();
-        if (e.health <= 0) {
+        if (contact.enemyDestroyed) {
           e.dying = true;
           e.actor.explodeMagnitude = orb.explosionMagnitude;
           e.actor.dispose(NeonShapeDisposal.Explode);

@@ -50,6 +50,8 @@ export class ShieldState {
   hitFlashProgress: number;
   /** Active expanding pulse rings (Pulse Core). */
   pulseEffects: ActivePulseEffect[];
+  /** Enemy ids already resolved against this shield, preventing repeat damage per frame. */
+  readonly interceptedEnemyIds = new Set<number>();
 
   constructor(shieldId: ShieldId, maxCharges: number) {
     this.shieldId = shieldId;
@@ -59,6 +61,60 @@ export class ShieldState {
     this.hitFlashProgress = 1;
     this.pulseEffects = [];
   }
+}
+
+export interface ShieldContactTarget {
+  id: number;
+  x: number;
+  y: number;
+  radius: number;
+  health: number;
+  dying: boolean;
+}
+
+export interface ShieldContactResult {
+  contacted: boolean;
+  absorbed: boolean;
+  damageAbsorbed: number;
+  enemyDestroyed: boolean;
+}
+
+/** Resolve one geometric enemy/shield contact exactly once for that enemy. */
+export function resolveShieldContact(
+  state: ShieldState,
+  shield: ShieldMember,
+  target: ShieldContactTarget,
+  shieldX: number,
+  shieldY: number,
+  now: number,
+  scale = 1,
+): ShieldContactResult {
+  const result: ShieldContactResult = {
+    contacted: false,
+    absorbed: false,
+    damageAbsorbed: 0,
+    enemyDestroyed: false,
+  };
+  if (target.dying || state.interceptedEnemyIds.has(target.id)) return result;
+  const radius = shield.radius * scale + target.radius;
+  const dx = target.x - shieldX;
+  const dy = target.y - shieldY;
+  if (dx * dx + dy * dy > radius * radius) return result;
+
+  result.contacted = true;
+  state.interceptedEnemyIds.add(target.id);
+  if (state.charges <= 0) return result;
+
+  const absorbed = Math.min(state.charges, target.health);
+  state.charges -= absorbed;
+  target.health -= absorbed;
+  state.hitFlashUntil = now + 280;
+  state.hitFlashProgress = 0;
+  state.cooldownLeft = shield.cooldownSeconds;
+  result.absorbed = true;
+  result.damageAbsorbed = absorbed;
+  result.enemyDestroyed = target.health <= 0;
+  return result;
 }
 
 // ---------------------------------------------------------------------------

@@ -1548,11 +1548,180 @@ var generatedTrack3 = {
   }
 };
 
+// projects/NeonSwarm/CombatDefinition/tracks/Track4.ts
+var generatedTrack4 = {
+  label: "Level 4: Violet Surge",
+  description: "The fourth run doubles the endurance test again, adding denser waves, bigger pickup timing decisions, and higher-tier tools while staying readable and fair.",
+  durationSeconds: 120,
+  startingGun: "pulsePistol",
+  startingGunLevel: 1,
+  viewport: {
+    orientation: "portrait",
+    aspectWidth: 9,
+    aspectHeight: 16,
+    logicalWidth: 450,
+    logicalHeight: 800
+  },
+  environment: {
+    floorColor: "violet",
+    crackColor: "pink",
+    airColor: "cyan",
+    horizonColor: "deepBlue",
+    pulseRate: 1.35,
+    crackDensity: 17,
+    airStreakCount: 12
+  },
+  definition: {
+    layout: `
+..... | .....
+..E.. | .....
+..... | ..E..
+.E... | .....
+..... | .E...
+..G.. | .....
+..... | ..2..
+..... | .....
+..E.. | ..E..
+..... | .....
+S.... | .....
+..... | .....
+.E.E. | .....
+..... | ..E..
+..a.. | .....
+..... | .....
+.E.E. | ..E..
+..... | .....
+..E.. | .E.E.
+..... | .....
+..I.. | .....
+..... | .....
+.E.E. | ..E..
+..... | .....
+..E.. | .E.E.
+..... | .....
+.E.E. | .E.E.
+..... | .....
+..2.. | .....
+..... | .....
+..E.. | ..E..
+.E.E. | .....
+..... | .E.E.
+..E.. | ..E..
+..... | .....
+....b | .....
+..... | .....
+.E.E. | ..E..
+..E.. | .....
+..... | .E.E.
+.E.E. | ..E..
+..... | .....
+..J.. | .....
+..... | .....
+.E.E. | .E.E.
+..E.. | .....
+..... | ..E..
+.E.E. | ..E..
+..... | .....
+..S.. | .....
+..... | .....
+.E.E. | .E.E.
+..E.. | ..E..
+..... | .....
+.E.E. | ..E..
+..... | .E.E.
+..E.. | .....
+..... | .....
+..E.. | .E.E.
+..... | .....
+..... | ..K..
+..... | .....
+.E.E. | .E.E.
+..E.. | ..E..
+..... | .....
+..2.. | .....
+..... | .....
+EEE.. | .....
+..... | ..EEE
+.E.E. | .E.E.
+..... | .....
+..X.. | .....
+..... | .....
+..E.. | ..E..
+.E.E. | .....
+..... | .E.E.
+..E.. | ..E..
+..... | .....
+....c | .....
+..... | .....
+.E.E. | .E.E.
+..E.. | ..E..
+..... | .....
+EEE.. | ..E..
+..... | ..EEE
+.E.E. | .....
+..... | .E.E.
+..E.. | ..E..
+..... | .....
+..2.. | .....
+..... | .....
+.E.E. | .E.E.
+..E.. | .....
+..... | ..E..
+EEE.. | .E.E.
+..... | .....
+..J.. | .....
+..... | .....
+.E.E. | .E.E.
+..E.. | ..E..
+..... | .....
+.E.E. | ..EEE
+..... | .....
+..X.. | .....
+..... | .....
+EEE.. | ..E..
+..... | .E.E.
+.E.E. | .E.E.
+..... | .....
+..E.. | ..E..
+.E.E. | .....
+..... | .E.E.
+..E.. | ..E..
+..... | .....
+.E.E. | .E.E.
+..E.. | ..E..
+..... | .....
+..E.. | .E.E.
+..... | .....
+..P.. | .....
+`,
+    legend: {
+      ".": { id: "empty" },
+      "P": { id: "player.start" },
+      "E": { id: "enemy.basic" },
+      "2": { id: "pickup.unitMultiplier.2x", speed: 0.8 },
+      "G": { id: "pickup.weapon.gun.pulsePistol", speed: 0.75 },
+      "I": { id: "pickup.weapon.gun.burstCarbine", speed: 0.85 },
+      "J": { id: "pickup.weapon.gun.heavyCannon", speed: 0.9 },
+      "K": { id: "pickup.weapon.gun.splitterRifle", speed: 0.95 },
+      "S": { id: "pickup.weapon.shield.lightGuard", speed: 0.8 },
+      "X": { id: "pickup.weapon.shield.hexGuard", speed: 0.95 },
+      "a": { id: "pickup.weapon.sword.arcBlade", speed: 0.85 },
+      "b": { id: "pickup.weapon.sword.cleaver", speed: 0.9 },
+      "c": { id: "pickup.weapon.sword.needleRapier", speed: 0.95 }
+    },
+    balance: {
+      enemyHp: 1,
+      enemySpeed: 1.05
+    }
+  }
+};
+
 // projects/NeonSwarm/CombatDefinition/tracks/index.ts
 var tracks = {
   "track1": generatedTrack,
   "track2": generatedTrack2,
-  "track3": generatedTrack3
+  "track3": generatedTrack3,
+  "track4": generatedTrack4
 };
 
 // projects/NeonSwarm/CombatDefinition/TrackFamily.ts
@@ -1995,6 +2164,8 @@ var ShieldState = class {
   hitFlashProgress;
   /** Active expanding pulse rings (Pulse Core). */
   pulseEffects;
+  /** Enemy ids already resolved against this shield, preventing repeat damage per frame. */
+  interceptedEnemyIds = /* @__PURE__ */ new Set();
   constructor(shieldId, maxCharges) {
     this.shieldId = shieldId;
     this.charges = maxCharges;
@@ -2004,6 +2175,32 @@ var ShieldState = class {
     this.pulseEffects = [];
   }
 };
+function resolveShieldContact(state, shield, target, shieldX, shieldY, now, scale = 1) {
+  const result2 = {
+    contacted: false,
+    absorbed: false,
+    damageAbsorbed: 0,
+    enemyDestroyed: false
+  };
+  if (target.dying || state.interceptedEnemyIds.has(target.id)) return result2;
+  const radius = shield.radius * scale + target.radius;
+  const dx = target.x - shieldX;
+  const dy = target.y - shieldY;
+  if (dx * dx + dy * dy > radius * radius) return result2;
+  result2.contacted = true;
+  state.interceptedEnemyIds.add(target.id);
+  if (state.charges <= 0) return result2;
+  const absorbed = Math.min(state.charges, target.health);
+  state.charges -= absorbed;
+  target.health -= absorbed;
+  state.hitFlashUntil = now + 280;
+  state.hitFlashProgress = 0;
+  state.cooldownLeft = shield.cooldownSeconds;
+  result2.absorbed = true;
+  result2.damageAbsorbed = absorbed;
+  result2.enemyDestroyed = target.health <= 0;
+  return result2;
+}
 function tickShield(state, shield, threats, playerX, playerY, now, delta) {
   const result2 = {
     contactDamageEnemyIds: [],
@@ -2057,14 +2254,6 @@ function tickShield(state, shield, threats, playerX, playerY, now, delta) {
     }
   }
   return result2;
-}
-function tryAbsorbHit(state, shield, now) {
-  if (state.charges <= 0) return false;
-  state.charges -= 1;
-  state.hitFlashUntil = now + 280;
-  state.hitFlashProgress = 0;
-  state.cooldownLeft = shield.cooldownSeconds;
-  return true;
 }
 
 // projects/NeonSwarm/src/combat/swordEvaluator.ts
@@ -2776,34 +2965,41 @@ try {
         continue;
       }
       if (enemy.dying) continue;
-      const points = squad.points(playerY(), scale());
-      const hitIndex = points.findIndex((point) => Math.hypot(point.x - enemy.x, point.y - enemy.y) <= orbFamily.members.basicOrb.radius * 3.2);
-      if (hitIndex >= 0) {
-        const absorbed = activeByFamily.shield && shieldDef ? tryAbsorbHit(activeByFamily.shield, shieldDef, now) : false;
-        if (absorbed) {
-          const dx = enemy.x - px;
-          const dy = enemy.y - py;
-          const dist = Math.hypot(dx, dy) || 1;
-          enemy.x += dx / dist * 20 * scale();
-          enemy.y += dy / dist * 20 * scale();
-          window.gameAudio?.play("Hit");
-        } else {
-          const point = points[hitIndex];
-          const actor = playerActors[hitIndex] ?? new NeonShapeActor({ shape: swarmShapes.player });
-          actor.explodeMagnitude = 0.55;
-          actor.dispose("explode" /* Explode */);
-          explodingPlayers.push({ actor, x: point.x, y: point.y });
-          playerActors.splice(hitIndex, 1);
-          squad.remove();
-          enemies.splice(enemies.indexOf(enemy), 1);
-          window.gameAudio?.play("EnemyDestroyed");
-          if (squad.count === 0) {
-            failureReason = "The entire squad was destroyed on contact.";
-            finish(false);
-            return;
+      if (activeByFamily.shield && shieldDef) {
+        const shieldContact = resolveShieldContact(activeByFamily.shield, shieldDef, Object.assign(enemy, {
+          radius: orbFamily.members.basicOrb.radius * scale()
+        }), px, py, now, scale());
+        if (shieldContact.absorbed) {
+          if (shieldContact.enemyDestroyed) {
+            enemy.dying = true;
+            enemy.actor.explodeMagnitude = orbFamily.members.basicOrb.explosionMagnitude;
+            enemy.actor.dispose("explode" /* Explode */);
+            window.gameAudio?.play("EnemyDestroyed");
+          } else {
+            enemy.actor.impact({ direction: { x: 0, y: 1 }, magnitude: shieldContact.damageAbsorbed / orbFamily.members.basicOrb.impactResistance });
+            window.gameAudio?.play("Hit");
           }
           continue;
         }
+      }
+      const points = squad.points(playerY(), scale());
+      const hitIndex = points.findIndex((point) => Math.hypot(point.x - enemy.x, point.y - enemy.y) <= orbFamily.members.basicOrb.radius * 3.2);
+      if (hitIndex >= 0) {
+        const point = points[hitIndex];
+        const actor = playerActors[hitIndex] ?? new NeonShapeActor({ shape: swarmShapes.player });
+        actor.explodeMagnitude = 0.55;
+        actor.dispose("explode" /* Explode */);
+        explodingPlayers.push({ actor, x: point.x, y: point.y });
+        playerActors.splice(hitIndex, 1);
+        squad.remove();
+        enemies.splice(enemies.indexOf(enemy), 1);
+        window.gameAudio?.play("EnemyDestroyed");
+        if (squad.count === 0) {
+          failureReason = "The entire squad was destroyed on contact.";
+          finish(false);
+          return;
+        }
+        continue;
       }
       if (enemy.y >= playerY()) {
         breaches++;

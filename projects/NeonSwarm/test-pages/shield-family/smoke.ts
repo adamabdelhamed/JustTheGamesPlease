@@ -1,5 +1,6 @@
 import { createTestPage, neonPalette } from "@just-the-games-please/neon-factory";
 import { shieldFamily, type ShieldId, type ShieldMember } from "../../CombatDefinition";
+import { resolveShieldContact, ShieldState } from "../../src/combat/shieldEvaluator";
 
 interface ShieldSmokeResult {
   shieldId: ShieldId;
@@ -46,3 +47,19 @@ for (const result of run()) {
     result.failures.join("; ") || "all checks passed",
   );
 }
+
+const lightGuard = shieldFamily.members.lightGuard;
+const state = new ShieldState("lightGuard", lightGuard.maxCharges);
+const horizontalEnemy = { id: 1, x: 225 + lightGuard.radius, y: 650, radius: 6.25, health: 1, dying: false };
+const firstContact = resolveShieldContact(state, lightGuard, horizontalEnemy, 225, 650, 1000);
+test.assert(
+  "shield intercepts horizontal lane-shift contact",
+  firstContact.absorbed && firstContact.enemyDestroyed && state.charges === lightGuard.maxCharges - 1,
+  `absorbed=${firstContact.absorbed} destroyed=${firstContact.enemyDestroyed} charges=${state.charges}`,
+);
+const repeatedContact = resolveShieldContact(state, lightGuard, horizontalEnemy, 225, 650, 1016);
+test.assert(
+  "one enemy cannot drain shield repeatedly",
+  !repeatedContact.contacted && state.charges === lightGuard.maxCharges - 1,
+  `contacted=${repeatedContact.contacted} charges=${state.charges}`,
+);

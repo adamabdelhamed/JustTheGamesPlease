@@ -5,7 +5,7 @@ import { SquadModel } from "./squad";
 import { AutoAimControlState, selectAutoAimOffset } from "./autoAim";
 import { applyPortraitStage } from "./viewport";
 import { actorInTopDownScene, shapeLabel, swarmShapes } from "./shapeVisuals";
-import { ShieldState, tickShield, tryAbsorbHit } from "./combat/shieldEvaluator";
+import { ShieldState, resolveShieldContact, tickShield } from "./combat/shieldEvaluator";
 import { SwordState, tickSword } from "./combat/swordEvaluator";
 import { queryNearbyThreats } from "./combat/nearbyThreatQuery";
 import { shieldPickupVisual, shieldVisuals, swordPickupVisual, swordVisuals } from "./familyVisuals";
@@ -409,37 +409,41 @@ try {
       if (enemy.dying && enemy.actor.disposed) { enemies.splice(enemies.indexOf(enemy), 1); continue; }
       if (enemy.dying) continue;
 
-      // Player contact
+      // Shield contact is geometric and independent of authored lane. This catches
+      // vertical approaches and horizontal collisions while the squad changes lanes.
+      if (activeByFamily.shield && shieldDef) {
+        const shieldContact = resolveShieldContact(activeByFamily.shield, shieldDef, Object.assign(enemy, {
+          radius: orbFamily.members.basicOrb.radius * scale(),
+        }), px, py, now, scale());
+        if (shieldContact.absorbed) {
+          if (shieldContact.enemyDestroyed) {
+            enemy.dying = true;
+            enemy.actor.explodeMagnitude = orbFamily.members.basicOrb.explosionMagnitude;
+            enemy.actor.dispose(NeonShapeDisposal.Explode);
+            window.gameAudio?.play("EnemyDestroyed");
+          } else {
+            enemy.actor.impact({ direction: { x: 0, y: 1 }, magnitude: shieldContact.damageAbsorbed / orbFamily.members.basicOrb.impactResistance });
+            window.gameAudio?.play("Hit");
+          }
+          continue;
+        }
+      }
+
+      // Player body contact
       const points = squad.points(playerY(), scale());
       const hitIndex = points.findIndex(point => Math.hypot(point.x - enemy.x, point.y - enemy.y) <= orbFamily.members.basicOrb.radius * 3.2);
       if (hitIndex >= 0) {
-        // --- 1. shieldBlock: try absorbing hit before it counts ---
-        const absorbed = activeByFamily.shield && shieldDef
-          ? tryAbsorbHit(activeByFamily.shield, shieldDef, now)
-          : false;
-
-        if (absorbed) {
-          // Shield ate the hit — push enemy away from player slightly
-          const dx = enemy.x - px;
-          const dy = enemy.y - py;
-          const dist = Math.hypot(dx, dy) || 1;
-          enemy.x += (dx / dist) * 20 * scale();
-          enemy.y += (dy / dist) * 20 * scale();
-          window.gameAudio?.play("Hit");
-        } else {
-          // No shield or out of charges — player takes the hit
-          const point = points[hitIndex];
-          const actor = playerActors[hitIndex] ?? new NeonShapeActor({ shape: swarmShapes.player });
-          actor.explodeMagnitude = .55;
-          actor.dispose(NeonShapeDisposal.Explode);
-          explodingPlayers.push({ actor, x: point.x, y: point.y });
-          playerActors.splice(hitIndex, 1);
-          squad.remove();
-          enemies.splice(enemies.indexOf(enemy), 1);
-          window.gameAudio?.play("EnemyDestroyed");
-          if (squad.count === 0) { failureReason = "The entire squad was destroyed on contact."; finish(false); return; }
-          continue;
-        }
+        const point = points[hitIndex];
+        const actor = playerActors[hitIndex] ?? new NeonShapeActor({ shape: swarmShapes.player });
+        actor.explodeMagnitude = .55;
+        actor.dispose(NeonShapeDisposal.Explode);
+        explodingPlayers.push({ actor, x: point.x, y: point.y });
+        playerActors.splice(hitIndex, 1);
+        squad.remove();
+        enemies.splice(enemies.indexOf(enemy), 1);
+        window.gameAudio?.play("EnemyDestroyed");
+        if (squad.count === 0) { failureReason = "The entire squad was destroyed on contact."; finish(false); return; }
+        continue;
       }
 
       if (enemy.y >= playerY()) {
