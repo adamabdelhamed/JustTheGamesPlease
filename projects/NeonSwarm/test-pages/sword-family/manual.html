@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+  <title>Neon Swarm · Sword Family Test</title>
+  <meta name="theme-color" content="#05071c">
+  <script src="../../../lib/analytics.js"></script>
+  <link rel="stylesheet" href="../../../lib/top-bar/top-bar.css">
+  <link rel="stylesheet" href="../../../lib/controller/controller.css">
+  <link rel="stylesheet" href="../gun-family/manual.css">
+  <link rel="stylesheet" href="manual.css">
+</head>
+<body>
+  <main id="game" aria-label="Sword family lane runner test page">
+    <canvas id="game-canvas"></canvas>
+    <header data-game-topbar data-contained>
+      <div class="game-topbar__identity">
+        <h1>SWORD FAMILY <b>LAB</b></h1>
+        <p class="game-topbar__instructions" id="status">Tap a side to switch lanes. Sword swings when enemies enter range.</p>
+      </div>
+      <div class="game-topbar__right">
+        <div class="game-topbar__controls">
+          <span id="weapon-readout">Loading…</span>
+          <span id="score-readout">Kills 0</span>
+        </div>
+        <div class="game-topbar__utilities" data-game-topbar-utilities></div>
+      </div>
+    </header>
+    <aside class="lab-panel" aria-label="Manual test controls">
+      <h2>Manual controls</h2>
+      <label>Sword
+        <select id="sword-select"></select>
+      </label>
+      <div class="button-row">
+        <button type="button" data-spawn-enemy="0">Enemy left</button>
+        <button type="button" data-spawn-enemy="1">Enemy right</button>
+      </div>
+      <div class="button-row">
+        <button type="button" data-spawn-pickup="0">Sword pickup left</button>
+        <button type="button" data-spawn-pickup="1">Sword pickup right</button>
+      </div>
+      <div class="button-row">
+        <button type="button" id="spawn-wave">Spawn wave</button>
+        <button type="button" id="clear-stage">Clear stage</button>
+      </div>
+      <dl id="spec-readout"></dl>
+      <p class="spec-note">Swords swing only when a valid target enters range — they never fire into empty space.</p>
+    </aside>
+    <div id="joystick" aria-hidden="true"><span class="stick-ring"></span><span class="stick-knob"></span></div>
+    <section id="error" role="alert" hidden></section>
+  </main>
+  <script src="../../../lib/top-bar/top-bar.js"></script>
+  <script src="../../../lib/audio/audio.js"></script>
+  <script src="../../../lib/controller/controller.js"></script>
+  <script>gameAudio.preload(['Primary','Primary_Alt1','Pickup','Hit','EnemyDestroyed']);</script>
+  <script type="module" src="manual.js"></script>
+</body>
+</html>

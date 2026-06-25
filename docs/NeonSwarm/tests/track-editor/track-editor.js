@@ -90,6 +90,12 @@ var neonShapeCatalog = [
   make("elite", "elite-emperor", "Emperor", star(8, 0.48), "roll", [regular(8, 0, 0.24, 0.24)])
 ];
 
+// projects/NeonFactory/src/shield-primitives.ts
+var shieldFieldPoints = Array.from({ length: 32 }, (_, index) => {
+  const angle = -Math.PI / 2 + index * Math.PI * 2 / 32;
+  return [Math.cos(angle), Math.sin(angle)];
+});
+
 // projects/NeonSwarm/CombatDefinition/FamilyDefinition.ts
 var FamilyDefinition = class {
   require(condition, message) {
@@ -340,13 +346,13 @@ var firstTrack = {
 .E.E. | ..E..
 ..... | .....
 ..E.. | .E.E.
-..... | .....
+.S... | .....
 ..... | .....
 .EEE. | .....
 ..... | .....
 ..E.. | .EEE.
 ..... | .....
-..... | .....
+....A | .....
 .EE.. | ..EE.
 ..... | .....
 ..E.. | .E.E.
@@ -362,7 +368,9 @@ var firstTrack = {
       ".": { id: "empty" },
       "P": { id: "player.start" },
       "E": { id: "enemy.basic" },
-      "2": { id: "pickup.unitMultiplier.2x", speed: 0.8 }
+      "2": { id: "pickup.unitMultiplier.2x", speed: 0.8 },
+      "S": { id: "pickup.weapon.shield.satelliteGuard", speed: 0.8 },
+      "A": { id: "pickup.weapon.sword.arcBlade", speed: 0.8 }
     },
     balance: {
       enemyHp: 1,
@@ -403,7 +411,7 @@ var secondTrack = {
 ..... | .E.E.
 ..... | .....
 ..E.. | ..E..
-..... | .....
+.H... | .....
 ...E. | .E...
 ..... | .....
 ..2.. | .....
@@ -412,7 +420,7 @@ var secondTrack = {
 ..... | .E.E.
 ..... | .....
 ..E.. | ..E..
-..... | .....
+....C | .....
 .EEE. | .....
 ..... | .EEE.
 ..... | .....
@@ -425,7 +433,9 @@ var secondTrack = {
       ".": { id: "empty" },
       "P": { id: "player.start" },
       "E": { id: "enemy.basic", speed: 1.15 },
-      "2": { id: "pickup.unitMultiplier.2x" }
+      "2": { id: "pickup.unitMultiplier.2x" },
+      "H": { id: "pickup.weapon.shield.hexGuard", speed: 0.75 },
+      "C": { id: "pickup.weapon.sword.cleaver", speed: 0.75 }
     },
     balance: {
       enemyHp: 1,
@@ -560,6 +570,178 @@ var MultiplierFamilyDefinition = class extends FamilyDefinition {
 };
 var multiplierFamily = new MultiplierFamilyDefinition();
 
+// projects/NeonSwarm/CombatDefinition/ShieldFamily.ts
+var ShieldFamilyDefinition = class extends FamilyDefinition {
+  familyId = "shield";
+  label = "Shield";
+  members = {
+    lightGuard: {
+      label: "Light Guard",
+      family: "shield",
+      rarity: "starter",
+      mode: "charge",
+      radius: 28,
+      maxCharges: 2,
+      cooldownSeconds: 8,
+      contactDamage: 0,
+      pushDistance: 0,
+      slowMultiplier: 1,
+      color: "cyan",
+      orbiterShape: "dot",
+      orbiterCount: 4,
+      orbiterSpeed: 1,
+      orbiterSize: 4.5,
+      agentNotes: "Lightweight shield with two points of strength."
+    },
+    satelliteGuard: {
+      label: "Satellite Guard",
+      family: "shield",
+      rarity: "common",
+      mode: "charge",
+      radius: 28,
+      maxCharges: 4,
+      cooldownSeconds: 10,
+      contactDamage: 0,
+      pushDistance: 0,
+      slowMultiplier: 1,
+      color: "violet",
+      orbiterShape: "dot",
+      orbiterCount: 6,
+      orbiterSpeed: 0.75,
+      orbiterSize: 4.75,
+      agentNotes: "Balanced shield with four points of strength."
+    },
+    hexGuard: {
+      label: "Hex Guard",
+      family: "shield",
+      rarity: "uncommon",
+      mode: "charge",
+      radius: 30,
+      maxCharges: 7,
+      cooldownSeconds: 12,
+      contactDamage: 0,
+      pushDistance: 0,
+      slowMultiplier: 1,
+      color: "gold",
+      orbiterShape: "hex",
+      orbiterCount: 8,
+      orbiterSpeed: 0.45,
+      orbiterSize: 5,
+      agentNotes: "Heavy shield with seven points of strength."
+    }
+  };
+  constructor() {
+    super();
+    this.validate();
+  }
+  validate() {
+    for (const [id, shield] of Object.entries(this.members)) {
+      this.require(shield.mode === "charge", `${id} must use the shared charge behavior.`);
+      this.require(shield.radius > 0, `${id} radius must be positive.`);
+      this.require(shield.maxCharges > 0, `${id} strength must be positive.`);
+      this.require(shield.orbiterCount > 0, `${id} must have orbiters.`);
+      this.require(shield.orbiterSpeed >= 0, `${id} orbiterSpeed cannot be negative.`);
+      this.require(neonPalette[shield.color] !== void 0, `${id} has an unknown color.`);
+    }
+  }
+};
+var shieldFamily = new ShieldFamilyDefinition();
+
+// projects/NeonSwarm/CombatDefinition/SwordFamily.ts
+var SwordFamilyDefinition = class extends FamilyDefinition {
+  familyId = "sword";
+  label = "Sword";
+  /**
+   * Family-level implementation notes:
+   * - Swords are NOT period-based like guns. They swing only when a valid target
+   *   is within range and cooldown is ready. They idle silently otherwise.
+   * - One active sword per player (family-scoped exclusivity).
+   * - Can coexist with an active Gun and an active Shield simultaneously.
+   * - Targeting is lane-aware via queryNearbyThreats().
+   * - The slash animation runs for slashDurationMs milliseconds, then fades.
+   * - Damage is applied immediately when the swing starts (not at animation end).
+   *
+   * Precedence: sword attacks occur after shieldBlock/shieldPulse but before
+   * shieldContactDamage and shieldAura. See main.ts nearPlayerEffectOrder.
+   */
+  members = {
+    /**
+     * Arc Blade — Core sword. Fast, curved, targets nearest enemy in lane.
+     * Hits 1–2 enemies depending on arc overlap. Short cooldown.
+     */
+    arcBlade: {
+      label: "Arc Blade",
+      family: "sword",
+      rarity: "starter",
+      range: 52,
+      arcDegrees: 70,
+      damage: 1.5,
+      cooldownSeconds: 0.85,
+      maxTargets: 2,
+      targetingMode: "nearestInCurrentLane",
+      slashDurationMs: 150,
+      color: "cyan",
+      slashThickness: 1,
+      agentNotes: "Fast and sharp. Curved neon slash. 120\u2013180ms feel. Fading afterimage. Like a whip-like katana arc."
+    },
+    /**
+     * Cleaver — Heavy sword. Slower but hits multiple clustered enemies.
+     * Wide arc, thicker slash. Better against tight groups than fast singles.
+     */
+    cleaver: {
+      label: "Cleaver",
+      family: "sword",
+      rarity: "common",
+      range: 56,
+      arcDegrees: 110,
+      damage: 2.8,
+      cooldownSeconds: 1.8,
+      maxTargets: 4,
+      targetingMode: "clusterNearPlayer",
+      slashDurationMs: 220,
+      color: "orange",
+      slashThickness: 1.65,
+      agentNotes: "Heavy and wide. Thicker arc. Stronger impact flash. Geometric and procedural \u2014 not a bullet."
+    },
+    /**
+     * Needle Rapier — Precision sword. Long reach, narrow arc, single target.
+     * Prioritizes the most dangerous (front-most) enemy.
+     */
+    needleRapier: {
+      label: "Needle Rapier",
+      family: "sword",
+      rarity: "uncommon",
+      range: 70,
+      arcDegrees: 30,
+      damage: 2.2,
+      cooldownSeconds: 1.1,
+      maxTargets: 1,
+      targetingMode: "frontMostThreat",
+      slashDurationMs: 130,
+      color: "green",
+      slashThickness: 0.55,
+      agentNotes: "Elegant and precise. Thin stabbing line. Not a gun shot \u2014 it must feel melee. Single target priority."
+    }
+  };
+  constructor() {
+    super();
+    this.validate();
+  }
+  validate() {
+    for (const [id, sword] of Object.entries(this.members)) {
+      this.require(sword.range > 0, `${id} range must be positive.`);
+      this.require(sword.arcDegrees > 0 && sword.arcDegrees <= 360, `${id} arcDegrees must be in (0, 360].`);
+      this.require(sword.damage > 0, `${id} damage must be positive.`);
+      this.require(sword.cooldownSeconds > 0, `${id} cooldownSeconds must be positive.`);
+      this.require(sword.maxTargets >= 1, `${id} maxTargets must be at least 1.`);
+      this.require(sword.slashDurationMs > 0, `${id} slashDurationMs must be positive.`);
+      this.require(sword.slashThickness > 0, `${id} slashThickness must be positive.`);
+      this.require(neonPalette[sword.color] !== void 0, `${id} has an unknown color.`);
+    }
+  }
+};
+var swordFamily = new SwordFamilyDefinition();
+
 // projects/NeonSwarm/test-pages/track-editor/track-editor.ts
 var developer = new URLSearchParams(location.search).get("dev") === "1";
 document.querySelector("#editor").hidden = !developer;
@@ -580,7 +762,19 @@ var paletteItems = [
     label: gun.label,
     symbol: "GHIJKLMNOQRSTUVWXYZ"[index]
   })),
-  { id: "pickup.unitMultiplier.2x", label: "2x Squad", symbol: "2" }
+  { id: "pickup.unitMultiplier.2x", label: "2x Squad", symbol: "2" },
+  // Shield family pickups
+  ...Object.entries(shieldFamily.members).map(([id, shield], index) => ({
+    id: `pickup.weapon.shield.${id}`,
+    label: `Shield: ${shield.label}`,
+    symbol: "SHX"[index]
+  })),
+  // Sword family pickups (symbols: a, b, c)
+  ...Object.entries(swordFamily.members).map(([id, sword], index) => ({
+    id: `pickup.weapon.sword.${id}`,
+    label: `Sword: ${sword.label}`,
+    symbol: "abc"[index]
+  }))
 ];
 var cells = Array.from(
   { length: rowCount },

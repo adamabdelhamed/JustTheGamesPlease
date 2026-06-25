@@ -862,7 +862,13 @@ struct VertexOutput {
   );
   let item = items[instance];
   let local = corners[vertex];
-  let pixel = item.position + local * item.size;
+  var pixelOffset = local * item.size;
+  if (item.shape > 6.5 && item.shape < 7.5) {
+    let c = cos(item.texture);
+    let s = sin(item.texture);
+    pixelOffset = vec2f(pixelOffset.x * c - pixelOffset.y * s, pixelOffset.x * s + pixelOffset.y * c);
+  }
+  let pixel = item.position + pixelOffset;
   var output: VertexOutput;
   output.position = vec4f(pixel.x / scene.resolution.x * 2 - 1, 1 - pixel.y / scene.resolution.y * 2, 0, 1);
   output.local = local;
@@ -878,6 +884,34 @@ struct VertexOutput {
 }
 
 @fragment fn fragmentMain(input: VertexOutput) -> @location(0) vec4f {
+  if (input.shape > 7.5) {
+    let radius = length(input.local);
+    let angle = atan2(input.local.y, input.local.x);
+    if (angle < input.rimIntensity || angle > input.shadowStrength || radius > 1.0) { discard; }
+    let lineDistance = abs(radius - 0.78);
+    if (lineDistance > 0.16) { discard; }
+    let core = 1.0 - smoothstep(0.012, 0.038, lineDistance);
+    let halo = (1.0 - smoothstep(0.025, 0.16, lineDistance)) * input.glow;
+    let pulseA = pow(max(0.0, sin(angle * 23.0 - scene.time * 8.5)), 16.0);
+    let pulseB = pow(max(0.0, sin(angle * 11.0 + scene.time * 5.3 + 1.7)), 24.0);
+    let grain = sin(angle * 71.0 + scene.time * 3.1) * 0.5 + 0.5;
+    let surge = smoothstep(0.72, 0.94, pulseA * 0.7 + pulseB * 0.65 + grain * 0.12);
+    let energy = (core * (0.88 + surge * 0.65) + halo * (0.22 + surge * 0.9)) * input.intensity;
+    let hot = mix(input.color.rgb, input.secondaryColor.rgb, core * surge * 0.9);
+    return vec4f(hot * energy, clamp(energy, 0.0, 0.95));
+  }
+  if (input.shape > 6.5) {
+    let along = input.local.y;
+    let across = abs(input.local.x);
+    if (across > 1.0 || abs(along) > 1.0) { discard; }
+    let core = 1.0 - smoothstep(0.08, 0.24, across);
+    let halo = (1.0 - smoothstep(0.12, 1.0, across)) * input.glow;
+    let endFade = 1.0 - smoothstep(0.72, 1.0, abs(along));
+    let travel = pow(max(0.0, sin(along * 24.0 - scene.time * 8.0 + input.texture)), 14.0);
+    let energy = (core * (0.75 + travel * 0.5) + halo * (0.2 + travel * 0.55)) * endFade * input.intensity;
+    let hot = mix(input.color.rgb, input.secondaryColor.rgb, core * travel * 0.75);
+    return vec4f(hot * energy, clamp(energy, 0.0, 0.95));
+  }
   if (input.shape > 5.5) {
     // Pentagon SDF
     // local is in [-1, 1] range. Let's find pentagon distance.
@@ -1048,10 +1082,10 @@ var NeonPrimitiveRenderer = class _NeonPrimitiveRenderer {
         ...rgba(item.secondaryColor ?? item.color),
         item.glow ?? 0.5,
         item.intensity ?? 1,
-        item.shape === "pentagon" ? 6 : item.shape === "diamond" ? 5 : item.shape === "spark" ? 4 : item.shape === "ring" ? 3 : item.shape === "orb" ? 2 : item.shape === "bolt" ? 1 : 0,
-        item.texture ?? 0,
-        item.rimIntensity ?? 0,
-        item.shadowStrength ?? 0,
+        item.shape === "arc" ? 8 : item.shape === "line" ? 7 : item.shape === "pentagon" ? 6 : item.shape === "diamond" ? 5 : item.shape === "spark" ? 4 : item.shape === "ring" ? 3 : item.shape === "orb" ? 2 : item.shape === "bolt" ? 1 : 0,
+        item.rotation ?? item.texture ?? 0,
+        item.arcStart ?? item.rimIntensity ?? 0,
+        item.arcEnd ?? item.shadowStrength ?? 0,
         0,
         0
       ], offset);
@@ -1282,6 +1316,178 @@ var NeonVictoryExperience = class {
     return primitives;
   }
 };
+
+// projects/NeonFactory/src/shield-primitives.ts
+var shieldFieldPoints = Array.from({ length: 32 }, (_, index) => {
+  const angle = -Math.PI / 2 + index * Math.PI * 2 / 32;
+  return [Math.cos(angle), Math.sin(angle)];
+});
+var shieldFieldShape = {
+  id: "shield-field",
+  name: "Shield Field",
+  family: "player",
+  color: "#48f6ff",
+  points: shieldFieldPoints,
+  rock: "pulse",
+  depth: 0.025
+};
+function shieldPulsePrimitives(opts) {
+  const { x, y, maxRadius, color, progress, scale = 1 } = opts;
+  if (progress >= 1) return [];
+  const life = 1 - progress;
+  const r = maxRadius * scale * (0.1 + progress * 0.9);
+  return [
+    // Outer expanding ring
+    {
+      x,
+      y,
+      width: r * 2,
+      color,
+      glow: life * 0.85,
+      intensity: life * 0.9,
+      shape: "ring"
+    },
+    // Inner secondary ring slightly behind
+    {
+      x,
+      y,
+      width: r * 2 * 0.72,
+      color,
+      glow: life * 0.5,
+      intensity: life * 0.6,
+      shape: "ring"
+    }
+  ];
+}
+function shieldHitFlashPrimitives(opts) {
+  const { x, y, radius, color, progress, scale = 1 } = opts;
+  if (progress >= 1) return [];
+  const life = 1 - progress;
+  const r = radius * scale;
+  const primitives = [{
+    x,
+    y,
+    width: r * 2.55,
+    color,
+    secondaryColor: "#ffffff",
+    glow: life,
+    intensity: life * 1.4,
+    shape: "arc",
+    arcStart: -Math.PI,
+    arcEnd: Math.PI
+  }];
+  for (let i = 0; i < 9; i++) {
+    const angle = i / 9 * Math.PI * 2 + progress * 0.35;
+    const distance = r * (0.78 + progress * 0.42);
+    primitives.push({
+      x: x + Math.cos(angle) * distance,
+      y: y + Math.sin(angle) * distance,
+      width: Math.max(0.8, 1.4 * scale),
+      height: r * (0.22 + progress * 0.18),
+      color,
+      secondaryColor: "#ffffff",
+      glow: life,
+      intensity: life * (1.15 - i % 3 * 0.12),
+      shape: "line",
+      rotation: angle + Math.PI / 2
+    });
+  }
+  return primitives;
+}
+
+// projects/NeonFactory/src/sword-primitives.ts
+function swordBladePrimitives(opts) {
+  const { x, y, color, now, length = 28, scale = 1 } = opts;
+  const pulse = 0.9 + Math.sin(now / 180) * 0.1;
+  const angle = -Math.PI / 2 + Math.sin(now / 520) * 0.16;
+  return [
+    { x, y, width: 2.8 * scale, height: length * scale, color, secondaryColor: "#ffffff", glow: 1.1 * pulse, intensity: 1.2, shape: "line", rotation: angle + Math.PI / 2 },
+    { x, y, width: 10 * scale, height: 2.2 * scale, color, secondaryColor: "#ffffff", glow: 0.8, intensity: 1, shape: "line", rotation: angle }
+  ];
+}
+function slashArcPrimitives(opts) {
+  const { x, y, reach, arcDegrees, headingDeg = -90, color, progress, thickness = 1, scale = 1 } = opts;
+  if (progress >= 1) return [];
+  const life = 1 - progress;
+  const r = reach * scale;
+  const halfArc = arcDegrees / 2 * Math.PI / 180;
+  const heading = headingDeg * Math.PI / 180;
+  const energizedThickness = thickness * scale;
+  const sweep = progress < 0.62 ? 1 - Math.pow(1 - progress / 0.62, 3) : 1;
+  const bladeAngle = heading - halfArc + sweep * halfArc * 2;
+  const trailLength = halfArc * (0.55 + life * 0.75);
+  const segmentCount = 11;
+  const primitives = [];
+  for (let i = 0; i < segmentCount; i++) {
+    const age = i / (segmentCount - 1);
+    const angle = Math.max(heading - halfArc, bladeAngle - trailLength * age);
+    const distance = r * (0.72 + Math.sin(age * Math.PI) * 0.08);
+    const fade = Math.pow(1 - age, 1.35) * life;
+    const tangent = angle + Math.PI / 2;
+    primitives.push({
+      x: x + Math.cos(angle) * distance,
+      y: y + Math.sin(angle) * distance,
+      width: Math.max(0.8, energizedThickness * (2.4 - age * 1.55)),
+      height: r * (0.24 - age * 0.1),
+      color,
+      secondaryColor: "#ffffff",
+      glow: 1.15 * fade,
+      intensity: 1.45 * fade,
+      shape: "bolt",
+      rotation: tangent
+    });
+  }
+  const leadingX = x + Math.cos(bladeAngle) * r * 0.82;
+  const leadingY = y + Math.sin(bladeAngle) * r * 0.82;
+  primitives.push({
+    x: leadingX,
+    y: leadingY,
+    width: Math.max(1.2, energizedThickness * 2.8),
+    height: r * 0.32,
+    color: "#ffffff",
+    secondaryColor: color,
+    glow: 1.4 * life,
+    intensity: 1.7 * life,
+    shape: "line",
+    rotation: bladeAngle + Math.PI / 2
+  });
+  if (progress < 0.7) {
+    for (let i = 0; i < 7; i++) {
+      const spread = (i - 3) * 0.13;
+      const sparkLife = life * (1 - Math.abs(i - 3) * 0.08);
+      primitives.push({
+        x: leadingX + Math.cos(bladeAngle + spread) * r * (0.04 + i * 0.012),
+        y: leadingY + Math.sin(bladeAngle + spread) * r * (0.04 + i * 0.012),
+        width: Math.max(0.7, energizedThickness * 0.75),
+        height: r * (0.08 + i % 3 * 0.025),
+        color,
+        secondaryColor: "#ffffff",
+        glow: 1.1 * sparkLife,
+        intensity: 1.25 * sparkLife,
+        shape: "bolt",
+        rotation: bladeAngle + spread
+      });
+    }
+  }
+  return primitives;
+}
+function swordPickupPrimitives(opts) {
+  const { x, y, color, secondaryColor = color, now, scale = 1 } = opts;
+  const pulse = 1 + Math.sin(now / 600) * 0.08;
+  return [
+    { x, y: y - 1.5 * scale * pulse, width: 1.6 * scale, height: 8.5 * scale * pulse, color, secondaryColor, glow: 0.7, intensity: 1.1, shape: "bolt" },
+    { x, y: y + 1.5 * scale, width: 6 * scale * pulse, height: scale, color, secondaryColor, glow: 0.55, intensity: 1, shape: "bolt" },
+    { x, y: y - 5.5 * scale * pulse, width: scale, color, glow: 0.9, intensity: 0.85, shape: "diamond" }
+  ];
+}
+function shieldPickupPrimitives(opts) {
+  const { x, y, color, secondaryColor = color, now, scale = 1 } = opts;
+  const pulse = 1 + Math.sin(now / 700) * 0.07;
+  return [
+    { x, y, width: 10 * scale * pulse, color, secondaryColor, glow: 0.8, intensity: 0.9, shape: "pentagon" },
+    { x, y: y - 0.5 * scale, width: 3.2 * scale * pulse, color: secondaryColor, secondaryColor: color, glow: 0.6, intensity: 1, shape: "diamond" }
+  ];
+}
 export {
   NeonGeometricShapeRenderer,
   NeonOrb,
@@ -1296,6 +1502,13 @@ export {
   getNeonShape,
   glowPresets,
   neonPalette,
-  neonShapeCatalog
+  neonShapeCatalog,
+  shieldFieldShape,
+  shieldHitFlashPrimitives,
+  shieldPickupPrimitives,
+  shieldPulsePrimitives,
+  slashArcPrimitives,
+  swordBladePrimitives,
+  swordPickupPrimitives
 };
 //# sourceMappingURL=neonfactory.js.map

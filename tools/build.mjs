@@ -78,6 +78,8 @@ await mkdir(resolve(docs, "NeonSwarm"), { recursive: true });
 await mkdir(resolve(docs, "NeonSwarm/audio"), { recursive: true });
 await mkdir(resolve(docs, "NeonSwarm/tests/gun-family"), { recursive: true });
 await mkdir(resolve(docs, "NeonSwarm/tests/gun-family/manual/audio"), { recursive: true });
+await mkdir(resolve(docs, "NeonSwarm/tests/shield-family"), { recursive: true });
+await mkdir(resolve(docs, "NeonSwarm/tests/sword-family"), { recursive: true });
 await mkdir(resolve(docs, "NeonSwarm/tests/multiplier-family"), { recursive: true });
 await mkdir(resolve(docs, "NeonSwarm/tests/auto-aim"), { recursive: true });
 await mkdir(resolve(docs, "NeonSwarm/tests/track-editor"), { recursive: true });
@@ -94,6 +96,13 @@ await Promise.all([
   cp(resolve(root, "projects/NeonSwarm/test-pages/gun-family/manual.css"), resolve(docs, "NeonSwarm/tests/gun-family/manual.css")),
   cp(resolve(root, "projects/NeonSwarm/test-pages/gun-family/smoke.html"), resolve(docs, "NeonSwarm/tests/gun-family/smoke.html")),
   cp(resolve(root, "projects/NeonSwarm/test-pages/gun-family/smoke.css"), resolve(docs, "NeonSwarm/tests/gun-family/smoke.css")),
+  cp(resolve(root, "projects/NeonSwarm/test-pages/shield-family/manual.html"), resolve(docs, "NeonSwarm/tests/shield-family/manual.html")),
+  cp(resolve(root, "projects/NeonSwarm/test-pages/shield-family/manual.css"), resolve(docs, "NeonSwarm/tests/shield-family/manual.css")),
+  cp(resolve(root, "projects/NeonSwarm/test-pages/shield-family/smoke.html"), resolve(docs, "NeonSwarm/tests/shield-family/smoke.html")),
+  cp(resolve(root, "projects/NeonSwarm/test-pages/shield-family/smoke.css"), resolve(docs, "NeonSwarm/tests/shield-family/smoke.css")),
+  cp(resolve(root, "projects/NeonSwarm/test-pages/sword-family/manual.html"), resolve(docs, "NeonSwarm/tests/sword-family/manual.html")),
+  cp(resolve(root, "projects/NeonSwarm/test-pages/sword-family/manual.css"), resolve(docs, "NeonSwarm/tests/sword-family/manual.css")),
+  cp(resolve(root, "projects/NeonSwarm/test-pages/sword-family/smoke.html"), resolve(docs, "NeonSwarm/tests/sword-family/smoke.html")),
   cp(resolve(root, "projects/NeonSwarm/test-pages/multiplier-family/smoke.html"), resolve(docs, "NeonSwarm/tests/multiplier-family/smoke.html")),
   cp(resolve(root, "projects/NeonSwarm/test-pages/auto-aim/smoke.html"), resolve(docs, "NeonSwarm/tests/auto-aim/smoke.html")),
   cp(resolve(root, "projects/NeonSwarm/test-pages/track-editor/index.html"), resolve(docs, "NeonSwarm/tests/track-editor/index.html")),
@@ -109,6 +118,26 @@ await Promise.all([
   build({
     entryPoints: [resolve(root, "projects/NeonSwarm/test-pages/gun-family/smoke.ts")],
     outfile: resolve(docs, "NeonSwarm/tests/gun-family/smoke.js"),
+    bundle: true, format: "esm", platform: "browser", target: "es2022", sourcemap: true,
+  }),
+  build({
+    entryPoints: [resolve(root, "projects/NeonSwarm/test-pages/shield-family/manual.ts")],
+    outfile: resolve(docs, "NeonSwarm/tests/shield-family/manual.js"),
+    bundle: true, format: "esm", platform: "browser", target: "es2022", sourcemap: true,
+  }),
+  build({
+    entryPoints: [resolve(root, "projects/NeonSwarm/test-pages/shield-family/smoke.ts")],
+    outfile: resolve(docs, "NeonSwarm/tests/shield-family/smoke.js"),
+    bundle: true, format: "esm", platform: "browser", target: "es2022", sourcemap: true,
+  }),
+  build({
+    entryPoints: [resolve(root, "projects/NeonSwarm/test-pages/sword-family/manual.ts")],
+    outfile: resolve(docs, "NeonSwarm/tests/sword-family/manual.js"),
+    bundle: true, format: "esm", platform: "browser", target: "es2022", sourcemap: true,
+  }),
+  build({
+    entryPoints: [resolve(root, "projects/NeonSwarm/test-pages/sword-family/smoke.ts")],
+    outfile: resolve(docs, "NeonSwarm/tests/sword-family/smoke.js"),
     bundle: true, format: "esm", platform: "browser", target: "es2022", sourcemap: true,
   }),
   build({

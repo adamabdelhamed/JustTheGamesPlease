@@ -1,0 +1,34 @@
+/* Shield-family specific overrides — inherits gun-family/manual.css for layout */
+.lab-panel h2 { color: #a987ff; }
+select:focus, button:hover { border-color: #a987ff; color: #a987ff; }
+.spec-note { color: #5e6e85; }
+.strength-readout {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  color: #8b9bb4;
+  font-size: 12px;
+}
+.strength-readout strong {
+  color: #a987ff;
+  text-shadow: 0 0 8px #a987ff88;
+}
+
+/* Charge indicator bars */
+.charge-bar {
+  display: flex;
+  gap: 4px;
+  margin: 6px 0;
+}
+.charge-pip {
+  flex: 1;
+  height: 6px;
+  border-radius: 3px;
+  background: #a987ff44;
+  border: 1px solid #a987ff55;
+  transition: background 0.2s;
+}
+.charge-pip.active {
+  background: #a987ff;
+  box-shadow: 0 0 6px #a987ff;
+}

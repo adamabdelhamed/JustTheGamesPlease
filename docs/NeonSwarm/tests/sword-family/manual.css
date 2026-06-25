@@ -1,0 +1,19 @@
+/* Sword-family specific overrides */
+.lab-panel h2 { color: #7fffc2; }
+select:focus, button:hover { border-color: #7fffc2; color: #7fffc2; }
+
+/* Cooldown indicator */
+.cooldown-bar {
+  height: 4px;
+  border-radius: 2px;
+  background: #7fffc244;
+  border: 1px solid #7fffc255;
+  margin: 6px 0;
+  overflow: hidden;
+}
+.cooldown-fill {
+  height: 100%;
+  background: #7fffc2;
+  box-shadow: 0 0 6px #7fffc2;
+  transition: width 0.1s linear;
+}

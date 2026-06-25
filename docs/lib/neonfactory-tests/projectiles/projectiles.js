@@ -555,7 +555,13 @@ struct VertexOutput {
   );
   let item = items[instance];
   let local = corners[vertex];
-  let pixel = item.position + local * item.size;
+  var pixelOffset = local * item.size;
+  if (item.shape > 6.5 && item.shape < 7.5) {
+    let c = cos(item.texture);
+    let s = sin(item.texture);
+    pixelOffset = vec2f(pixelOffset.x * c - pixelOffset.y * s, pixelOffset.x * s + pixelOffset.y * c);
+  }
+  let pixel = item.position + pixelOffset;
   var output: VertexOutput;
   output.position = vec4f(pixel.x / scene.resolution.x * 2 - 1, 1 - pixel.y / scene.resolution.y * 2, 0, 1);
   output.local = local;
@@ -571,6 +577,34 @@ struct VertexOutput {
 }
 
 @fragment fn fragmentMain(input: VertexOutput) -> @location(0) vec4f {
+  if (input.shape > 7.5) {
+    let radius = length(input.local);
+    let angle = atan2(input.local.y, input.local.x);
+    if (angle < input.rimIntensity || angle > input.shadowStrength || radius > 1.0) { discard; }
+    let lineDistance = abs(radius - 0.78);
+    if (lineDistance > 0.16) { discard; }
+    let core = 1.0 - smoothstep(0.012, 0.038, lineDistance);
+    let halo = (1.0 - smoothstep(0.025, 0.16, lineDistance)) * input.glow;
+    let pulseA = pow(max(0.0, sin(angle * 23.0 - scene.time * 8.5)), 16.0);
+    let pulseB = pow(max(0.0, sin(angle * 11.0 + scene.time * 5.3 + 1.7)), 24.0);
+    let grain = sin(angle * 71.0 + scene.time * 3.1) * 0.5 + 0.5;
+    let surge = smoothstep(0.72, 0.94, pulseA * 0.7 + pulseB * 0.65 + grain * 0.12);
+    let energy = (core * (0.88 + surge * 0.65) + halo * (0.22 + surge * 0.9)) * input.intensity;
+    let hot = mix(input.color.rgb, input.secondaryColor.rgb, core * surge * 0.9);
+    return vec4f(hot * energy, clamp(energy, 0.0, 0.95));
+  }
+  if (input.shape > 6.5) {
+    let along = input.local.y;
+    let across = abs(input.local.x);
+    if (across > 1.0 || abs(along) > 1.0) { discard; }
+    let core = 1.0 - smoothstep(0.08, 0.24, across);
+    let halo = (1.0 - smoothstep(0.12, 1.0, across)) * input.glow;
+    let endFade = 1.0 - smoothstep(0.72, 1.0, abs(along));
+    let travel = pow(max(0.0, sin(along * 24.0 - scene.time * 8.0 + input.texture)), 14.0);
+    let energy = (core * (0.75 + travel * 0.5) + halo * (0.2 + travel * 0.55)) * endFade * input.intensity;
+    let hot = mix(input.color.rgb, input.secondaryColor.rgb, core * travel * 0.75);
+    return vec4f(hot * energy, clamp(energy, 0.0, 0.95));
+  }
   if (input.shape > 5.5) {
     // Pentagon SDF
     // local is in [-1, 1] range. Let's find pentagon distance.
@@ -741,10 +775,10 @@ var NeonPrimitiveRenderer = class _NeonPrimitiveRenderer {
         ...rgba(item.secondaryColor ?? item.color),
         item.glow ?? 0.5,
         item.intensity ?? 1,
-        item.shape === "pentagon" ? 6 : item.shape === "diamond" ? 5 : item.shape === "spark" ? 4 : item.shape === "ring" ? 3 : item.shape === "orb" ? 2 : item.shape === "bolt" ? 1 : 0,
-        item.texture ?? 0,
-        item.rimIntensity ?? 0,
-        item.shadowStrength ?? 0,
+        item.shape === "arc" ? 8 : item.shape === "line" ? 7 : item.shape === "pentagon" ? 6 : item.shape === "diamond" ? 5 : item.shape === "spark" ? 4 : item.shape === "ring" ? 3 : item.shape === "orb" ? 2 : item.shape === "bolt" ? 1 : 0,
+        item.rotation ?? item.texture ?? 0,
+        item.arcStart ?? item.rimIntensity ?? 0,
+        item.arcEnd ?? item.shadowStrength ?? 0,
         0,
         0
       ], offset);
@@ -918,6 +952,12 @@ function createTestPage(id, driver, statusElement) {
   publish();
   return api;
 }
+
+// projects/NeonFactory/src/shield-primitives.ts
+var shieldFieldPoints = Array.from({ length: 32 }, (_, index) => {
+  const angle = -Math.PI / 2 + index * Math.PI * 2 / 32;
+  return [Math.cos(angle), Math.sin(angle)];
+});
 
 // projects/NeonFactory/test-pages/projectiles/projectiles.ts
 var canvas = document.querySelector("#stage");

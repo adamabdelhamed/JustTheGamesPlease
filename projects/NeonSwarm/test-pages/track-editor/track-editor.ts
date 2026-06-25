@@ -1,4 +1,4 @@
-import { gunFamily, orbFamily } from "../../CombatDefinition";
+import { gunFamily, orbFamily, shieldFamily, swordFamily } from "../../CombatDefinition";
 
 type Side = "left" | "right";
 type PaletteItem = { id: string; label: string; symbol: string };
@@ -25,6 +25,18 @@ const paletteItems: PaletteItem[] = [
     symbol: "GHIJKLMNOQRSTUVWXYZ"[index],
   })),
   { id: "pickup.unitMultiplier.2x", label: "2x Squad", symbol: "2" },
+  // Shield family pickups
+  ...Object.entries(shieldFamily.members).map(([id, shield], index) => ({
+    id: `pickup.weapon.shield.${id}`,
+    label: `Shield: ${shield.label}`,
+    symbol: "SHX"[index],
+  })),
+  // Sword family pickups (symbols: a, b, c)
+  ...Object.entries(swordFamily.members).map(([id, sword], index) => ({
+    id: `pickup.weapon.sword.${id}`,
+    label: `Sword: ${sword.label}`,
+    symbol: "abc"[index],
+  })),
 ];
 
 const cells = Array.from({ length: rowCount }, () =>

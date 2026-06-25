@@ -39,3 +39,21 @@ export {
   NeonVictoryExperience,
   type NeonVictoryOptions,
 } from "./victory";
+export {
+  shieldFieldShape,
+  shieldPulsePrimitives,
+  shieldHitFlashPrimitives,
+  type OrbiterBaseOptions,
+  type ShieldPulseOptions,
+  type ShieldHitFlashOptions,
+} from "./shield-primitives";
+export {
+  slashArcPrimitives,
+  swordBladePrimitives,
+  swordPickupPrimitives,
+  shieldPickupPrimitives,
+  type SlashArcOptions,
+  type SwordBladeOptions,
+  type SwordPickupOptions,
+  type ShieldPickupOptions,
+} from "./sword-primitives";

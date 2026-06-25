@@ -38,3 +38,18 @@ export {
   type MultiplierId,
   type MultiplierMember,
 } from "./MultiplierFamily";
+export {
+  shieldFamily,
+  ShieldFamilyDefinition,
+  type ShieldId,
+  type ShieldMember,
+  type ShieldOrbiterShape,
+  type ShieldMode,
+} from "./ShieldFamily";
+export {
+  swordFamily,
+  SwordFamilyDefinition,
+  type SwordId,
+  type SwordMember,
+  type SwordTargetingMode,
+} from "./SwordFamily";

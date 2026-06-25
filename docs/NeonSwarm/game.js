@@ -656,7 +656,13 @@ struct VertexOutput {
   );
   let item = items[instance];
   let local = corners[vertex];
-  let pixel = item.position + local * item.size;
+  var pixelOffset = local * item.size;
+  if (item.shape > 6.5 && item.shape < 7.5) {
+    let c = cos(item.texture);
+    let s = sin(item.texture);
+    pixelOffset = vec2f(pixelOffset.x * c - pixelOffset.y * s, pixelOffset.x * s + pixelOffset.y * c);
+  }
+  let pixel = item.position + pixelOffset;
   var output: VertexOutput;
   output.position = vec4f(pixel.x / scene.resolution.x * 2 - 1, 1 - pixel.y / scene.resolution.y * 2, 0, 1);
   output.local = local;
@@ -672,6 +678,34 @@ struct VertexOutput {
 }
 
 @fragment fn fragmentMain(input: VertexOutput) -> @location(0) vec4f {
+  if (input.shape > 7.5) {
+    let radius = length(input.local);
+    let angle = atan2(input.local.y, input.local.x);
+    if (angle < input.rimIntensity || angle > input.shadowStrength || radius > 1.0) { discard; }
+    let lineDistance = abs(radius - 0.78);
+    if (lineDistance > 0.16) { discard; }
+    let core = 1.0 - smoothstep(0.012, 0.038, lineDistance);
+    let halo = (1.0 - smoothstep(0.025, 0.16, lineDistance)) * input.glow;
+    let pulseA = pow(max(0.0, sin(angle * 23.0 - scene.time * 8.5)), 16.0);
+    let pulseB = pow(max(0.0, sin(angle * 11.0 + scene.time * 5.3 + 1.7)), 24.0);
+    let grain = sin(angle * 71.0 + scene.time * 3.1) * 0.5 + 0.5;
+    let surge = smoothstep(0.72, 0.94, pulseA * 0.7 + pulseB * 0.65 + grain * 0.12);
+    let energy = (core * (0.88 + surge * 0.65) + halo * (0.22 + surge * 0.9)) * input.intensity;
+    let hot = mix(input.color.rgb, input.secondaryColor.rgb, core * surge * 0.9);
+    return vec4f(hot * energy, clamp(energy, 0.0, 0.95));
+  }
+  if (input.shape > 6.5) {
+    let along = input.local.y;
+    let across = abs(input.local.x);
+    if (across > 1.0 || abs(along) > 1.0) { discard; }
+    let core = 1.0 - smoothstep(0.08, 0.24, across);
+    let halo = (1.0 - smoothstep(0.12, 1.0, across)) * input.glow;
+    let endFade = 1.0 - smoothstep(0.72, 1.0, abs(along));
+    let travel = pow(max(0.0, sin(along * 24.0 - scene.time * 8.0 + input.texture)), 14.0);
+    let energy = (core * (0.75 + travel * 0.5) + halo * (0.2 + travel * 0.55)) * endFade * input.intensity;
+    let hot = mix(input.color.rgb, input.secondaryColor.rgb, core * travel * 0.75);
+    return vec4f(hot * energy, clamp(energy, 0.0, 0.95));
+  }
   if (input.shape > 5.5) {
     // Pentagon SDF
     // local is in [-1, 1] range. Let's find pentagon distance.
@@ -842,10 +876,10 @@ var NeonPrimitiveRenderer = class _NeonPrimitiveRenderer {
         ...rgba(item.secondaryColor ?? item.color),
         item.glow ?? 0.5,
         item.intensity ?? 1,
-        item.shape === "pentagon" ? 6 : item.shape === "diamond" ? 5 : item.shape === "spark" ? 4 : item.shape === "ring" ? 3 : item.shape === "orb" ? 2 : item.shape === "bolt" ? 1 : 0,
-        item.texture ?? 0,
-        item.rimIntensity ?? 0,
-        item.shadowStrength ?? 0,
+        item.shape === "arc" ? 8 : item.shape === "line" ? 7 : item.shape === "pentagon" ? 6 : item.shape === "diamond" ? 5 : item.shape === "spark" ? 4 : item.shape === "ring" ? 3 : item.shape === "orb" ? 2 : item.shape === "bolt" ? 1 : 0,
+        item.rotation ?? item.texture ?? 0,
+        item.arcStart ?? item.rimIntensity ?? 0,
+        item.arcEnd ?? item.shadowStrength ?? 0,
         0,
         0
       ], offset);
@@ -1050,6 +1084,134 @@ var NeonVictoryExperience = class {
     return primitives;
   }
 };
+
+// projects/NeonFactory/src/shield-primitives.ts
+var shieldFieldPoints = Array.from({ length: 32 }, (_, index) => {
+  const angle = -Math.PI / 2 + index * Math.PI * 2 / 32;
+  return [Math.cos(angle), Math.sin(angle)];
+});
+var shieldFieldShape = {
+  id: "shield-field",
+  name: "Shield Field",
+  family: "player",
+  color: "#48f6ff",
+  points: shieldFieldPoints,
+  rock: "pulse",
+  depth: 0.025
+};
+function shieldPulsePrimitives(opts) {
+  const { x, y, maxRadius, color, progress, scale = 1 } = opts;
+  if (progress >= 1) return [];
+  const life = 1 - progress;
+  const r = maxRadius * scale * (0.1 + progress * 0.9);
+  return [
+    // Outer expanding ring
+    {
+      x,
+      y,
+      width: r * 2,
+      color,
+      glow: life * 0.85,
+      intensity: life * 0.9,
+      shape: "ring"
+    },
+    // Inner secondary ring slightly behind
+    {
+      x,
+      y,
+      width: r * 2 * 0.72,
+      color,
+      glow: life * 0.5,
+      intensity: life * 0.6,
+      shape: "ring"
+    }
+  ];
+}
+
+// projects/NeonFactory/src/sword-primitives.ts
+function slashArcPrimitives(opts) {
+  const { x, y, reach, arcDegrees, headingDeg = -90, color, progress, thickness = 1, scale = 1 } = opts;
+  if (progress >= 1) return [];
+  const life = 1 - progress;
+  const r = reach * scale;
+  const halfArc = arcDegrees / 2 * Math.PI / 180;
+  const heading = headingDeg * Math.PI / 180;
+  const energizedThickness = thickness * scale;
+  const sweep = progress < 0.62 ? 1 - Math.pow(1 - progress / 0.62, 3) : 1;
+  const bladeAngle = heading - halfArc + sweep * halfArc * 2;
+  const trailLength = halfArc * (0.55 + life * 0.75);
+  const segmentCount = 11;
+  const primitives = [];
+  for (let i = 0; i < segmentCount; i++) {
+    const age = i / (segmentCount - 1);
+    const angle = Math.max(heading - halfArc, bladeAngle - trailLength * age);
+    const distance = r * (0.72 + Math.sin(age * Math.PI) * 0.08);
+    const fade = Math.pow(1 - age, 1.35) * life;
+    const tangent = angle + Math.PI / 2;
+    primitives.push({
+      x: x + Math.cos(angle) * distance,
+      y: y + Math.sin(angle) * distance,
+      width: Math.max(0.8, energizedThickness * (2.4 - age * 1.55)),
+      height: r * (0.24 - age * 0.1),
+      color,
+      secondaryColor: "#ffffff",
+      glow: 1.15 * fade,
+      intensity: 1.45 * fade,
+      shape: "bolt",
+      rotation: tangent
+    });
+  }
+  const leadingX = x + Math.cos(bladeAngle) * r * 0.82;
+  const leadingY = y + Math.sin(bladeAngle) * r * 0.82;
+  primitives.push({
+    x: leadingX,
+    y: leadingY,
+    width: Math.max(1.2, energizedThickness * 2.8),
+    height: r * 0.32,
+    color: "#ffffff",
+    secondaryColor: color,
+    glow: 1.4 * life,
+    intensity: 1.7 * life,
+    shape: "line",
+    rotation: bladeAngle + Math.PI / 2
+  });
+  if (progress < 0.7) {
+    for (let i = 0; i < 7; i++) {
+      const spread = (i - 3) * 0.13;
+      const sparkLife = life * (1 - Math.abs(i - 3) * 0.08);
+      primitives.push({
+        x: leadingX + Math.cos(bladeAngle + spread) * r * (0.04 + i * 0.012),
+        y: leadingY + Math.sin(bladeAngle + spread) * r * (0.04 + i * 0.012),
+        width: Math.max(0.7, energizedThickness * 0.75),
+        height: r * (0.08 + i % 3 * 0.025),
+        color,
+        secondaryColor: "#ffffff",
+        glow: 1.1 * sparkLife,
+        intensity: 1.25 * sparkLife,
+        shape: "bolt",
+        rotation: bladeAngle + spread
+      });
+    }
+  }
+  return primitives;
+}
+function swordPickupPrimitives(opts) {
+  const { x, y, color, secondaryColor = color, now, scale = 1 } = opts;
+  const pulse = 1 + Math.sin(now / 600) * 0.08;
+  return [
+    { x, y: y - 1.5 * scale * pulse, width: 1.6 * scale, height: 8.5 * scale * pulse, color, secondaryColor, glow: 0.7, intensity: 1.1, shape: "bolt" },
+    { x, y: y + 1.5 * scale, width: 6 * scale * pulse, height: scale, color, secondaryColor, glow: 0.55, intensity: 1, shape: "bolt" },
+    { x, y: y - 5.5 * scale * pulse, width: scale, color, glow: 0.9, intensity: 0.85, shape: "diamond" }
+  ];
+}
+function shieldPickupPrimitives(opts) {
+  const { x, y, color, secondaryColor = color, now, scale = 1 } = opts;
+  const pulse = 1 + Math.sin(now / 700) * 0.07;
+  return [
+    { x, y, width: 10 * scale * pulse, color, secondaryColor, glow: 0.8, intensity: 0.9, shape: "pentagon" },
+    { x, y: y - 0.5 * scale, width: 3.2 * scale * pulse, color: secondaryColor, secondaryColor: color, glow: 0.6, intensity: 1, shape: "diamond" }
+  ];
+}
 
 // projects/NeonSwarm/CombatDefinition/FamilyDefinition.ts
 var FamilyDefinition = class {
@@ -1301,13 +1463,13 @@ var firstTrack = {
 .E.E. | ..E..
 ..... | .....
 ..E.. | .E.E.
-..... | .....
+.S... | .....
 ..... | .....
 .EEE. | .....
 ..... | .....
 ..E.. | .EEE.
 ..... | .....
-..... | .....
+....A | .....
 .EE.. | ..EE.
 ..... | .....
 ..E.. | .E.E.
@@ -1323,7 +1485,9 @@ var firstTrack = {
       ".": { id: "empty" },
       "P": { id: "player.start" },
       "E": { id: "enemy.basic" },
-      "2": { id: "pickup.unitMultiplier.2x", speed: 0.8 }
+      "2": { id: "pickup.unitMultiplier.2x", speed: 0.8 },
+      "S": { id: "pickup.weapon.shield.satelliteGuard", speed: 0.8 },
+      "A": { id: "pickup.weapon.sword.arcBlade", speed: 0.8 }
     },
     balance: {
       enemyHp: 1,
@@ -1364,7 +1528,7 @@ var secondTrack = {
 ..... | .E.E.
 ..... | .....
 ..E.. | ..E..
-..... | .....
+.H... | .....
 ...E. | .E...
 ..... | .....
 ..2.. | .....
@@ -1373,7 +1537,7 @@ var secondTrack = {
 ..... | .E.E.
 ..... | .....
 ..E.. | ..E..
-..... | .....
+....C | .....
 .EEE. | .....
 ..... | .EEE.
 ..... | .....
@@ -1386,7 +1550,9 @@ var secondTrack = {
       ".": { id: "empty" },
       "P": { id: "player.start" },
       "E": { id: "enemy.basic", speed: 1.15 },
-      "2": { id: "pickup.unitMultiplier.2x" }
+      "2": { id: "pickup.unitMultiplier.2x" },
+      "H": { id: "pickup.weapon.shield.hexGuard", speed: 0.75 },
+      "C": { id: "pickup.weapon.sword.cleaver", speed: 0.75 }
     },
     balance: {
       enemyHp: 1,
@@ -1520,6 +1686,178 @@ var MultiplierFamilyDefinition = class extends FamilyDefinition {
   }
 };
 var multiplierFamily = new MultiplierFamilyDefinition();
+
+// projects/NeonSwarm/CombatDefinition/ShieldFamily.ts
+var ShieldFamilyDefinition = class extends FamilyDefinition {
+  familyId = "shield";
+  label = "Shield";
+  members = {
+    lightGuard: {
+      label: "Light Guard",
+      family: "shield",
+      rarity: "starter",
+      mode: "charge",
+      radius: 28,
+      maxCharges: 2,
+      cooldownSeconds: 8,
+      contactDamage: 0,
+      pushDistance: 0,
+      slowMultiplier: 1,
+      color: "cyan",
+      orbiterShape: "dot",
+      orbiterCount: 4,
+      orbiterSpeed: 1,
+      orbiterSize: 4.5,
+      agentNotes: "Lightweight shield with two points of strength."
+    },
+    satelliteGuard: {
+      label: "Satellite Guard",
+      family: "shield",
+      rarity: "common",
+      mode: "charge",
+      radius: 28,
+      maxCharges: 4,
+      cooldownSeconds: 10,
+      contactDamage: 0,
+      pushDistance: 0,
+      slowMultiplier: 1,
+      color: "violet",
+      orbiterShape: "dot",
+      orbiterCount: 6,
+      orbiterSpeed: 0.75,
+      orbiterSize: 4.75,
+      agentNotes: "Balanced shield with four points of strength."
+    },
+    hexGuard: {
+      label: "Hex Guard",
+      family: "shield",
+      rarity: "uncommon",
+      mode: "charge",
+      radius: 30,
+      maxCharges: 7,
+      cooldownSeconds: 12,
+      contactDamage: 0,
+      pushDistance: 0,
+      slowMultiplier: 1,
+      color: "gold",
+      orbiterShape: "hex",
+      orbiterCount: 8,
+      orbiterSpeed: 0.45,
+      orbiterSize: 5,
+      agentNotes: "Heavy shield with seven points of strength."
+    }
+  };
+  constructor() {
+    super();
+    this.validate();
+  }
+  validate() {
+    for (const [id, shield] of Object.entries(this.members)) {
+      this.require(shield.mode === "charge", `${id} must use the shared charge behavior.`);
+      this.require(shield.radius > 0, `${id} radius must be positive.`);
+      this.require(shield.maxCharges > 0, `${id} strength must be positive.`);
+      this.require(shield.orbiterCount > 0, `${id} must have orbiters.`);
+      this.require(shield.orbiterSpeed >= 0, `${id} orbiterSpeed cannot be negative.`);
+      this.require(neonPalette[shield.color] !== void 0, `${id} has an unknown color.`);
+    }
+  }
+};
+var shieldFamily = new ShieldFamilyDefinition();
+
+// projects/NeonSwarm/CombatDefinition/SwordFamily.ts
+var SwordFamilyDefinition = class extends FamilyDefinition {
+  familyId = "sword";
+  label = "Sword";
+  /**
+   * Family-level implementation notes:
+   * - Swords are NOT period-based like guns. They swing only when a valid target
+   *   is within range and cooldown is ready. They idle silently otherwise.
+   * - One active sword per player (family-scoped exclusivity).
+   * - Can coexist with an active Gun and an active Shield simultaneously.
+   * - Targeting is lane-aware via queryNearbyThreats().
+   * - The slash animation runs for slashDurationMs milliseconds, then fades.
+   * - Damage is applied immediately when the swing starts (not at animation end).
+   *
+   * Precedence: sword attacks occur after shieldBlock/shieldPulse but before
+   * shieldContactDamage and shieldAura. See main.ts nearPlayerEffectOrder.
+   */
+  members = {
+    /**
+     * Arc Blade — Core sword. Fast, curved, targets nearest enemy in lane.
+     * Hits 1–2 enemies depending on arc overlap. Short cooldown.
+     */
+    arcBlade: {
+      label: "Arc Blade",
+      family: "sword",
+      rarity: "starter",
+      range: 52,
+      arcDegrees: 70,
+      damage: 1.5,
+      cooldownSeconds: 0.85,
+      maxTargets: 2,
+      targetingMode: "nearestInCurrentLane",
+      slashDurationMs: 150,
+      color: "cyan",
+      slashThickness: 1,
+      agentNotes: "Fast and sharp. Curved neon slash. 120\u2013180ms feel. Fading afterimage. Like a whip-like katana arc."
+    },
+    /**
+     * Cleaver — Heavy sword. Slower but hits multiple clustered enemies.
+     * Wide arc, thicker slash. Better against tight groups than fast singles.
+     */
+    cleaver: {
+      label: "Cleaver",
+      family: "sword",
+      rarity: "common",
+      range: 56,
+      arcDegrees: 110,
+      damage: 2.8,
+      cooldownSeconds: 1.8,
+      maxTargets: 4,
+      targetingMode: "clusterNearPlayer",
+      slashDurationMs: 220,
+      color: "orange",
+      slashThickness: 1.65,
+      agentNotes: "Heavy and wide. Thicker arc. Stronger impact flash. Geometric and procedural \u2014 not a bullet."
+    },
+    /**
+     * Needle Rapier — Precision sword. Long reach, narrow arc, single target.
+     * Prioritizes the most dangerous (front-most) enemy.
+     */
+    needleRapier: {
+      label: "Needle Rapier",
+      family: "sword",
+      rarity: "uncommon",
+      range: 70,
+      arcDegrees: 30,
+      damage: 2.2,
+      cooldownSeconds: 1.1,
+      maxTargets: 1,
+      targetingMode: "frontMostThreat",
+      slashDurationMs: 130,
+      color: "green",
+      slashThickness: 0.55,
+      agentNotes: "Elegant and precise. Thin stabbing line. Not a gun shot \u2014 it must feel melee. Single target priority."
+    }
+  };
+  constructor() {
+    super();
+    this.validate();
+  }
+  validate() {
+    for (const [id, sword] of Object.entries(this.members)) {
+      this.require(sword.range > 0, `${id} range must be positive.`);
+      this.require(sword.arcDegrees > 0 && sword.arcDegrees <= 360, `${id} arcDegrees must be in (0, 360].`);
+      this.require(sword.damage > 0, `${id} damage must be positive.`);
+      this.require(sword.cooldownSeconds > 0, `${id} cooldownSeconds must be positive.`);
+      this.require(sword.maxTargets >= 1, `${id} maxTargets must be at least 1.`);
+      this.require(sword.slashDurationMs > 0, `${id} slashDurationMs must be positive.`);
+      this.require(sword.slashThickness > 0, `${id} slashThickness must be positive.`);
+      this.require(neonPalette[sword.color] !== void 0, `${id} has an unknown color.`);
+    }
+  }
+};
+var swordFamily = new SwordFamilyDefinition();
 
 // projects/NeonSwarm/src/input.ts
 function bindSquadInput(container, joystick, callbacks) {
@@ -1721,6 +2059,170 @@ var swarmShapes = {
 var actorInTopDownScene = (actor, x, y, size, overrides = {}) => ({ ...actor.renderInstance(overrides), x, y, size });
 var shapeLabel = (text, position, fontSize, offset = 4) => ({ text, position, fontSize, offset, fontFamily: "Segoe UI, sans-serif", fontWeight: 700 });
 
+// projects/NeonSwarm/src/combat/shieldEvaluator.ts
+var ShieldState = class {
+  shieldId;
+  /** Remaining charges (charge-based shields). */
+  charges;
+  /** Seconds until cooldown completes. */
+  cooldownLeft;
+  /** ms timestamp after which the hit flash is done. */
+  hitFlashUntil;
+  /** Progress 0→1 of hit flash animation (1 = done). */
+  hitFlashProgress;
+  /** Active expanding pulse rings (Pulse Core). */
+  pulseEffects;
+  constructor(shieldId, maxCharges) {
+    this.shieldId = shieldId;
+    this.charges = maxCharges;
+    this.cooldownLeft = 0;
+    this.hitFlashUntil = 0;
+    this.hitFlashProgress = 1;
+    this.pulseEffects = [];
+  }
+};
+function tickShield(state, shield, threats, playerX, playerY, now, delta) {
+  const result2 = {
+    contactDamageEnemyIds: [],
+    contactDamageAmount: 0,
+    slowEnemyIds: [],
+    slowMultiplier: 1,
+    absorbedHit: false,
+    pushEnemyIds: [],
+    pushDistance: 0
+  };
+  if (state.cooldownLeft > 0) state.cooldownLeft = Math.max(0, state.cooldownLeft - delta);
+  for (const pulse of state.pulseEffects) {
+    pulse.progress = (now - pulse.startedAt) / pulse.durationMs;
+  }
+  state.pulseEffects = state.pulseEffects.filter((p) => p.progress < 1);
+  if (state.hitFlashUntil > 0) {
+    state.hitFlashProgress = Math.min(1, (now - (state.hitFlashUntil - 280)) / 280);
+  }
+  if (shield.mode === "charge" && state.cooldownLeft === 0 && state.charges < shield.maxCharges) {
+    state.charges = shield.maxCharges;
+  }
+  if (threats.length === 0) return result2;
+  if (false) {
+    result2.contactDamageAmount = shield.contactDamage;
+    for (const { target } of threats) {
+      result2.contactDamageEnemyIds.push(target.id);
+    }
+  }
+  if (false) {
+    result2.slowMultiplier = shield.slowMultiplier;
+    for (const { target } of threats) {
+      result2.slowEnemyIds.push(target.id);
+    }
+  }
+  if (false) {
+    state.cooldownLeft = shield.cooldownSeconds;
+    const pulse = {
+      progress: 0,
+      startedAt: now,
+      durationMs: PULSE_DURATION_MS,
+      x: playerX,
+      y: playerY,
+      maxRadius: shield.radius * 1.8,
+      color: ""
+      // filled by draw code with neonPalette[shield.color]
+    };
+    state.pulseEffects.push(pulse);
+    result2.pushDistance = shield.pushDistance;
+    for (const { target } of threats) {
+      result2.pushEnemyIds.push(target.id);
+    }
+  }
+  return result2;
+}
+function tryAbsorbHit(state, shield, now) {
+  if (state.charges <= 0) return false;
+  state.charges -= 1;
+  state.hitFlashUntil = now + 280;
+  state.hitFlashProgress = 0;
+  state.cooldownLeft = shield.cooldownSeconds;
+  return true;
+}
+
+// projects/NeonSwarm/src/combat/swordEvaluator.ts
+var SwordState = class {
+  swordId;
+  /** Seconds remaining until the sword can swing again. */
+  cooldownLeft;
+  /** Active slash animation, if any. */
+  activeSlash;
+  constructor(swordId) {
+    this.swordId = swordId;
+    this.cooldownLeft = 0;
+    this.activeSlash = null;
+  }
+};
+function selectTargets(threats, mode, maxTargets) {
+  if (threats.length === 0) return [];
+  switch (mode) {
+    case "nearestInCurrentLane":
+    case "nearestInEitherLane":
+      return threats.slice(0, maxTargets);
+    case "frontMostThreat":
+      return [...threats].sort((a, b) => b.target.y - a.target.y).slice(0, maxTargets);
+    case "clusterNearPlayer":
+      return threats.slice(0, maxTargets);
+    default:
+      return threats.slice(0, maxTargets);
+  }
+}
+function tickSword(state, sword, threats, playerX, playerY, now, delta, color) {
+  const result2 = {
+    hitEnemyIds: [],
+    damage: 0,
+    swingTriggered: false
+  };
+  if (state.cooldownLeft > 0) state.cooldownLeft = Math.max(0, state.cooldownLeft - delta);
+  if (state.activeSlash) {
+    state.activeSlash.progress = (now - state.activeSlash.startedAt) / state.activeSlash.durationMs;
+    if (state.activeSlash.progress >= 1) state.activeSlash = null;
+  }
+  if (state.cooldownLeft > 0 || threats.length === 0) return result2;
+  const selected = selectTargets(threats, sword.targetingMode, sword.maxTargets);
+  if (selected.length === 0) return result2;
+  state.cooldownLeft = sword.cooldownSeconds;
+  result2.swingTriggered = true;
+  result2.damage = sword.damage;
+  for (const { target } of selected) result2.hitEnemyIds.push(target.id);
+  state.activeSlash = {
+    progress: 0,
+    startedAt: now,
+    durationMs: sword.slashDurationMs,
+    x: playerX,
+    y: playerY,
+    reach: sword.range * 0.75,
+    // Arc reach is a fraction of detection range
+    arcDegrees: sword.arcDegrees,
+    color,
+    thickness: sword.slashThickness
+  };
+  return result2;
+}
+
+// projects/NeonSwarm/src/combat/nearbyThreatQuery.ts
+function queryNearbyThreats(enemies, opts) {
+  const { origin, lane, range, includeAdjacentLanes = false, maxTargets, excludeIds } = opts;
+  const rangeSq = range * range;
+  const results = [];
+  for (const target of enemies) {
+    if (target.dying) continue;
+    if (!includeAdjacentLanes && target.lane !== lane) continue;
+    if (excludeIds?.has(target.id)) continue;
+    const dx = target.x - origin.x;
+    const dy = target.y - origin.y;
+    const distSq = dx * dx + dy * dy;
+    if (distSq > rangeSq) continue;
+    results.push({ target, distance: Math.sqrt(distSq) });
+  }
+  results.sort((a, b) => a.distance - b.distance);
+  return maxTargets !== void 0 ? results.slice(0, maxTargets) : results;
+}
+
 // projects/NeonSwarm/src/main.ts
 var canvas = document.querySelector("#game-canvas");
 var trackSelect = document.querySelector("#track-select");
@@ -1743,15 +2245,16 @@ try {
   let startedAt = 0;
   let lastFrame = performance.now();
   let playerLane = 0;
-  let gunId = "pulsePistol";
-  let gunLevel = 1;
   let cooldown = 0;
-  let nextTrackEntity = 0;
+  let entityIdCounter = 0;
   let trackEntities = [];
+  let nextTrackEntity = 0;
   let breaches = 0;
   let enemies = [];
   let projectiles = [];
-  let pickups = [];
+  let gunPickups = [];
+  let shieldPickups = [];
+  let swordPickups = [];
   let multipliers = [];
   const squad = new SquadModel();
   const aimControl = new AutoAimControlState();
@@ -1759,6 +2262,11 @@ try {
   let failureReason = "";
   const playerActors = [];
   const explodingPlayers = [];
+  const activeByFamily = {
+    gun: { id: "pulsePistol", level: 1 },
+    shield: null,
+    sword: null
+  };
   const scale = () => 1;
   const laneX = (lane) => canvas.width * (lane === 0 ? 0.32 : 0.68);
   const entityX = (entity) => laneX(entity.side === "left" ? 0 : 1) + (entity.laneIndex - 2) * 15 * scale();
@@ -1771,10 +2279,14 @@ try {
     runStatus.textContent = "";
     enemies = [];
     projectiles = [];
-    pickups = [];
+    gunPickups = [];
+    shieldPickups = [];
+    swordPickups = [];
     multipliers = [];
     victory = null;
     failureReason = "";
+    activeByFamily.shield = null;
+    activeByFamily.sword = null;
   };
   const startTrack = (track) => {
     activeTrack = track;
@@ -1784,15 +2296,18 @@ try {
     const playerStart = allEntities.find((entity) => entity.id === "player.start");
     const startLane = playerStart?.side === "right" ? 1 : 0;
     playerLane = startLane;
-    gunId = track.startingGun;
-    gunLevel = track.startingGunLevel;
+    activeByFamily.gun = { id: track.startingGun, level: track.startingGunLevel };
+    activeByFamily.shield = null;
+    activeByFamily.sword = null;
     cooldown = 0;
     nextTrackEntity = 0;
     trackEntities = allEntities.filter((entity) => entity.id !== "player.start");
     breaches = 0;
     enemies = [];
     projectiles = [];
-    pickups = [];
+    gunPickups = [];
+    shieldPickups = [];
+    swordPickups = [];
     multipliers = [];
     squad.count = 1;
     playerActors.length = 0;
@@ -1833,6 +2348,7 @@ try {
     }
   });
   const fire = () => {
+    const { id: gunId, level: gunLevel } = activeByFamily.gun;
     const gun = gunFamily.members[gunId];
     const tuning = gun.levels.find((item) => item.level === gunLevel) ?? gun.levels[0];
     const points = squad.points(playerY(), scale());
@@ -1887,12 +2403,16 @@ try {
     }
     if (!activeTrack) return;
     const elapsed = (now - startedAt) / 1e3;
-    runStatus.textContent = `${gunFamily.members[gunId].label} \xB7 ${Math.max(0, activeTrack.durationSeconds - elapsed).toFixed(1)}s`;
+    const { id: gunId } = activeByFamily.gun;
+    const shieldDef = activeByFamily.shield ? shieldFamily.members[activeByFamily.shield.shieldId] : null;
+    const swordDef = activeByFamily.sword ? swordFamily.members[activeByFamily.sword.swordId] : null;
+    runStatus.textContent = `${gunFamily.members[gunId].label}${shieldDef ? ` \xB7 ${shieldDef.label}` : ""}${swordDef ? ` \xB7 ${swordDef.label}` : ""} \xB7 ${Math.max(0, activeTrack.durationSeconds - elapsed).toFixed(1)}s`;
     while (nextTrackEntity < trackEntities.length && trackEntities[nextTrackEntity].distanceFromPlayer <= elapsed) {
       const entity = trackEntities[nextTrackEntity++];
       const lane = entity.side === "left" ? 0 : 1;
       if (entity.id === "enemy.basic") {
         enemies.push({
+          id: ++entityIdCounter,
           lane,
           x: entityX(entity),
           y: 110 * scale(),
@@ -1905,7 +2425,15 @@ try {
       } else if (entity.id.startsWith("pickup.weapon.gun.")) {
         const candidate = entity.id.slice("pickup.weapon.gun.".length);
         if (!(candidate in gunFamily.members)) throw new Error(`Track uses unknown gun id "${entity.id}".`);
-        pickups.push({ lane, x: entityX(entity), y: 120 * scale(), gunId: candidate, level: 1, speedMultiplier: entity.speedMultiplier, actor: new NeonShapeActor({ shape: swarmShapes.gunPickup }) });
+        gunPickups.push({ lane, x: entityX(entity), y: 120 * scale(), gunId: candidate, level: 1, speedMultiplier: entity.speedMultiplier, actor: new NeonShapeActor({ shape: swarmShapes.gunPickup }) });
+      } else if (entity.id.startsWith("pickup.weapon.shield.")) {
+        const candidate = entity.id.slice("pickup.weapon.shield.".length);
+        if (!(candidate in shieldFamily.members)) throw new Error(`Track uses unknown shield id "${entity.id}".`);
+        shieldPickups.push({ lane, x: entityX(entity), y: 120 * scale(), shieldId: candidate, speedMultiplier: entity.speedMultiplier });
+      } else if (entity.id.startsWith("pickup.weapon.sword.")) {
+        const candidate = entity.id.slice("pickup.weapon.sword.".length);
+        if (!(candidate in swordFamily.members)) throw new Error(`Track uses unknown sword id "${entity.id}".`);
+        swordPickups.push({ lane, x: entityX(entity), y: 120 * scale(), swordId: candidate, speedMultiplier: entity.speedMultiplier });
       } else if (entity.id === "pickup.unitMultiplier.2x") {
         multipliers.push({ lane, x: entityX(entity), y: 125 * scale(), multiplierId: "squadPlusOne", speedMultiplier: entity.speedMultiplier, actor: new NeonShapeActor({ shape: swarmShapes.multiplier }) });
       } else {
@@ -1926,14 +2454,16 @@ try {
     if (cooldown <= 0) fire();
     for (const shot of [...projectiles]) {
       shot.y -= shot.speed * delta;
-      if (shot.y < 0) projectiles.splice(projectiles.indexOf(shot), 1);
+      if (shot.y < 0) {
+        projectiles.splice(projectiles.indexOf(shot), 1);
+        continue;
+      }
       for (const enemy of [...enemies]) {
         if (enemy.dying) continue;
         const hitRadius = shot.radius + orbFamily.members.basicOrb.radius * scale() + 4;
         if (shot.lane !== enemy.lane || Math.hypot(shot.x - enemy.x, shot.y - enemy.y) > hitRadius) continue;
         enemy.health -= shot.damage;
-        const impactMagnitude = (shot.damage + shot.radius * 0.12) / orbFamily.members.basicOrb.impactResistance;
-        enemy.actor.impact({ direction: { x: 0, y: 1 }, magnitude: impactMagnitude });
+        enemy.actor.impact({ direction: { x: 0, y: 1 }, magnitude: (shot.damage + shot.radius * 0.12) / orbFamily.members.basicOrb.impactResistance });
         projectiles.splice(projectiles.indexOf(shot), 1);
         if (enemy.health <= 0) {
           enemy.dying = true;
@@ -1946,9 +2476,86 @@ try {
         break;
       }
     }
+    const px = squad.x;
+    const py = playerY();
+    if (activeByFamily.shield && shieldDef) {
+      const shieldState = activeByFamily.shield;
+      const shieldThreats = queryNearbyThreats(enemies, {
+        origin: { x: px, y: py },
+        lane: playerLane,
+        range: shieldDef.radius * scale(),
+        includeAdjacentLanes: false,
+        purpose: "shield"
+      });
+      const shieldResult = tickShield(shieldState, shieldDef, shieldThreats, px, py, now, delta);
+      if (shieldResult.pushEnemyIds.length > 0) {
+        for (const enemy of enemies) {
+          if (shieldResult.pushEnemyIds.includes(enemy.id ?? 0)) {
+            const dx = enemy.x - px;
+            const dy = enemy.y - py;
+            const dist = Math.hypot(dx, dy) || 1;
+            enemy.x += dx / dist * shieldResult.pushDistance * scale();
+            enemy.y += dy / dist * shieldResult.pushDistance * scale();
+          }
+        }
+        window.gameAudio?.play("Hit");
+      }
+      if (shieldResult.contactDamageEnemyIds.length > 0) {
+        for (const enemy of [...enemies]) {
+          if (enemy.dying) continue;
+          const isContact = shieldResult.contactDamageEnemyIds.includes(enemy.id ?? 0);
+          if (!isContact) continue;
+          enemy.health -= shieldResult.contactDamageAmount * delta;
+          if (enemy.health <= 0) {
+            enemy.dying = true;
+            enemy.actor.explodeMagnitude = orbFamily.members.basicOrb.explosionMagnitude;
+            enemy.actor.dispose("explode" /* Explode */);
+            window.gameAudio?.play("EnemyDestroyed");
+          }
+        }
+      }
+    }
+    if (activeByFamily.sword && swordDef) {
+      const swordState = activeByFamily.sword;
+      const swordThreats = queryNearbyThreats(enemies, {
+        origin: { x: px, y: py },
+        lane: playerLane,
+        range: swordDef.range * scale(),
+        includeAdjacentLanes: swordDef.targetingMode === "nearestInEitherLane",
+        maxTargets: swordDef.maxTargets,
+        purpose: "sword"
+      });
+      const swordResult = tickSword(
+        swordState,
+        swordDef,
+        swordThreats,
+        px,
+        py,
+        now,
+        delta,
+        neonPalette[swordDef.color]
+      );
+      if (swordResult.swingTriggered && swordResult.hitEnemyIds.length > 0) {
+        window.gameAudio?.play("Hit");
+        for (const enemy of [...enemies]) {
+          if (enemy.dying) continue;
+          if (!swordResult.hitEnemyIds.includes(enemy.id ?? 0)) continue;
+          enemy.health -= swordResult.damage;
+          enemy.actor.impact({ direction: { x: 0, y: 1 }, magnitude: swordResult.damage / orbFamily.members.basicOrb.impactResistance });
+          if (enemy.health <= 0) {
+            enemy.dying = true;
+            enemy.actor.explodeMagnitude = orbFamily.members.basicOrb.explosionMagnitude;
+            enemy.actor.dispose("explode" /* Explode */);
+            window.gameAudio?.play("EnemyDestroyed");
+          }
+        }
+      }
+    }
+    const slowEnemyIds = /* @__PURE__ */ new Set();
     for (const enemy of [...enemies]) {
       enemy.actor.setVelocity(0, 0).update(delta);
-      enemy.y += orbFamily.members.basicOrb.speed * enemy.speedMultiplier * scale() * delta - enemy.actor.y * canvas.height / 2.5;
+      const effective = slowEnemyIds.has(enemy.id ?? 0) ? enemy.speedMultiplier * (shieldDef?.slowMultiplier ?? 1) : enemy.speedMultiplier;
+      enemy.y += orbFamily.members.basicOrb.speed * effective * scale() * delta - enemy.actor.y * canvas.height / 2.5;
       enemy.actor.moveTo(0, 0);
       if (enemy.dying && enemy.actor.disposed) {
         enemies.splice(enemies.indexOf(enemy), 1);
@@ -1958,21 +2565,31 @@ try {
       const points = squad.points(playerY(), scale());
       const hitIndex = points.findIndex((point) => Math.hypot(point.x - enemy.x, point.y - enemy.y) <= orbFamily.members.basicOrb.radius * 3.2);
       if (hitIndex >= 0) {
-        const point = points[hitIndex];
-        const actor = playerActors[hitIndex] ?? new NeonShapeActor({ shape: swarmShapes.player });
-        actor.explodeMagnitude = 0.55;
-        actor.dispose("explode" /* Explode */);
-        explodingPlayers.push({ actor, x: point.x, y: point.y });
-        playerActors.splice(hitIndex, 1);
-        squad.remove();
-        enemies.splice(enemies.indexOf(enemy), 1);
-        window.gameAudio?.play("EnemyDestroyed");
-        if (squad.count === 0) {
-          failureReason = "The entire squad was destroyed on contact.";
-          finish(false);
-          return;
+        const absorbed = activeByFamily.shield && shieldDef ? tryAbsorbHit(activeByFamily.shield, shieldDef, now) : false;
+        if (absorbed) {
+          const dx = enemy.x - px;
+          const dy = enemy.y - py;
+          const dist = Math.hypot(dx, dy) || 1;
+          enemy.x += dx / dist * 20 * scale();
+          enemy.y += dy / dist * 20 * scale();
+          window.gameAudio?.play("Hit");
+        } else {
+          const point = points[hitIndex];
+          const actor = playerActors[hitIndex] ?? new NeonShapeActor({ shape: swarmShapes.player });
+          actor.explodeMagnitude = 0.55;
+          actor.dispose("explode" /* Explode */);
+          explodingPlayers.push({ actor, x: point.x, y: point.y });
+          playerActors.splice(hitIndex, 1);
+          squad.remove();
+          enemies.splice(enemies.indexOf(enemy), 1);
+          window.gameAudio?.play("EnemyDestroyed");
+          if (squad.count === 0) {
+            failureReason = "The entire squad was destroyed on contact.";
+            finish(false);
+            return;
+          }
+          continue;
         }
-        continue;
       }
       if (enemy.y >= playerY()) {
         breaches++;
@@ -1983,16 +2600,31 @@ try {
         return;
       }
     }
-    for (const pickup of [...pickups]) {
-      pickup.actor.update(delta);
+    for (const pickup of [...gunPickups]) {
       pickup.y += 72 * pickup.speedMultiplier * scale() * delta;
       if (pickup.y >= playerY() - 15 * scale() && pickup.lane === playerLane) {
-        gunId = pickup.gunId;
-        gunLevel = pickup.level;
+        activeByFamily.gun = { id: pickup.gunId, level: 1 };
         cooldown = 0;
-        pickups.splice(pickups.indexOf(pickup), 1);
+        gunPickups.splice(gunPickups.indexOf(pickup), 1);
         window.gameAudio?.play("Pickup");
-      } else if (pickup.y > canvas.height) pickups.splice(pickups.indexOf(pickup), 1);
+      } else if (pickup.y > canvas.height) gunPickups.splice(gunPickups.indexOf(pickup), 1);
+    }
+    for (const pickup of [...shieldPickups]) {
+      pickup.y += 72 * pickup.speedMultiplier * scale() * delta;
+      if (pickup.y >= playerY() - 15 * scale() && pickup.lane === playerLane) {
+        const def = shieldFamily.members[pickup.shieldId];
+        activeByFamily.shield = new ShieldState(pickup.shieldId, def.maxCharges);
+        shieldPickups.splice(shieldPickups.indexOf(pickup), 1);
+        window.gameAudio?.play("Pickup");
+      } else if (pickup.y > canvas.height) shieldPickups.splice(shieldPickups.indexOf(pickup), 1);
+    }
+    for (const pickup of [...swordPickups]) {
+      pickup.y += 72 * pickup.speedMultiplier * scale() * delta;
+      if (pickup.y >= playerY() - 15 * scale() && pickup.lane === playerLane) {
+        activeByFamily.sword = new SwordState(pickup.swordId);
+        swordPickups.splice(swordPickups.indexOf(pickup), 1);
+        window.gameAudio?.play("Pickup");
+      } else if (pickup.y > canvas.height) swordPickups.splice(swordPickups.indexOf(pickup), 1);
     }
     for (const pickup of [...multipliers]) {
       pickup.actor.update(delta);
@@ -2049,17 +2681,57 @@ try {
       for (const shot of projectiles) {
         primitives.push(...new NeonProjectile({ x: shot.x, y: shot.y, velocityY: -shot.speed, radius: shot.radius, length: shot.radius * 2.5, trailLength: 18 * s, trailWidth: Math.max(1.2 * s, shot.radius * 0.5), color: shot.color, trailColor: shot.trail, shape: "dart" }).primitives());
       }
-      if (false) for (const pickup of pickups) {
-        const visual = gunFamily.members[pickup.gunId].visualIdentity;
-        const pColor = neonPalette[visual.projectileColor];
-        const tColor = neonPalette[visual.trailColor];
+      if (activeByFamily.shield) {
+        const shieldState = activeByFamily.shield;
+        const shieldDef = shieldFamily.members[shieldState.shieldId];
+        const shieldColor = neonPalette[shieldDef.color];
+        const px = squad.x;
+        const py = playerY();
+        const r = shieldDef.radius * s;
+        const baseEnergy = 1;
+        const orbCount = shieldDef.orbiterShape === "hex" && shieldDef.mode === "charge" ? shieldState.charges : shieldDef.orbiterCount;
+        const orbAngleStep = orbCount > 0 ? Math.PI * 2 / shieldDef.orbiterCount : 0;
+        const orbBaseAngle = now / 1e3 * shieldDef.orbiterSpeed;
+        for (const pulse of shieldState.pulseEffects) {
+          primitives.push(...shieldPulsePrimitives({
+            x: pulse.x,
+            y: pulse.y,
+            maxRadius: pulse.maxRadius,
+            color: shieldColor,
+            progress: pulse.progress,
+            scale: s
+          }));
+        }
+      }
+      if (activeByFamily.sword) {
+        const swordState = activeByFamily.sword;
+        if (swordState.activeSlash) {
+          const slash = swordState.activeSlash;
+          primitives.push(...slashArcPrimitives({
+            x: slash.x,
+            y: slash.y,
+            reach: slash.reach,
+            arcDegrees: slash.arcDegrees,
+            headingDeg: -90,
+            // pointing upward toward enemies
+            color: slash.color,
+            progress: slash.progress,
+            thickness: slash.thickness,
+            scale: s
+          }));
+        }
+      }
+      for (const pickup of gunPickups) {
+        const gun = gunFamily.members[pickup.gunId];
+        const pColor = neonPalette[gun.visualIdentity.projectileColor];
+        const tColor = neonPalette[gun.visualIdentity.trailColor];
         const px = laneX(pickup.lane);
         const wobble = Math.sin(now / 420 + pickup.y * 0.07) * 4.5 * s;
         const wx = px + wobble;
         const pulse = 1 + Math.sin(now / 600 + pickup.y * 0.05) * 0.08;
         primitives.push({ x: wx, y: pickup.y, width: 28 * s * pulse, color: pColor, secondaryColor: tColor, glow: 0.9, intensity: 0.22, shape: "circle" });
         primitives.push({ x: wx, y: pickup.y, width: 18 * s * pulse, color: pColor, secondaryColor: tColor, glow: 0.85, intensity: 1.05, shape: "diamond" });
-        const iconShape = visual.projectileShape;
+        const iconShape = gun.visualIdentity.projectileShape;
         if (iconShape === "needle") {
           for (let n = -1; n <= 1; n++) primitives.push({ x: wx + n * 3.2 * s, y: pickup.y, width: 1.2 * s, height: 8 * s, color: pColor, secondaryColor: tColor, glow: 0.6, intensity: 1.1, shape: "bolt" });
         } else if (iconShape === "slug") {
@@ -2070,6 +2742,34 @@ try {
         } else {
           primitives.push({ x: wx, y: pickup.y - 1 * s, width: 2 * s, height: 9 * s, color: pColor, secondaryColor: tColor, glow: 0.65, intensity: 1.1, shape: "bolt" });
         }
+        for (let sp = 0; sp < 3; sp++) {
+          const angle = now / 900 + sp * 2.09 + pickup.y;
+          const dist = (9 + sp * 3) * s * pulse;
+          primitives.push({ x: wx + Math.cos(angle) * dist, y: pickup.y + Math.sin(angle) * dist * 0.7, width: 1.4 * s, color: pColor, glow: 0.9, intensity: 0.55 + Math.sin(now / 300 + sp) * 0.25, shape: "circle" });
+        }
+      }
+      for (const pickup of shieldPickups) {
+        const def = shieldFamily.members[pickup.shieldId];
+        const pColor = neonPalette[def.color];
+        const px = laneX(pickup.lane);
+        const wobble = Math.sin(now / 420 + pickup.y * 0.07) * 4.5 * s;
+        const wx = px + wobble;
+        const pulse = 1 + Math.sin(now / 600 + pickup.y * 0.05) * 0.08;
+        primitives.push(...shieldPickupPrimitives({ x: wx, y: pickup.y, color: pColor, now, scale: s }));
+        for (let sp = 0; sp < 3; sp++) {
+          const angle = now / 900 + sp * 2.09 + pickup.y;
+          const dist = (9 + sp * 3) * s * pulse;
+          primitives.push({ x: wx + Math.cos(angle) * dist, y: pickup.y + Math.sin(angle) * dist * 0.7, width: 1.4 * s, color: pColor, glow: 0.85, intensity: 0.5 + Math.sin(now / 300 + sp) * 0.25, shape: "circle" });
+        }
+      }
+      for (const pickup of swordPickups) {
+        const def = swordFamily.members[pickup.swordId];
+        const pColor = neonPalette[def.color];
+        const px = laneX(pickup.lane);
+        const wobble = Math.sin(now / 420 + pickup.y * 0.07) * 4.5 * s;
+        const wx = px + wobble;
+        const pulse = 1 + Math.sin(now / 600 + pickup.y * 0.05) * 0.08;
+        primitives.push(...swordPickupPrimitives({ x: wx, y: pickup.y, color: pColor, now, scale: s }));
         for (let sp = 0; sp < 3; sp++) {
           const angle = now / 900 + sp * 2.09 + pickup.y;
           const dist = (9 + sp * 3) * s * pulse;
@@ -2099,6 +2799,71 @@ try {
     }
     if (victory) primitives.push(...victory.primitives(now));
     const shapeInstances = [];
+    if (activeByFamily.shield) {
+      const liveShield = activeByFamily.shield;
+      const liveDef = shieldFamily.members[liveShield.shieldId];
+      const impact = Math.max(0, 1 - liveShield.hitFlashProgress);
+      const exploding = liveDef.mode === "charge" && liveShield.charges <= 0;
+      shapeInstances.push({
+        shape: shieldFieldShape,
+        x: squad.x,
+        y: playerY(),
+        size: liveDef.radius * s,
+        color: neonPalette[liveDef.color],
+        lineThickness: 0.72,
+        glow: 1 + impact * 0.8,
+        opacity: 1,
+        energyIntensity: 1.15 + impact * 1.5,
+        energyCoverage: 0.42 + impact * 0.3,
+        energySpeed: 1.15 + impact * 1.2,
+        energyBleed: 0.5 + impact * 0.35,
+        explodeProgress: exploding ? Math.min(1, liveShield.hitFlashProgress) : 0,
+        explodeMagnitude: 0.9
+      });
+      const orbiterShape = liveDef.orbiterShape === "hex" ? getNeonShape("hex-fighter") : getNeonShape("star-core");
+      const orbCount = Math.ceil(liveDef.orbiterCount * liveShield.charges / liveDef.maxCharges);
+      const angleStep = orbCount > 0 ? Math.PI * 2 / liveDef.orbiterCount : 0;
+      const baseAngle = now / 1e3 * liveDef.orbiterSpeed;
+      for (let i = 0; i < orbCount; i++) {
+        const angle = baseAngle + i * angleStep;
+        shapeInstances.push({
+          shape: orbiterShape,
+          x: squad.x + Math.cos(angle) * liveDef.radius * s,
+          y: playerY() + Math.sin(angle) * liveDef.radius * s,
+          size: liveDef.orbiterSize * 1.8 * s,
+          color: neonPalette[liveDef.color],
+          rotationZ: angle + now / 1400,
+          lineThickness: 0.72,
+          glow: 1,
+          energyIntensity: 1.1,
+          energyCoverage: 0.4,
+          energySpeed: 1.25,
+          energyBleed: 0.5
+        });
+      }
+    }
+    if (activeByFamily.sword) {
+      const liveSword = activeByFamily.sword;
+      const liveDef = swordFamily.members[liveSword.swordId];
+      const slash = liveSword.activeSlash;
+      const halfArc = liveDef.arcDegrees * Math.PI / 360;
+      const sweep = slash ? slash.progress < 0.62 ? 1 - Math.pow(1 - slash.progress / 0.62, 3) : 1 : 0.5;
+      const swordAngle = -Math.PI / 2 - halfArc + sweep * halfArc * 2;
+      shapeInstances.push({
+        shape: getNeonShape("spike-lance"),
+        x: squad.x,
+        y: playerY(),
+        size: Math.min(17, liveDef.range * 0.28) * s,
+        color: neonPalette[liveDef.color],
+        rotationZ: swordAngle + Math.PI / 2,
+        lineThickness: 0.82,
+        glow: slash ? 1.35 : 1,
+        energyIntensity: slash ? 1.8 : 1.15,
+        energyCoverage: slash ? 0.72 : 0.42,
+        energySpeed: slash ? 2.1 : 1.2,
+        energyBleed: slash ? 0.8 : 0.5
+      });
+    }
     const playerSize = 14;
     for (const [index, point] of squad.points(playerY(), s).entries()) {
       const actor = playerActors[index] ?? new NeonShapeActor({ shape: swarmShapes.player });
@@ -2106,7 +2871,7 @@ try {
     }
     for (const item of explodingPlayers) shapeInstances.push(actorInTopDownScene(item.actor, item.x, item.y, playerSize));
     for (const enemy of enemies) shapeInstances.push(actorInTopDownScene(enemy.actor, enemy.x, enemy.y, 18, { rotationY: Math.sin(now / 700 + enemy.rowId) * 0.18 }));
-    for (const pickup of pickups) {
+    for (const pickup of gunPickups) {
       const gun = gunFamily.members[pickup.gunId];
       pickup.actor.label = shapeLabel(gun.label, "above", 10, 7);
       pickup.actor.color = neonPalette[gun.visualIdentity.projectileColor];
