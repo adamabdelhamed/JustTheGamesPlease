@@ -1,15 +1,15 @@
 import { NeonProjectile, NeonShapeActor, NeonShapeDisposal, NeonTopDownSceneRenderer, NeonVictoryExperience, neonPalette, type NeonPrimitive, type NeonTopDownShape } from "@just-the-games-please/neon-factory";
-import { gunFamily, multiplierFamily, orbFamily, trackFamily, type GunId, type MultiplierId, type TrackMember } from "../CombatDefinition";
+import { gunFamily, multiplierFamily, orbFamily, parseTrackDefinition, trackFamily, type GunId, type MultiplierId, type ParsedTrackEntity, type TrackMember } from "../CombatDefinition";
 import { bindSquadInput } from "./input";
 import { SquadModel } from "./squad";
 import { AutoAimControlState, selectAutoAimOffset } from "./autoAim";
 import { applyPortraitStage } from "./viewport";
 import { actorInTopDownScene, shapeLabel, swarmShapes } from "./shapeVisuals";
 
-interface Enemy { lane: 0 | 1; x: number; y: number; health: number; rowId: number; actor: NeonShapeActor; dying: boolean }
+interface Enemy { lane: 0 | 1; x: number; y: number; health: number; speedMultiplier: number; rowId: number; actor: NeonShapeActor; dying: boolean }
 interface Projectile { lane: 0 | 1; x: number; y: number; damage: number; speed: number; radius: number; color: string; trail: string }
-interface Pickup { lane: 0 | 1; y: number; gunId: GunId; level: number; actor: NeonShapeActor }
-interface MultiplierPickup { lane: 0 | 1; y: number; multiplierId: MultiplierId; actor: NeonShapeActor }
+interface Pickup { lane: 0 | 1; x: number; y: number; gunId: GunId; level: number; speedMultiplier: number; actor: NeonShapeActor }
+interface MultiplierPickup { lane: 0 | 1; x: number; y: number; multiplierId: MultiplierId; speedMultiplier: number; actor: NeonShapeActor }
 
 const canvas = document.querySelector<HTMLCanvasElement>("#game-canvas")!;
 const trackSelect = document.querySelector<HTMLElement>("#track-select")!;
@@ -35,9 +35,8 @@ try {
   let gunId: GunId = "pulsePistol";
   let gunLevel = 1;
   let cooldown = 0;
-  let nextEnemy = 0;
-  let nextPickup = 0;
-  let nextMultiplier = 0;
+  let nextTrackEntity = 0;
+  let trackEntities: ParsedTrackEntity[] = [];
   let breaches = 0;
   let enemies: Enemy[] = [];
   let projectiles: Projectile[] = [];
@@ -52,6 +51,7 @@ try {
 
   const scale = () => 1;
   const laneX = (lane: number) => canvas.width * (lane === 0 ? .32 : .68);
+  const entityX = (entity: ParsedTrackEntity) => laneX(entity.side === "left" ? 0 : 1) + (entity.laneIndex - 2) * 15 * scale();
   const playerY = () => canvas.height * .82;
 
   const resetToTracks = (): void => {
@@ -76,9 +76,8 @@ try {
     gunId = track.startingGun;
     gunLevel = track.startingGunLevel;
     cooldown = 0;
-    nextEnemy = 0;
-    nextPickup = 0;
-    nextMultiplier = 0;
+    nextTrackEntity = 0;
+    trackEntities = parseTrackDefinition(track.definition).filter(entity => entity.id !== "player.start");
     breaches = 0;
     enemies = [];
     projectiles = [];
@@ -177,29 +176,29 @@ try {
     const elapsed = (now - startedAt) / 1000;
     runStatus.textContent = `${gunFamily.members[gunId].label} · ${Math.max(0, activeTrack.durationSeconds - elapsed).toFixed(1)}s`;
 
-    while (nextEnemy < activeTrack.enemySchedule.length && activeTrack.enemySchedule[nextEnemy].atSeconds <= elapsed) {
-      const event = activeTrack.enemySchedule[nextEnemy++];
-      const count = event.count ?? 1;
-      const spacing = (event.spacing ?? 15) * scale();
-      for (let index = 0; index < count; index++) {
+    while (nextTrackEntity < trackEntities.length && trackEntities[nextTrackEntity].distanceFromPlayer <= elapsed) {
+      const entity = trackEntities[nextTrackEntity++];
+      const lane = entity.side === "left" ? 0 : 1;
+      if (entity.id === "enemy.basic") {
         enemies.push({
-          lane: event.lane,
-          x: laneX(event.lane) + (index - (count - 1) / 2) * spacing,
+          lane,
+          x: entityX(entity),
           y: 110 * scale(),
-          health: orbFamily.members[event.enemyId].health,
-          rowId: nextEnemy,
+          health: orbFamily.members.basicOrb.health * activeTrack.definition.balance.enemyHp,
+          speedMultiplier: entity.speedMultiplier,
+          rowId: entity.rowIndex,
           actor: new NeonShapeActor({ shape: swarmShapes.enemy }),
           dying: false,
         });
+      } else if (entity.id.startsWith("pickup.weapon.gun.")) {
+        const candidate = entity.id.slice("pickup.weapon.gun.".length);
+        if (!(candidate in gunFamily.members)) throw new Error(`Track uses unknown gun id "${entity.id}".`);
+        pickups.push({ lane, x: entityX(entity), y: 120 * scale(), gunId: candidate as GunId, level: 1, speedMultiplier: entity.speedMultiplier, actor: new NeonShapeActor({ shape: swarmShapes.gunPickup }) });
+      } else if (entity.id === "pickup.unitMultiplier.2x") {
+        multipliers.push({ lane, x: entityX(entity), y: 125 * scale(), multiplierId: "squadPlusOne", speedMultiplier: entity.speedMultiplier, actor: new NeonShapeActor({ shape: swarmShapes.multiplier }) });
+      } else {
+        throw new Error(`Track entity id "${entity.id}" is not supported by the lane runner.`);
       }
-    }
-    while (nextPickup < activeTrack.pickupSchedule.length && activeTrack.pickupSchedule[nextPickup].atSeconds <= elapsed) {
-      const event = activeTrack.pickupSchedule[nextPickup++];
-      pickups.push({ lane: event.lane, y: 120 * scale(), gunId: event.gunId, level: event.level, actor: new NeonShapeActor({ shape: swarmShapes.gunPickup }) });
-    }
-    while (nextMultiplier < activeTrack.multiplierSchedule.length && activeTrack.multiplierSchedule[nextMultiplier].atSeconds <= elapsed) {
-      const event = activeTrack.multiplierSchedule[nextMultiplier++];
-      multipliers.push({ lane: event.lane, y: 125 * scale(), multiplierId: event.multiplierId, actor: new NeonShapeActor({ shape: swarmShapes.multiplier }) });
     }
 
     if (!aimControl.manual) {
@@ -238,7 +237,7 @@ try {
     }
     for (const enemy of [...enemies]) {
       enemy.actor.setVelocity(0, 0).update(delta);
-      enemy.y += orbFamily.members.basicOrb.speed * scale() * delta - enemy.actor.y * canvas.height / 2.5;
+      enemy.y += orbFamily.members.basicOrb.speed * enemy.speedMultiplier * scale() * delta - enemy.actor.y * canvas.height / 2.5;
       enemy.actor.moveTo(0, 0);
       if (enemy.dying && enemy.actor.disposed) { enemies.splice(enemies.indexOf(enemy), 1); continue; }
       if (enemy.dying) continue;
@@ -267,7 +266,7 @@ try {
       }
     }
     for (const pickup of [...pickups]) {
-      pickup.actor.update(delta); pickup.y += 72 * scale() * delta;
+      pickup.actor.update(delta); pickup.y += 72 * pickup.speedMultiplier * scale() * delta;
       if (pickup.y >= playerY() - 15 * scale() && pickup.lane === playerLane) {
         gunId = pickup.gunId;
         gunLevel = pickup.level;
@@ -277,7 +276,7 @@ try {
       } else if (pickup.y > canvas.height) pickups.splice(pickups.indexOf(pickup), 1);
     }
     for (const pickup of [...multipliers]) {
-      pickup.actor.update(delta); pickup.y += 72 * scale() * delta;
+      pickup.actor.update(delta); pickup.y += 72 * pickup.speedMultiplier * scale() * delta;
       if (pickup.y >= playerY() - 15 * scale() && pickup.lane === playerLane) {
         squad.add(multiplierFamily.members[pickup.multiplierId].squadAdded);
         syncPlayerActors();
@@ -413,13 +412,13 @@ try {
       const gun = gunFamily.members[pickup.gunId];
       pickup.actor.label = shapeLabel(gun.label, "above", 10, 7);
       pickup.actor.color = neonPalette[gun.visualIdentity.projectileColor];
-      shapeInstances.push(actorInTopDownScene(pickup.actor, laneX(pickup.lane), pickup.y, 15));
+      shapeInstances.push(actorInTopDownScene(pickup.actor, pickup.x, pickup.y, 15));
     }
     for (const pickup of multipliers) {
       const spec = multiplierFamily.members[pickup.multiplierId];
       pickup.actor.label = shapeLabel(`${spec.squadAdded + 1}x`, "center", 11, 0);
       pickup.actor.color = neonPalette[spec.pickupColor];
-      shapeInstances.push(actorInTopDownScene(pickup.actor, laneX(pickup.lane), pickup.y, 16));
+      shapeInstances.push(actorInTopDownScene(pickup.actor, pickup.x, pickup.y, 16));
     }
     renderer.render({ primitives, shapes: shapeInstances }, now / 1000);
   };

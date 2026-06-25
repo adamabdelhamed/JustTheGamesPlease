@@ -1212,6 +1212,103 @@ var OrbFamilyDefinition = class extends FamilyDefinition {
 };
 var orbFamily = new OrbFamilyDefinition();
 
+// projects/NeonSwarm/CombatDefinition/TrackDefinition.ts
+var isEnemy = (id) => id.startsWith("enemy.");
+function parseTrackDefinition(track) {
+  if (track.balance.enemyHp <= 0) throw new Error("Track balance enemyHp must be greater than zero.");
+  if (track.balance.enemySpeed <= 0) throw new Error("Track balance enemySpeed must be greater than zero.");
+  for (const [symbol, entry] of Object.entries(track.legend)) {
+    if ([...symbol].length !== 1 || /\s|\|/.test(symbol)) {
+      throw new Error(`Track legend key "${symbol}" must be one non-whitespace character other than "|".`);
+    }
+    if (!entry.id) throw new Error(`Track legend symbol "${symbol}" must have an id.`);
+    if (entry.speed !== void 0 && entry.speed <= 0) {
+      throw new Error(`Track legend symbol "${symbol}" speed must be greater than zero.`);
+    }
+  }
+  const rows = track.layout.split(/\r?\n/).map((text, sourceIndex) => ({ text: text.trim(), sourceIndex: sourceIndex + 1 })).filter((row) => row.text.length > 0);
+  if (rows.length === 0) throw new Error("Track layout must contain at least one row.");
+  let leftWidth;
+  let rightWidth;
+  const entities = [];
+  rows.forEach((row, rowIndex) => {
+    const pipeCount = [...row.text].filter((character) => character === "|").length;
+    if (pipeCount !== 1) {
+      throw new Error(`Track layout line ${row.sourceIndex} must contain exactly one "|" separator; found ${pipeCount}.`);
+    }
+    const [left, right] = row.text.split("|").map((side) => side.replace(/\s/g, ""));
+    leftWidth ??= left.length;
+    rightWidth ??= right.length;
+    if (left.length !== leftWidth) {
+      throw new Error(`Track layout line ${row.sourceIndex} has left width ${left.length}; expected ${leftWidth}.`);
+    }
+    if (right.length !== rightWidth) {
+      throw new Error(`Track layout line ${row.sourceIndex} has right width ${right.length}; expected ${rightWidth}.`);
+    }
+    const distanceFromPlayer = rows.length - 1 - rowIndex;
+    for (const [side, lane] of [["left", left], ["right", right]]) {
+      [...lane].forEach((symbol, laneIndex) => {
+        const entry = track.legend[symbol];
+        if (!entry) {
+          throw new Error(`Track layout line ${row.sourceIndex} uses symbol "${symbol}" at ${side} lane index ${laneIndex}, but it is missing from the legend.`);
+        }
+        if (entry.id === "empty") return;
+        entities.push({
+          id: entry.id,
+          symbol,
+          side,
+          laneIndex,
+          rowIndex,
+          distanceFromPlayer,
+          speedMultiplier: (entry.speed ?? 1) * (isEnemy(entry.id) ? track.balance.enemySpeed : 1)
+        });
+      });
+    }
+  });
+  return entities.sort((a, b) => a.distanceFromPlayer - b.distanceFromPlayer || a.rowIndex - b.rowIndex || a.side.localeCompare(b.side) || a.laneIndex - b.laneIndex);
+}
+
+// projects/NeonSwarm/CombatDefinition/tracks/firstTrack.ts
+var firstTrack = {
+  layout: `
+..... | .....
+..... | ..E..
+..... | .....
+..E.. | .....
+..... | .....
+.E.E. | ..E..
+..... | .....
+..E.. | .E.E.
+..... | .....
+..... | .....
+.EEE. | .....
+..... | .....
+..E.. | .EEE.
+..... | .....
+..... | .....
+.EE.. | ..EE.
+..... | .....
+..E.. | .E.E.
+..... | .....
+..2.. | .....
+.EEE. | .....
+..... | ..E..
+..... | .....
+..E.. | .....
+..P.. | ..P..
+`,
+  legend: {
+    ".": { id: "empty" },
+    "P": { id: "player.start" },
+    "E": { id: "enemy.basic" },
+    "2": { id: "pickup.unitMultiplier.2x", speed: 0.8 }
+  },
+  balance: {
+    enemyHp: 1,
+    enemySpeed: 1
+  }
+};
+
 // projects/NeonSwarm/CombatDefinition/TrackFamily.ts
 var TrackFamilyDefinition = class extends FamilyDefinition {
   familyId = "track";
@@ -1239,27 +1336,7 @@ var TrackFamilyDefinition = class extends FamilyDefinition {
         crackDensity: 14,
         airStreakCount: 11
       },
-      enemySchedule: [
-        { atSeconds: 1.5, enemyId: "basicOrb", lane: 0, count: 3, spacing: 16 },
-        { atSeconds: 3.8, enemyId: "basicOrb", lane: 1, count: 3, spacing: 16 },
-        { atSeconds: 6.2, enemyId: "basicOrb", lane: 0, count: 4, spacing: 15 },
-        { atSeconds: 8.1, enemyId: "basicOrb", lane: 1, count: 4, spacing: 15 },
-        { atSeconds: 10.6, enemyId: "basicOrb", lane: 1, count: 5, spacing: 14 },
-        { atSeconds: 13.2, enemyId: "basicOrb", lane: 0, count: 5, spacing: 14 },
-        { atSeconds: 16.1, enemyId: "basicOrb", lane: 1, count: 5, spacing: 14 },
-        { atSeconds: 19, enemyId: "basicOrb", lane: 0, count: 5, spacing: 14 }
-      ],
-      pickupSchedule: [
-        { atSeconds: 5, gunId: "needlerSmg", level: 1, lane: 1 },
-        { atSeconds: 11.5, gunId: "burstCarbine", level: 1, lane: 0 },
-        { atSeconds: 17, gunId: "heavyCannon", level: 1, lane: 1 }
-      ],
-      multiplierSchedule: [
-        { atSeconds: 2.5, multiplierId: "squadPlusOne", lane: 0 },
-        { atSeconds: 4.8, multiplierId: "squadPlusOne", lane: 1 },
-        { atSeconds: 7.4, multiplierId: "squadPlusOne", lane: 0 },
-        { atSeconds: 9.6, multiplierId: "squadPlusOne", lane: 1 }
-      ]
+      definition: firstTrack
     }
   };
   constructor() {
@@ -1271,9 +1348,7 @@ var TrackFamilyDefinition = class extends FamilyDefinition {
       this.require(track.durationSeconds > 0, `${id} duration must be positive.`);
       this.require(track.viewport.orientation === "portrait" && track.viewport.aspectHeight > track.viewport.aspectWidth, `${id} must use its declared portrait viewport.`);
       this.require(track.viewport.logicalWidth > 0 && track.viewport.logicalHeight > 0, `${id} logical viewport must be positive.`);
-      this.require(track.enemySchedule.every((event) => event.atSeconds < track.durationSeconds), `${id} has an enemy after the finish.`);
-      this.require(track.pickupSchedule.every((event) => event.atSeconds < track.durationSeconds), `${id} has a pickup after the finish.`);
-      this.require(track.multiplierSchedule.every((event) => event.atSeconds < track.durationSeconds), `${id} has a multiplier after the finish.`);
+      parseTrackDefinition(track.definition);
       this.require(track.environment.crackDensity > 0 && track.environment.airStreakCount > 0, `${id} environment must contain detail.`);
       this.require(neonPalette[track.environment.floorColor] !== void 0, `${id} has an unknown floor color.`);
     }
@@ -1518,9 +1593,8 @@ try {
   let gunId = "pulsePistol";
   let gunLevel = 1;
   let cooldown = 0;
-  let nextEnemy = 0;
-  let nextPickup = 0;
-  let nextMultiplier = 0;
+  let nextTrackEntity = 0;
+  let trackEntities = [];
   let breaches = 0;
   let enemies = [];
   let projectiles = [];
@@ -1534,6 +1608,7 @@ try {
   const explodingPlayers = [];
   const scale = () => 1;
   const laneX = (lane) => canvas.width * (lane === 0 ? 0.32 : 0.68);
+  const entityX = (entity) => laneX(entity.side === "left" ? 0 : 1) + (entity.laneIndex - 2) * 15 * scale();
   const playerY = () => canvas.height * 0.82;
   const resetToTracks = () => {
     activeTrack = null;
@@ -1556,9 +1631,8 @@ try {
     gunId = track.startingGun;
     gunLevel = track.startingGunLevel;
     cooldown = 0;
-    nextEnemy = 0;
-    nextPickup = 0;
-    nextMultiplier = 0;
+    nextTrackEntity = 0;
+    trackEntities = parseTrackDefinition(track.definition).filter((entity) => entity.id !== "player.start");
     breaches = 0;
     enemies = [];
     projectiles = [];
@@ -1653,29 +1727,29 @@ try {
     if (!activeTrack) return;
     const elapsed = (now - startedAt) / 1e3;
     runStatus.textContent = `${gunFamily.members[gunId].label} \xB7 ${Math.max(0, activeTrack.durationSeconds - elapsed).toFixed(1)}s`;
-    while (nextEnemy < activeTrack.enemySchedule.length && activeTrack.enemySchedule[nextEnemy].atSeconds <= elapsed) {
-      const event = activeTrack.enemySchedule[nextEnemy++];
-      const count = event.count ?? 1;
-      const spacing = (event.spacing ?? 15) * scale();
-      for (let index = 0; index < count; index++) {
+    while (nextTrackEntity < trackEntities.length && trackEntities[nextTrackEntity].distanceFromPlayer <= elapsed) {
+      const entity = trackEntities[nextTrackEntity++];
+      const lane = entity.side === "left" ? 0 : 1;
+      if (entity.id === "enemy.basic") {
         enemies.push({
-          lane: event.lane,
-          x: laneX(event.lane) + (index - (count - 1) / 2) * spacing,
+          lane,
+          x: entityX(entity),
           y: 110 * scale(),
-          health: orbFamily.members[event.enemyId].health,
-          rowId: nextEnemy,
+          health: orbFamily.members.basicOrb.health * activeTrack.definition.balance.enemyHp,
+          speedMultiplier: entity.speedMultiplier,
+          rowId: entity.rowIndex,
           actor: new NeonShapeActor({ shape: swarmShapes.enemy }),
           dying: false
         });
+      } else if (entity.id.startsWith("pickup.weapon.gun.")) {
+        const candidate = entity.id.slice("pickup.weapon.gun.".length);
+        if (!(candidate in gunFamily.members)) throw new Error(`Track uses unknown gun id "${entity.id}".`);
+        pickups.push({ lane, x: entityX(entity), y: 120 * scale(), gunId: candidate, level: 1, speedMultiplier: entity.speedMultiplier, actor: new NeonShapeActor({ shape: swarmShapes.gunPickup }) });
+      } else if (entity.id === "pickup.unitMultiplier.2x") {
+        multipliers.push({ lane, x: entityX(entity), y: 125 * scale(), multiplierId: "squadPlusOne", speedMultiplier: entity.speedMultiplier, actor: new NeonShapeActor({ shape: swarmShapes.multiplier }) });
+      } else {
+        throw new Error(`Track entity id "${entity.id}" is not supported by the lane runner.`);
       }
-    }
-    while (nextPickup < activeTrack.pickupSchedule.length && activeTrack.pickupSchedule[nextPickup].atSeconds <= elapsed) {
-      const event = activeTrack.pickupSchedule[nextPickup++];
-      pickups.push({ lane: event.lane, y: 120 * scale(), gunId: event.gunId, level: event.level, actor: new NeonShapeActor({ shape: swarmShapes.gunPickup }) });
-    }
-    while (nextMultiplier < activeTrack.multiplierSchedule.length && activeTrack.multiplierSchedule[nextMultiplier].atSeconds <= elapsed) {
-      const event = activeTrack.multiplierSchedule[nextMultiplier++];
-      multipliers.push({ lane: event.lane, y: 125 * scale(), multiplierId: event.multiplierId, actor: new NeonShapeActor({ shape: swarmShapes.multiplier }) });
     }
     if (!aimControl.manual) {
       const laneEnemies = enemies.filter((enemy) => enemy.lane === squad.lane);
@@ -1712,7 +1786,7 @@ try {
     }
     for (const enemy of [...enemies]) {
       enemy.actor.setVelocity(0, 0).update(delta);
-      enemy.y += orbFamily.members.basicOrb.speed * scale() * delta - enemy.actor.y * canvas.height / 2.5;
+      enemy.y += orbFamily.members.basicOrb.speed * enemy.speedMultiplier * scale() * delta - enemy.actor.y * canvas.height / 2.5;
       enemy.actor.moveTo(0, 0);
       if (enemy.dying && enemy.actor.disposed) {
         enemies.splice(enemies.indexOf(enemy), 1);
@@ -1749,7 +1823,7 @@ try {
     }
     for (const pickup of [...pickups]) {
       pickup.actor.update(delta);
-      pickup.y += 72 * scale() * delta;
+      pickup.y += 72 * pickup.speedMultiplier * scale() * delta;
       if (pickup.y >= playerY() - 15 * scale() && pickup.lane === playerLane) {
         gunId = pickup.gunId;
         gunLevel = pickup.level;
@@ -1760,7 +1834,7 @@ try {
     }
     for (const pickup of [...multipliers]) {
       pickup.actor.update(delta);
-      pickup.y += 72 * scale() * delta;
+      pickup.y += 72 * pickup.speedMultiplier * scale() * delta;
       if (pickup.y >= playerY() - 15 * scale() && pickup.lane === playerLane) {
         squad.add(multiplierFamily.members[pickup.multiplierId].squadAdded);
         syncPlayerActors();
@@ -1874,13 +1948,13 @@ try {
       const gun = gunFamily.members[pickup.gunId];
       pickup.actor.label = shapeLabel(gun.label, "above", 10, 7);
       pickup.actor.color = neonPalette[gun.visualIdentity.projectileColor];
-      shapeInstances.push(actorInTopDownScene(pickup.actor, laneX(pickup.lane), pickup.y, 15));
+      shapeInstances.push(actorInTopDownScene(pickup.actor, pickup.x, pickup.y, 15));
     }
     for (const pickup of multipliers) {
       const spec = multiplierFamily.members[pickup.multiplierId];
       pickup.actor.label = shapeLabel(`${spec.squadAdded + 1}x`, "center", 11, 0);
       pickup.actor.color = neonPalette[spec.pickupColor];
-      shapeInstances.push(actorInTopDownScene(pickup.actor, laneX(pickup.lane), pickup.y, 16));
+      shapeInstances.push(actorInTopDownScene(pickup.actor, pickup.x, pickup.y, 16));
     }
     renderer.render({ primitives, shapes: shapeInstances }, now / 1e3);
   };

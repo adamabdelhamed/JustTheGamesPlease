@@ -1,29 +1,9 @@
 import { neonPalette, type NeonColorName } from "@just-the-games-please/neon-factory";
 import type { GunId } from "./GunFamily";
-import type { OrbId } from "./OrbFamily";
-import type { MultiplierId } from "./MultiplierFamily";
 import { FamilyDefinition } from "./FamilyDefinition";
-
-export interface TrackEnemyEvent {
-  atSeconds: number;
-  enemyId: OrbId;
-  lane: 0 | 1;
-  count?: number;
-  spacing?: number;
-}
-
-export interface TrackPickupEvent {
-  atSeconds: number;
-  gunId: GunId;
-  level: 1 | 2 | 3;
-  lane: 0 | 1;
-}
-
-export interface TrackMultiplierEvent {
-  atSeconds: number;
-  multiplierId: MultiplierId;
-  lane: 0 | 1;
-}
+import type { TrackDefinition } from "./TrackDefinition";
+import { parseTrackDefinition } from "./TrackDefinition";
+import { firstTrack } from "./tracks/firstTrack";
 
 export interface TrackMember {
   label: string;
@@ -47,9 +27,7 @@ export interface TrackMember {
     crackDensity: number;
     airStreakCount: number;
   };
-  enemySchedule: readonly TrackEnemyEvent[];
-  pickupSchedule: readonly TrackPickupEvent[];
-  multiplierSchedule: readonly TrackMultiplierEvent[];
+  definition: TrackDefinition;
 }
 
 export class TrackFamilyDefinition extends FamilyDefinition<Record<string, TrackMember>> {
@@ -78,27 +56,7 @@ export class TrackFamilyDefinition extends FamilyDefinition<Record<string, Track
         crackDensity: 14,
         airStreakCount: 11,
       },
-      enemySchedule: [
-        { atSeconds: 1.5, enemyId: "basicOrb", lane: 0, count: 3, spacing: 16 },
-        { atSeconds: 3.8, enemyId: "basicOrb", lane: 1, count: 3, spacing: 16 },
-        { atSeconds: 6.2, enemyId: "basicOrb", lane: 0, count: 4, spacing: 15 },
-        { atSeconds: 8.1, enemyId: "basicOrb", lane: 1, count: 4, spacing: 15 },
-        { atSeconds: 10.6, enemyId: "basicOrb", lane: 1, count: 5, spacing: 14 },
-        { atSeconds: 13.2, enemyId: "basicOrb", lane: 0, count: 5, spacing: 14 },
-        { atSeconds: 16.1, enemyId: "basicOrb", lane: 1, count: 5, spacing: 14 },
-        { atSeconds: 19.0, enemyId: "basicOrb", lane: 0, count: 5, spacing: 14 },
-      ],
-      pickupSchedule: [
-        { atSeconds: 5, gunId: "needlerSmg", level: 1, lane: 1 },
-        { atSeconds: 11.5, gunId: "burstCarbine", level: 1, lane: 0 },
-        { atSeconds: 17, gunId: "heavyCannon", level: 1, lane: 1 },
-      ],
-      multiplierSchedule: [
-        { atSeconds: 2.5, multiplierId: "squadPlusOne", lane: 0 },
-        { atSeconds: 4.8, multiplierId: "squadPlusOne", lane: 1 },
-        { atSeconds: 7.4, multiplierId: "squadPlusOne", lane: 0 },
-        { atSeconds: 9.6, multiplierId: "squadPlusOne", lane: 1 },
-      ],
+      definition: firstTrack,
     },
   } as const satisfies Record<string, TrackMember>;
 
@@ -112,9 +70,7 @@ export class TrackFamilyDefinition extends FamilyDefinition<Record<string, Track
       this.require(track.durationSeconds > 0, `${id} duration must be positive.`);
       this.require(track.viewport.orientation === "portrait" && track.viewport.aspectHeight > track.viewport.aspectWidth, `${id} must use its declared portrait viewport.`);
       this.require(track.viewport.logicalWidth > 0 && track.viewport.logicalHeight > 0, `${id} logical viewport must be positive.`);
-      this.require(track.enemySchedule.every(event => event.atSeconds < track.durationSeconds), `${id} has an enemy after the finish.`);
-      this.require(track.pickupSchedule.every(event => event.atSeconds < track.durationSeconds), `${id} has a pickup after the finish.`);
-      this.require(track.multiplierSchedule.every(event => event.atSeconds < track.durationSeconds), `${id} has a multiplier after the finish.`);
+      parseTrackDefinition(track.definition);
       this.require(track.environment.crackDensity > 0 && track.environment.airStreakCount > 0, `${id} environment must contain detail.`);
       this.require(neonPalette[track.environment.floorColor] !== undefined, `${id} has an unknown floor color.`);
     }

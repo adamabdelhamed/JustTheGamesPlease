@@ -21,12 +21,17 @@ export { FamilyDefinition } from "./FamilyDefinition";
 export {
   trackFamily,
   TrackFamilyDefinition,
-  type TrackEnemyEvent,
   type TrackId,
   type TrackMember,
-  type TrackMultiplierEvent,
-  type TrackPickupEvent,
 } from "./TrackFamily";
+export {
+  parseTrackDefinition,
+  type ParsedTrackEntity,
+  type TrackBalance,
+  type TrackDefinition,
+  type TrackLegendEntry,
+} from "./TrackDefinition";
+export { firstTrack } from "./tracks/firstTrack";
 export {
   multiplierFamily,
   MultiplierFamilyDefinition,
