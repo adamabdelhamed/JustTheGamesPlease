@@ -607,7 +607,29 @@ function parseTrackDefinition(track) {
 
 // projects/NeonSwarm/CombatDefinition/tracks/firstTrack.ts
 var firstTrack = {
-  layout: `
+  label: "Electric Causeway",
+  description: "A short cyan causeway with fractured power seams and alternating lane pressure.",
+  durationSeconds: 26,
+  startingGun: "pulsePistol",
+  startingGunLevel: 1,
+  viewport: {
+    orientation: "portrait",
+    aspectWidth: 9,
+    aspectHeight: 16,
+    logicalWidth: 450,
+    logicalHeight: 800
+  },
+  environment: {
+    floorColor: "deepBlue",
+    crackColor: "cyan",
+    airColor: "violet",
+    horizonColor: "pink",
+    pulseRate: 1.35,
+    crackDensity: 14,
+    airStreakCount: 11
+  },
+  definition: {
+    layout: `
 ..... | .....
 ..... | ..E..
 ..... | .....
@@ -634,48 +656,93 @@ var firstTrack = {
 ..E.. | .....
 ..P.. | ..P..
 `,
-  legend: {
-    ".": { id: "empty" },
-    "P": { id: "player.start" },
-    "E": { id: "enemy.basic" },
-    "2": { id: "pickup.unitMultiplier.2x", speed: 0.8 }
-  },
-  balance: {
-    enemyHp: 1,
-    enemySpeed: 1
+    legend: {
+      ".": { id: "empty" },
+      "P": { id: "player.start" },
+      "E": { id: "enemy.basic" },
+      "2": { id: "pickup.unitMultiplier.2x", speed: 0.8 }
+    },
+    balance: {
+      enemyHp: 1,
+      enemySpeed: 1
+    }
   }
+};
+
+// projects/NeonSwarm/CombatDefinition/tracks/secondTrack.ts
+var secondTrack = {
+  label: "Violet Crossfire",
+  description: "Faster enemies alternate sides in short bursts, with fewer recovery pickups.",
+  durationSeconds: 24,
+  startingGun: "pulsePistol",
+  startingGunLevel: 1,
+  viewport: {
+    orientation: "portrait",
+    aspectWidth: 9,
+    aspectHeight: 16,
+    logicalWidth: 450,
+    logicalHeight: 800
+  },
+  environment: {
+    floorColor: "violet",
+    crackColor: "pink",
+    airColor: "cyan",
+    horizonColor: "orange",
+    pulseRate: 1.8,
+    crackDensity: 10,
+    airStreakCount: 15
+  },
+  definition: {
+    layout: `
+..... | ..E..
+..E.. | .....
+..... | .....
+.E.E. | .....
+..... | .E.E.
+..... | .....
+..E.. | ..E..
+..... | .....
+...E. | .E...
+..... | .....
+..2.. | .....
+..... | ..E..
+.E.E. | .....
+..... | .E.E.
+..... | .....
+..E.. | ..E..
+..... | .....
+.EEE. | .....
+..... | .EEE.
+..... | .....
+..E.. | .....
+..... | ..E..
+..... | .....
+..P.. | ..P..
+`,
+    legend: {
+      ".": { id: "empty" },
+      "P": { id: "player.start" },
+      "E": { id: "enemy.basic", speed: 1.15 },
+      "2": { id: "pickup.unitMultiplier.2x" }
+    },
+    balance: {
+      enemyHp: 1,
+      enemySpeed: 1.1
+    }
+  }
+};
+
+// projects/NeonSwarm/CombatDefinition/tracks/index.ts
+var tracks = {
+  electricCauseway: firstTrack,
+  violetCrossfire: secondTrack
 };
 
 // projects/NeonSwarm/CombatDefinition/TrackFamily.ts
 var TrackFamilyDefinition = class extends FamilyDefinition {
   familyId = "track";
   label = "Track";
-  members = {
-    electricCauseway: {
-      label: "Electric Causeway",
-      description: "A short cyan causeway with fractured power seams and alternating lane pressure.",
-      durationSeconds: 26,
-      startingGun: "pulsePistol",
-      startingGunLevel: 1,
-      viewport: {
-        orientation: "portrait",
-        aspectWidth: 9,
-        aspectHeight: 16,
-        logicalWidth: 450,
-        logicalHeight: 800
-      },
-      environment: {
-        floorColor: "deepBlue",
-        crackColor: "cyan",
-        airColor: "violet",
-        horizonColor: "pink",
-        pulseRate: 1.35,
-        crackDensity: 14,
-        airStreakCount: 11
-      },
-      definition: firstTrack
-    }
-  };
+  members = tracks;
   constructor() {
     super();
     this.validate();

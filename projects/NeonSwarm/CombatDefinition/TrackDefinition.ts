@@ -1,3 +1,6 @@
+import type { NeonColorName } from "@just-the-games-please/neon-factory";
+import type { GunId } from "./GunFamily";
+
 export interface TrackLegendEntry {
   id: string;
   speed?: number;
@@ -12,6 +15,31 @@ export interface TrackDefinition {
   layout: string;
   legend: Readonly<Record<string, TrackLegendEntry>>;
   balance: TrackBalance;
+}
+
+export interface TrackMember {
+  label: string;
+  description: string;
+  durationSeconds: number;
+  startingGun: GunId;
+  startingGunLevel: 1 | 2 | 3;
+  viewport: {
+    orientation: "portrait";
+    aspectWidth: number;
+    aspectHeight: number;
+    logicalWidth: number;
+    logicalHeight: number;
+  };
+  environment: {
+    floorColor: NeonColorName;
+    crackColor: NeonColorName;
+    airColor: NeonColorName;
+    horizonColor: NeonColorName;
+    pulseRate: number;
+    crackDensity: number;
+    airStreakCount: number;
+  };
+  definition: TrackDefinition;
 }
 
 export interface ParsedTrackEntity {

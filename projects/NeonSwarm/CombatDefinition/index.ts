@@ -22,7 +22,6 @@ export {
   trackFamily,
   TrackFamilyDefinition,
   type TrackId,
-  type TrackMember,
 } from "./TrackFamily";
 export {
   parseTrackDefinition,
@@ -30,8 +29,9 @@ export {
   type TrackBalance,
   type TrackDefinition,
   type TrackLegendEntry,
+  type TrackMember,
 } from "./TrackDefinition";
-export { firstTrack } from "./tracks/firstTrack";
+export { firstTrack, secondTrack, tracks } from "./tracks";
 export {
   multiplierFamily,
   MultiplierFamilyDefinition,

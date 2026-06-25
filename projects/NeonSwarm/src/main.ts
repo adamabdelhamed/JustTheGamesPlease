@@ -23,10 +23,11 @@ const error = document.querySelector<HTMLElement>("#error")!;
 const developerTools = document.querySelector<HTMLElement>("#developer-tools")!;
 const gameElement = document.querySelector<HTMLElement>("#game")!;
 developerTools.hidden = new URLSearchParams(location.search).get("dev") !== "1";
-applyPortraitStage(gameElement, trackFamily.members.electricCauseway.viewport);
+const defaultTrack = Object.values(trackFamily.members)[0];
+applyPortraitStage(gameElement, defaultTrack.viewport);
 
 try {
-  const viewport = trackFamily.members.electricCauseway.viewport;
+  const viewport = defaultTrack.viewport;
   const renderer = await NeonTopDownSceneRenderer.create(canvas, viewport.logicalWidth, viewport.logicalHeight);
   let activeTrack: TrackMember | null = null;
   let startedAt = 0;
