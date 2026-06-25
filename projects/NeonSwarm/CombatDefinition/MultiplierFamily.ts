@@ -11,6 +11,7 @@ export interface MultiplierMember {
   pickupColor: NeonColorName;
   coreColor: NeonColorName;
   pulseRate: number;
+  pickupShapeZoom: number;
 }
 
 export class MultiplierFamilyDefinition extends FamilyDefinition<Record<string, MultiplierMember>> {
@@ -23,10 +24,11 @@ export class MultiplierFamilyDefinition extends FamilyDefinition<Record<string, 
       maxSquadSize: 10,
       membersPerRow: 5,
       memberRadius: 5.25,
-      spacing: 13,
+      spacing: 18,
       pickupColor: "gold",
       coreColor: "cyan",
       pulseRate: 2.2,
+      pickupShapeZoom: 3.1,
     },
   } as const satisfies Record<string, MultiplierMember>;
 

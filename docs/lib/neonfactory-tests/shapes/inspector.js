@@ -10,37 +10,6 @@ var neonPalette = {
   deepBlue: "#287dff",
   whiteHot: "#f4fbff"
 };
-var glowPresets = {
-  soft: 0.38,
-  standard: 0.65,
-  intense: 1
-};
-
-// projects/NeonFactory/src/orb.ts
-var NeonOrb = class {
-  x;
-  y;
-  radius;
-  color;
-  glow;
-  animate;
-  constructor(options = {}) {
-    this.x = options.x ?? 0.5;
-    this.y = options.y ?? 0.5;
-    this.radius = options.radius ?? 0.12;
-    this.color = options.color ?? neonPalette.cyan;
-    this.glow = options.glow ?? glowPresets.standard;
-    this.animate = options.animate ?? true;
-  }
-  update(options) {
-    Object.assign(this, options);
-    this.x = Math.max(0, Math.min(1, this.x));
-    this.y = Math.max(0, Math.min(1, this.y));
-    this.radius = Math.max(0.01, Math.min(0.5, this.radius));
-    this.glow = Math.max(0, Math.min(1.5, this.glow));
-    return this;
-  }
-};
 
 // projects/NeonFactory/src/geometric-shapes.ts
 var regular = (sides, rotation = -Math.PI / 2, sx = 1, sy = 1) => Array.from({ length: sides }, (_, i) => {
@@ -48,9 +17,9 @@ var regular = (sides, rotation = -Math.PI / 2, sx = 1, sy = 1) => Array.from({ l
   return [Math.cos(angle) * sx, Math.sin(angle) * sy];
 });
 var star = (points, inner = 0.42, rotation = -Math.PI / 2) => Array.from({ length: points * 2 }, (_, i) => {
-  const radius2 = i % 2 ? inner : 1;
+  const radius = i % 2 ? inner : 1;
   const angle = rotation + i * Math.PI / points;
-  return [Math.cos(angle) * radius2, Math.sin(angle) * radius2];
+  return [Math.cos(angle) * radius, Math.sin(angle) * radius];
 });
 var diamond = [[0, -1], [1, 0], [0, 1], [-1, 0]];
 var arrow = [[0, -1], [0.82, 0.68], [0.27, 0.45], [0, 0.92], [-0.27, 0.45], [-0.82, 0.68]];
@@ -196,24 +165,24 @@ var normalize = (v) => {
   const length = Math.hypot(...v) || 1;
   return [v[0] / length, v[1] / length, v[2] / length];
 };
-var rotate = ([x, y, z], rx, ry, rz) => {
-  let a = y * Math.cos(rx) - z * Math.sin(rx), b = y * Math.sin(rx) + z * Math.cos(rx);
+var rotate = ([x, y, z], rx2, ry2, rz) => {
+  let a = y * Math.cos(rx2) - z * Math.sin(rx2), b = y * Math.sin(rx2) + z * Math.cos(rx2);
   y = a;
   z = b;
-  a = x * Math.cos(ry) + z * Math.sin(ry);
-  b = -x * Math.sin(ry) + z * Math.cos(ry);
+  a = x * Math.cos(ry2) + z * Math.sin(ry2);
+  b = -x * Math.sin(ry2) + z * Math.cos(ry2);
   x = a;
   z = b;
   return [x * Math.cos(rz) - y * Math.sin(rz), x * Math.sin(rz) + y * Math.cos(rz), z];
 };
 function mesh(instance) {
   const { shape } = instance;
-  const depth = shape.depth ?? 0.14;
-  const color2 = hex(instance.color ?? shape.color);
+  const depth2 = shape.depth ?? 0.14;
+  const color = hex(instance.color ?? shape.color);
   const scale = instance.scale ?? 1;
-  const rx = instance.rotationX ?? 0, ry = instance.rotationY ?? 0, rz = instance.rotationZ ?? 0;
+  const rx2 = instance.rotationX ?? 0, ry2 = instance.rotationY ?? 0, rz = instance.rotationZ ?? 0;
   const move = (point, z) => {
-    const p = rotate([point[0] * scale, -point[1] * scale, z * scale], rx, ry, rz);
+    const p = rotate([point[0] * scale, -point[1] * scale, z * scale], rx2, ry2, rz);
     return [p[0] + (instance.x ?? 0), p[1] + (instance.y ?? 0), p[2] + (instance.z ?? 0)];
   };
   const output = [];
@@ -225,10 +194,10 @@ function mesh(instance) {
       instance.energySpeed ?? 1,
       instance.energyBleed ?? 0.35
     ];
-    [a, b, c].forEach((p) => output.push({ p, n, color: color2, glow: (instance.glow ?? 1) * (instance.opacity ?? 1), effect }));
+    [a, b, c].forEach((p) => output.push({ p, n, color, glow: (instance.glow ?? 1) * (instance.opacity ?? 1), effect }));
   };
-  const front = shape.points.map((point) => move(point, depth / 2));
-  const back = shape.points.map((point) => move(point, -depth / 2));
+  const front = shape.points.map((point) => move(point, depth2 / 2));
+  const back = shape.points.map((point) => move(point, -depth2 / 2));
   for (let i = 1; i < front.length - 1; i++) add(front[0], front[i], front[i + 1]);
   for (let i = 1; i < back.length - 1; i++) add(back[0], back[i + 1], back[i]);
   shape.points.forEach((_, i) => {
@@ -240,12 +209,12 @@ function mesh(instance) {
 }
 function edgeMesh(instance) {
   const { shape } = instance;
-  const depth = shape.depth ?? 0.14;
-  const color2 = hex(instance.color ?? shape.color);
+  const depth2 = shape.depth ?? 0.14;
+  const color = hex(instance.color ?? shape.color);
   const scale = instance.scale ?? 1;
-  const rx = instance.rotationX ?? 0, ry = instance.rotationY ?? 0, rz = instance.rotationZ ?? 0;
+  const rx2 = instance.rotationX ?? 0, ry2 = instance.rotationY ?? 0, rz = instance.rotationZ ?? 0;
   const move = (point, z) => {
-    const p = rotate([point[0] * scale, -point[1] * scale, z * scale], rx, ry, rz);
+    const p = rotate([point[0] * scale, -point[1] * scale, z * scale], rx2, ry2, rz);
     return [p[0] + (instance.x ?? 0), p[1] + (instance.y ?? 0), p[2] + (instance.z ?? 0)];
   };
   const explode = (a, b, index) => {
@@ -254,8 +223,8 @@ function edgeMesh(instance) {
     const mx = (a[0] + b[0]) / 2 - (instance.x ?? 0), my = (a[1] + b[1]) / 2 - (instance.y ?? 0);
     const length = Math.hypot(mx, my) || 1;
     const magnitude = instance.explodeMagnitude ?? 0.55;
-    const speed = magnitude * (0.45 + (Math.sin(index * 91.17) * 0.5 + 0.5) * 0.55);
-    const dx = mx / length * progress * speed, dy = my / length * progress * speed + progress * progress * 0.18;
+    const speed2 = magnitude * (0.45 + (Math.sin(index * 91.17) * 0.5 + 0.5) * 0.55);
+    const dx = mx / length * progress * speed2, dy = my / length * progress * speed2 + progress * progress * 0.18;
     const angle = progress * (index % 2 ? 1 : -1) * 2.4;
     const transform = (p) => {
       const x = p[0] - (instance.x ?? 0), y = p[1] - (instance.y ?? 0);
@@ -280,7 +249,7 @@ function edgeMesh(instance) {
     const a0 = [a[0] - ox, a[1] - oy, a[2]], a1 = [a[0] + ox, a[1] + oy, a[2]];
     const b0 = [b[0] - ox, b[1] - oy, b[2]], b1 = [b[0] + ox, b[1] + oy, b[2]];
     const start = distance * 2.4, end = (distance + length) * 2.4;
-    const push = (p, along, across) => output.push({ p, n: [along, across, phase], color: color2, glow: (instance.glow ?? 1) * opacity * (instance.opacity ?? 1) * (1 + Math.sin((instance.explodeProgress ?? 0) * Math.PI) * (instance.explodeMagnitude ?? 0.55) * 2.2) * (1 - (instance.explodeProgress ?? 0) * 0.7), effect });
+    const push = (p, along, across) => output.push({ p, n: [along, across, phase], color, glow: (instance.glow ?? 1) * opacity * (instance.opacity ?? 1) * (1 + Math.sin((instance.explodeProgress ?? 0) * Math.PI) * (instance.explodeMagnitude ?? 0.55) * 2.2) * (1 - (instance.explodeProgress ?? 0) * 0.7), effect });
     push(a0, start, -1);
     push(a1, start, 1);
     push(b0, end, -1);
@@ -290,13 +259,13 @@ function edgeMesh(instance) {
     distance += length;
   };
   const addLoop = (points, z, phase) => points.forEach((point, index) => addLine(move(point, z), move(points[(index + 1) % points.length], z), phase + index * 0.73));
-  addLoop(shape.points, depth / 2, 0.3);
-  addLoop(shape.points, -depth / 2, 2.1);
+  addLoop(shape.points, depth2 / 2, 0.3);
+  addLoop(shape.points, -depth2 / 2, 2.1);
   shape.holes?.forEach((hole, index) => {
-    addLoop(hole, depth / 2 + 2e-3, 3.7 + index);
-    addLoop(hole, -depth / 2 - 2e-3, 5.2 + index);
+    addLoop(hole, depth2 / 2 + 2e-3, 3.7 + index);
+    addLoop(hole, -depth2 / 2 - 2e-3, 5.2 + index);
   });
-  shape.points.forEach((point, index) => addLine(move(point, -depth / 2), move(point, depth / 2), 6.1 + index));
+  shape.points.forEach((point, index) => addLine(move(point, -depth2 / 2), move(point, depth2 / 2), 6.1 + index));
   const time = performance.now() / 1e3 * (instance.energySpeed ?? 1);
   const branchStrength = (instance.energyIntensity ?? 1) * (instance.energyCoverage ?? 0.32);
   const random = (seed) => {
@@ -340,12 +309,12 @@ function edgeMesh(instance) {
         const end = points[segment + 1];
         const hazeStart = [start[0] + perpendicular[0] * drift, start[1] + perpendicular[1] * drift];
         const hazeEnd = [end[0] + perpendicular[0] * drift, end[1] + perpendicular[1] * drift];
-        addLine(move(hazeStart, depth / 2 + 2e-3), move(hazeEnd, depth / 2 + 2e-3), 31 + seed + segment, 1.45 + fade * 0.55, fade * 0.34);
+        addLine(move(hazeStart, depth2 / 2 + 2e-3), move(hazeEnd, depth2 / 2 + 2e-3), 31 + seed + segment, 1.45 + fade * 0.55, fade * 0.34);
       });
     }
     if (branchActive) {
       points.slice(0, -1).forEach((start, segment) => {
-        addLine(move(start, depth / 2 + 6e-3), move(points[segment + 1], depth / 2 + 6e-3), 11 + seed + segment, 0.42);
+        addLine(move(start, depth2 / 2 + 6e-3), move(points[segment + 1], depth2 / 2 + 6e-3), 11 + seed + segment, 0.42);
       });
     }
   });
@@ -540,6 +509,106 @@ var NeonGeometricShapeRenderer = class _NeonGeometricShapeRenderer {
     this.canvas.height = height;
     this.#depth?.destroy();
     this.#depth = this.device.createTexture({ size: [width, height], format: "depth24plus", usage: GPUTextureUsage.RENDER_ATTACHMENT });
+  }
+};
+
+// projects/NeonFactory/src/geometric-shape-actor.ts
+var NeonShapeActor = class {
+  shape;
+  x;
+  y;
+  z;
+  velocity;
+  scale;
+  label;
+  color;
+  disposal;
+  explodeMagnitude;
+  rotationX = 0;
+  rotationY = 0;
+  rotationZ = 0;
+  disposed = false;
+  #disposalProgress = 0;
+  #impactVelocity = { x: 0, y: 0 };
+  #impactRotation = { x: 0, y: 0 };
+  constructor(options) {
+    this.shape = options.shape;
+    this.x = options.x ?? 0;
+    this.y = options.y ?? 0;
+    this.z = options.z ?? 0;
+    this.velocity = { x: options.velocity?.x ?? 0, y: options.velocity?.y ?? 0 };
+    this.scale = options.scale ?? 1;
+    this.label = options.label;
+    this.color = options.color;
+    this.disposal = options.disposal ?? "fadeOut" /* FadeOut */;
+    this.explodeMagnitude = options.explodeMagnitude ?? 0.55;
+  }
+  moveTo(x, y, z = this.z) {
+    this.x = x;
+    this.y = y;
+    this.z = z;
+    return this;
+  }
+  setVelocity(x, y) {
+    this.velocity.x = x;
+    this.velocity.y = y;
+    return this;
+  }
+  impact({ direction, magnitude }) {
+    const length = Math.hypot(direction.x, direction.y) || 1;
+    const x = direction.x / length, y = direction.y / length;
+    this.#impactVelocity.x += x * magnitude * 0.34;
+    this.#impactVelocity.y += y * magnitude * 0.34;
+    this.#impactRotation.x += y * magnitude * 0.9;
+    this.#impactRotation.y -= x * magnitude * 0.9;
+    return this;
+  }
+  dispose(mode = this.disposal) {
+    this.disposal = mode;
+    this.#disposalProgress = mode === "disappear" /* Disappear */ ? 1 : 1e-4;
+    if (mode === "disappear" /* Disappear */) this.disposed = true;
+    return this;
+  }
+  regenerate() {
+    this.disposed = false;
+    this.#disposalProgress = 0;
+    return this;
+  }
+  update(deltaSeconds) {
+    this.x += (this.velocity.x + this.#impactVelocity.x) * deltaSeconds;
+    this.y += (this.velocity.y + this.#impactVelocity.y) * deltaSeconds;
+    this.rotationX += this.#impactRotation.x * deltaSeconds;
+    this.rotationY += this.#impactRotation.y * deltaSeconds;
+    const damping = Math.exp(-7 * deltaSeconds);
+    this.#impactVelocity.x *= damping;
+    this.#impactVelocity.y *= damping;
+    this.#impactRotation.x *= damping;
+    this.#impactRotation.y *= damping;
+    if (this.#disposalProgress > 0 && !this.disposed) {
+      const duration = this.disposal === "explode" /* Explode */ ? 0.85 : 0.55;
+      this.#disposalProgress = Math.min(1, this.#disposalProgress + deltaSeconds / duration);
+      if (this.#disposalProgress >= 1) this.disposed = true;
+    }
+    return this;
+  }
+  renderInstance(overrides = {}) {
+    const fade = this.disposal === "fadeOut" /* FadeOut */ ? 1 - this.#disposalProgress : 1;
+    return {
+      shape: this.shape,
+      x: this.x,
+      y: this.y,
+      z: this.z,
+      scale: this.scale,
+      rotationX: this.rotationX,
+      rotationY: this.rotationY,
+      rotationZ: this.rotationZ,
+      label: this.label,
+      color: this.color,
+      opacity: this.disposed ? 0 : fade,
+      explodeProgress: this.disposal === "explode" /* Explode */ ? this.#disposalProgress : 0,
+      explodeMagnitude: this.explodeMagnitude,
+      ...overrides
+    };
   }
 };
 
@@ -887,32 +956,216 @@ function createTestPage(id, driver, statusElement) {
   return api;
 }
 
-// projects/NeonFactory/test-pages/orb/orb-test.ts
-var canvas = document.querySelector("#orb-canvas");
-var status = document.querySelector("#test-status");
-var error = document.querySelector("#error");
-var color = document.querySelector("#color");
-var radius = document.querySelector("#radius");
-var glow = document.querySelector("#glow");
-var animate = document.querySelector("#animate");
-var orb = new NeonOrb();
-var update = (options) => {
-  orb.update(options);
-  if (options.color) color.value = options.color;
-  if (options.radius !== void 0) radius.value = String(options.radius * 100);
-  if (options.glow !== void 0) glow.value = String(options.glow * 100);
-  if (options.animate !== void 0) animate.checked = options.animate;
+// projects/NeonFactory/test-pages/shapes/tuning-storage.ts
+var storageKey = "neonFactory.shapeTunings.v1";
+var defaultShapeTunings = {
+  zoom: 0.21,
+  depth: 0.06,
+  lineThickness: 0.54,
+  energyIntensity: 1.1,
+  energyCoverage: 0.32,
+  energySpeed: 0.79,
+  energyBleed: 0.35
 };
-var test = createTestPage("neon-factory-orb", { setOrb: update }, status);
-color.addEventListener("change", () => update({ color: color.value }));
-radius.addEventListener("input", () => update({ radius: Number(radius.value) / 100 }));
-glow.addEventListener("input", () => update({ glow: Number(glow.value) / 100 }));
-animate.addEventListener("change", () => update({ animate: animate.checked }));
+function loadShapeTuningStorage() {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(storageKey) ?? "null");
+    return {
+      version: 1,
+      tunings: { ...defaultShapeTunings, ...parsed?.tunings },
+      notes: parsed?.notes ?? {},
+      labels: parsed?.labels ?? {}
+    };
+  } catch {
+    return { version: 1, tunings: { ...defaultShapeTunings }, notes: {}, labels: {} };
+  }
+}
+function saveShapeTuningStorage(value) {
+  localStorage.setItem(storageKey, JSON.stringify(value));
+}
+function exportShapeTunings(storage2) {
+  const notedShapes = Object.entries(storage2.notes).filter(([, note]) => note.trim());
+  const notesJson = Object.fromEntries(notedShapes);
+  const markdown = `# NeonFactory Shape Tunings
+
+Generated: ${(/* @__PURE__ */ new Date()).toISOString()}
+
+## Global rendering tunings
+
+\`\`\`json
+${JSON.stringify(storage2.tunings, null, 2)}
+\`\`\`
+
+## Shape notes
+
+\`\`\`json
+${JSON.stringify(notesJson, null, 2)}
+\`\`\`
+
+## Shape label defaults
+
+\`\`\`json
+${JSON.stringify(storage2.labels, null, 2)}
+\`\`\`
+`;
+  const url = URL.createObjectURL(new Blob([markdown], { type: "text/markdown" }));
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = "neonfactory-shape-tunings.md";
+  anchor.click();
+  URL.revokeObjectURL(url);
+}
+
+// projects/NeonFactory/test-pages/shapes/inspector.ts
+var q = (selector) => document.querySelector(selector);
+var canvas = q("#stage");
+var status = q("#test-status");
+var error = q("#error");
+var select = q("#shape");
+var zoom = q("#zoom");
+var depth = q("#depth");
+var thickness = q("#thickness");
+var intensity = q("#intensity");
+var coverage = q("#coverage");
+var speed = q("#speed");
+var bleed = q("#bleed");
+var labelText = q("#label-text");
+var labelPosition = q("#label-position");
+var labelOffset = q("#label-offset");
+var labelFont = q("#label-font");
+var labelSize = q("#label-size");
+var velocityX = q("#velocity-x");
+var velocityY = q("#velocity-y");
+var impactMagnitude = q("#impact-magnitude");
+var impactVector = q("#impact-vector");
+var disposal = q("#disposal");
+var explodeMagnitude = q("#explode-magnitude");
+var notes = q("#notes");
+var auto = q("#auto");
+var title = q("#title");
+var readout = q("#readout");
+select.innerHTML = neonShapeCatalog.map((shape, i) => `<option value="${i}">${shape.family.toUpperCase()} \xB7 ${shape.name}</option>`).join("");
+var requested = new URLSearchParams(location.search).get("shape");
+var requestedIndex = neonShapeCatalog.findIndex((shape) => shape.id === requested);
+if (requestedIndex >= 0) select.value = String(requestedIndex);
+var storage = loadShapeTuningStorage();
+zoom.value = String(storage.tunings.zoom * 100);
+depth.value = String(storage.tunings.depth * 100);
+thickness.value = String(storage.tunings.lineThickness * 100);
+intensity.value = String(storage.tunings.energyIntensity * 100);
+coverage.value = String(storage.tunings.energyCoverage * 100);
+speed.value = String(storage.tunings.energySpeed * 100);
+bleed.value = String(storage.tunings.energyBleed * 100);
+var currentShape = () => neonShapeCatalog[Number(select.value)];
+var actor = new NeonShapeActor({ shape: currentShape(), scale: Number(zoom.value) / 100 });
+var loadShapeSettings = () => {
+  const saved = storage.labels[currentShape().id];
+  notes.value = storage.notes[currentShape().id] ?? "";
+  labelText.value = saved?.text ?? "";
+  labelPosition.value = saved?.position ?? "above";
+  labelOffset.value = String(saved?.offset ?? 8);
+  labelFont.value = saved?.fontFamily ?? "Segoe UI, sans-serif";
+  labelSize.value = String(saved?.fontSize ?? 18);
+  actor = new NeonShapeActor({ shape: currentShape(), scale: Number(zoom.value) / 100 });
+};
+loadShapeSettings();
+var saveTunings = () => {
+  storage.tunings = { zoom: +zoom.value / 100, depth: +depth.value / 100, lineThickness: +thickness.value / 100, energyIntensity: +intensity.value / 100, energyCoverage: +coverage.value / 100, energySpeed: +speed.value / 100, energyBleed: +bleed.value / 100 };
+  saveShapeTuningStorage(storage);
+};
+[zoom, depth, thickness, intensity, coverage, speed, bleed].forEach((control) => control.addEventListener("input", saveTunings));
+var saveLabel = () => {
+  storage.labels[currentShape().id] = { text: labelText.value, position: labelPosition.value, offset: +labelOffset.value, fontFamily: labelFont.value, fontSize: +labelSize.value };
+  saveShapeTuningStorage(storage);
+};
+[labelText, labelPosition, labelOffset, labelFont, labelSize].forEach((control) => control.addEventListener("input", saveLabel));
+select.addEventListener("change", loadShapeSettings);
+notes.addEventListener("input", () => {
+  storage.notes[currentShape().id] = notes.value;
+  saveShapeTuningStorage(storage);
+});
+q("#export").addEventListener("click", () => exportShapeTunings(storage));
+var rx = 0.28;
+var ry = -0.3;
+var dragging = false;
+var px = 0;
+var py = 0;
+var inputX = 0;
+var inputY = 0;
+var impactDirection = { x: 0, y: -1 };
+var reset = () => {
+  rx = 0.28;
+  ry = -0.3;
+  actor.moveTo(0, 0).setVelocity(0, 0).regenerate();
+};
+q("#reset").addEventListener("click", reset);
+canvas.addEventListener("pointerdown", (event) => {
+  if (event.shiftKey) {
+    dragging = true;
+    px = event.clientX;
+    py = event.clientY;
+    canvas.setPointerCapture(event.pointerId);
+    return;
+  }
+  const rect = canvas.getBoundingClientRect();
+  impactDirection = { x: event.clientX - (rect.left + rect.width / 2), y: rect.top + rect.height / 2 - event.clientY };
+  impactVector.style.transform = `rotate(${Math.atan2(-impactDirection.y, impactDirection.x)}rad)`;
+});
+canvas.addEventListener("pointermove", (event) => {
+  if (dragging) {
+    ry += (event.clientX - px) * 8e-3;
+    rx += (event.clientY - py) * 8e-3;
+    px = event.clientX;
+    py = event.clientY;
+    auto.checked = false;
+  }
+});
+canvas.addEventListener("pointerup", () => dragging = false);
+q("#impact").addEventListener("click", () => actor.impact({ direction: impactDirection, magnitude: +impactMagnitude.value / 100 }));
+q("#stop-movement").addEventListener("click", () => {
+  velocityX.value = "0";
+  velocityY.value = "0";
+  actor.setVelocity(0, 0);
+});
+q("#dispose").addEventListener("click", () => {
+  actor.explodeMagnitude = +explodeMagnitude.value / 100;
+  actor.dispose(disposal.value);
+  setTimeout(() => {
+    actor = new NeonShapeActor({ shape: currentShape(), scale: +zoom.value / 100, explodeMagnitude: +explodeMagnitude.value / 100 });
+  }, 1100);
+});
+var controllerWindow = window;
+controllerWindow.gameController?.createJoystick({ element: "#stick", knobSelector: "i", radius: 54, orientationLayout: { portrait: { x: 86, yFromBottom: 86 }, landscape: { x: 86, yFromBottom: 86 } } }).onChange((value) => {
+  inputX = value.x;
+  inputY = value.y;
+  auto.checked = false;
+});
+var test = createTestPage("neon-factory-shape-inspector", { impact: (direction, magnitude) => actor.impact({ direction, magnitude }), dispose: (mode) => actor.dispose(mode), moveTo: (x, y) => actor.moveTo(x, y) }, status);
 try {
-  const renderer = await NeonTopDownSceneRenderer.create(canvas, 800, 600);
-  let frame = 0;
+  const renderer = await NeonTopDownSceneRenderer.create(canvas, 900, 700);
+  let frame = 0, last = performance.now();
   const render = (now) => {
-    renderer.render({ primitives: [{ x: orb.x * 800, y: orb.y * 600, width: orb.radius * 600, color: orb.color, glow: orb.glow, shape: "orb" }] }, now / 1e3);
+    const dt = Math.min(0.04, (now - last) / 1e3);
+    last = now;
+    rx += inputY * dt * 2.2;
+    ry += inputX * dt * 2.2;
+    actor.shape = { ...currentShape(), depth: +depth.value / 100 };
+    actor.scale = +zoom.value / 100;
+    actor.setVelocity(+velocityX.value / 100, +velocityY.value / 100).update(dt);
+    let ax = rx, ay = ry, az = 0;
+    if (auto.checked) {
+      const wave = Math.sin(now / 700) * 0.24;
+      if (actor.shape.rock === "pitch") ax += wave;
+      if (actor.shape.rock === "roll") az = wave;
+      if (actor.shape.rock === "yaw" || actor.shape.rock === "orbit") ay += wave;
+    }
+    actor.rotationX = ax;
+    actor.rotationY = ay;
+    actor.rotationZ = az;
+    actor.label = labelText.value ? { text: labelText.value, position: labelPosition.value, offset: +labelOffset.value, fontFamily: labelFont.value, fontSize: +labelSize.value } : void 0;
+    title.textContent = actor.shape.name;
+    readout.textContent = `${actor.shape.family.toUpperCase()} \xB7 ${actor.shape.rock} \xB7 position ${actor.x.toFixed(2)}, ${actor.y.toFixed(2)}`;
+    renderer.render({ shapes: [{ ...actor.renderInstance({ lineThickness: +thickness.value / 100, energyIntensity: +intensity.value / 100, energyCoverage: +coverage.value / 100, energySpeed: +speed.value / 100, energyBleed: +bleed.value / 100 }), x: 450 + actor.x * 280, y: 350 - actor.y * 280, size: actor.scale * 280 }] }, now / 1e3);
     frame = requestAnimationFrame(render);
   };
   frame = requestAnimationFrame(render);
@@ -921,14 +1174,12 @@ try {
     renderer.destroy();
   }, { once: true });
   test.ready();
-  test.assert("WebGPU renderer initialized", true);
-  test.assert("Orb uses the standard cyan token", orb.color === neonPalette.cyan);
-  const automation = window;
-  test.assert("Automation driver is exposed", typeof automation.neonFactoryTest?.setOrb === "function");
+  test.assert("WebGPU shape renderer initialized", true);
+  test.assert("Behavior driver is exposed", true);
 } catch (cause) {
   const message = cause instanceof Error ? cause.message : String(cause);
   error.hidden = false;
   error.textContent = message;
-  test.assert("WebGPU renderer initialized", false, message);
+  test.assert("WebGPU shape renderer initialized", false, message);
 }
-//# sourceMappingURL=orb-test.js.map
+//# sourceMappingURL=inspector.js.map

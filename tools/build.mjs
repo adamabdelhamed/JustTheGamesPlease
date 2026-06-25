@@ -37,6 +37,33 @@ await Promise.all([
   ),
 ]);
 
+await mkdir(resolve(docs, "lib/neonfactory-tests/shapes"), { recursive: true });
+await mkdir(resolve(docs, "lib/neonfactory-tests/projectiles"), { recursive: true });
+await Promise.all([
+  build({entryPoints:[resolve(root,"projects/NeonFactory/test-pages/projectiles/projectiles.ts")],outfile:resolve(docs,"lib/neonfactory-tests/projectiles/projectiles.js"),bundle:true,format:"esm",platform:"browser",target:"es2022",sourcemap:true}),
+  cp(resolve(root,"projects/NeonFactory/test-pages/projectiles/index.html"),resolve(docs,"lib/neonfactory-tests/projectiles/index.html")),
+  cp(resolve(root,"projects/NeonFactory/test-pages/projectiles/projectiles.css"),resolve(docs,"lib/neonfactory-tests/projectiles/projectiles.css")),
+  cp(resolve(root,"projects/NeonFactory/test-pages/index.html"),resolve(docs,"lib/neonfactory-tests/index.html")),
+  build({
+    entryPoints: [resolve(root, "projects/NeonFactory/test-pages/shapes/gallery.ts")],
+    outfile: resolve(docs, "lib/neonfactory-tests/shapes/gallery.js"),
+    bundle: true, format: "esm", platform: "browser", target: "es2022", sourcemap: true,
+  }),
+  build({
+    entryPoints: [resolve(root, "projects/NeonFactory/test-pages/shapes/tuning-storage.ts")],
+    outfile: resolve(docs, "lib/neonfactory-tests/shapes/tuning-storage.js"),
+    bundle: true, format: "esm", platform: "browser", target: "es2022", sourcemap: true,
+  }),
+  build({
+    entryPoints: [resolve(root, "projects/NeonFactory/test-pages/shapes/inspector.ts")],
+    outfile: resolve(docs, "lib/neonfactory-tests/shapes/inspector.js"),
+    bundle: true, format: "esm", platform: "browser", target: "es2022", sourcemap: true,
+  }),
+  cp(resolve(root, "projects/NeonFactory/test-pages/shapes/gallery.html"), resolve(docs, "lib/neonfactory-tests/shapes/gallery.html")),
+  cp(resolve(root, "projects/NeonFactory/test-pages/shapes/inspector.html"), resolve(docs, "lib/neonfactory-tests/shapes/inspector.html")),
+  cp(resolve(root, "projects/NeonFactory/test-pages/shapes/shapes.css"), resolve(docs, "lib/neonfactory-tests/shapes/shapes.css")),
+]);
+
 await build({
   entryPoints: [resolve(root, "projects/NeonSwarm/src/main.ts")],
   outfile: resolve(docs, "NeonSwarm/game.js"),

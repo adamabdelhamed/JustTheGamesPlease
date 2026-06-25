@@ -1,0 +1,10 @@
+import { createTestPage, NeonProjectile, NeonTopDownSceneRenderer, type NeonProjectileShape } from "../../src/index";
+const canvas=document.querySelector<HTMLCanvasElement>("#stage")!,status=document.querySelector<HTMLOutputElement>("#test-status")!,error=document.querySelector<HTMLElement>("#error")!;
+const shape=document.querySelector<HTMLSelectElement>("#shape")!,speed=document.querySelector<HTMLInputElement>("#speed")!,radius=document.querySelector<HTMLInputElement>("#radius")!,length=document.querySelector<HTMLInputElement>("#length")!,trail=document.querySelector<HTMLInputElement>("#trail")!,color=document.querySelector<HTMLSelectElement>("#color")!;
+const projectiles:NeonProjectile[]=[];
+const fire=()=>{for(let i=-2;i<=2;i++)projectiles.push(new NeonProjectile({x:225+i*34,y:690,velocityX:i*10,velocityY:-Number(speed.value),radius:Number(radius.value),length:Number(length.value),trailLength:Number(trail.value),color:color.value,trailColor:color.value,shape:shape.value as NeonProjectileShape}))};
+document.querySelector("#fire")!.addEventListener("click",fire);
+const test=createTestPage("neon-factory-projectiles",{fire},status);
+try{const renderer=await NeonTopDownSceneRenderer.create(canvas,450,800);let last=performance.now(),frame=0;fire();
+const loop=(now:number)=>{const delta=Math.min(.05,(now-last)/1000);last=now;projectiles.forEach(p=>p.update(delta));for(const p of [...projectiles])if(p.y<-80)projectiles.splice(projectiles.indexOf(p),1);if(projectiles.length<3)fire();renderer.render({primitives:projectiles.flatMap(p=>p.primitives())},now/1000);frame=requestAnimationFrame(loop)};frame=requestAnimationFrame(loop);addEventListener("pagehide",()=>{cancelAnimationFrame(frame);renderer.destroy()},{once:true});test.ready();test.assert("Top-down renderer initialized",true);test.assert("Projectile API produces primitives",new NeonProjectile({x:0,y:0,color:"#55e7ff"}).primitives().length>=2);
+}catch(cause){const message=cause instanceof Error?cause.message:String(cause);error.hidden=false;error.textContent=message;test.assert("Top-down renderer initialized",false,message)}

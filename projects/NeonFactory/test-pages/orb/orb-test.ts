@@ -1,4 +1,4 @@
-import { createTestPage, NeonOrb, NeonRenderer, neonPalette, type NeonOrbOptions } from "../../src/index";
+import { createTestPage, NeonOrb, NeonTopDownSceneRenderer, neonPalette, type NeonOrbOptions } from "../../src/index";
 
 const canvas = document.querySelector<HTMLCanvasElement>("#orb-canvas")!;
 const status = document.querySelector<HTMLOutputElement>("#test-status")!;
@@ -24,8 +24,9 @@ glow.addEventListener("input", () => update({ glow: Number(glow.value) / 100 }))
 animate.addEventListener("change", () => update({ animate: animate.checked }));
 
 try {
-  const renderer = await NeonRenderer.create(canvas);
-  renderer.setScene(orb).start();
+  const renderer = await NeonTopDownSceneRenderer.create(canvas, 800, 600);
+  let frame=0;const render=(now:number)=>{renderer.render({primitives:[{x:orb.x*800,y:orb.y*600,width:orb.radius*600,color:orb.color,glow:orb.glow,shape:"orb"}]},now/1000);frame=requestAnimationFrame(render)};frame=requestAnimationFrame(render);
+  addEventListener("pagehide",()=>{cancelAnimationFrame(frame);renderer.destroy()},{once:true});
   test.ready();
   test.assert("WebGPU renderer initialized", true);
   test.assert("Orb uses the standard cyan token", orb.color === neonPalette.cyan);

@@ -1,9 +1,10 @@
-import { NeonPrimitiveRenderer, neonPalette, type NeonPrimitive } from "@just-the-games-please/neon-factory";
+import { NeonProjectile, NeonShapeActor, NeonShapeDisposal, NeonTopDownSceneRenderer, neonPalette, type NeonPrimitive, type NeonProjectileShape, type NeonTopDownShape } from "@just-the-games-please/neon-factory";
 import { gunFamily, multiplierFamily, orbFamily, type GunLevel, type GunMember, type ImpactEffect, type MuzzleEffect, type ProjectileShape } from "../../CombatDefinition";
 import { bindSquadInput } from "../../src/input";
 import { SquadModel } from "../../src/squad";
 import { AutoAimControlState, selectAutoAimOffset } from "../../src/autoAim";
 import { applyPortraitStage } from "../../src/viewport";
+import { actorInTopDownScene, shapeLabel, swarmShapes } from "../../src/shapeVisuals";
 
 interface Enemy {
   id: number;
@@ -13,6 +14,8 @@ interface Enemy {
   health: number;
   hitFlashUntil: number;
   rowId: number;
+  actor: NeonShapeActor;
+  dying: boolean;
 }
 
 interface Projectile {
@@ -46,9 +49,10 @@ interface Pickup {
   level: number;
   lane: number;
   y: number;
+  actor: NeonShapeActor;
 }
 
-interface MultiplierPickup { lane: number; y: number }
+interface MultiplierPickup { lane: number; y: number; actor: NeonShapeActor }
 
 interface Effect {
   kind: "muzzle" | "impact" | "death";
@@ -72,12 +76,12 @@ const scoreReadout = document.querySelector<HTMLElement>("#score-readout")!;
 const specReadout = document.querySelector<HTMLElement>("#spec-readout")!;
 const formationSize = document.querySelector<HTMLInputElement>("#formation-size")!;
 const formationRows = document.querySelector<HTMLSelectElement>("#formation-rows")!;
+const shapeZoom = document.querySelector<HTMLInputElement>("#shape-zoom")!;
 const gameElement = document.querySelector<HTMLElement>("#game")!;
 applyPortraitStage(gameElement, { aspectWidth: 9, aspectHeight: 16 });
 
 try {
-  const renderer = await NeonPrimitiveRenderer.create(canvas);
-  renderer.setLogicalSize(450, 800);
+  const renderer = await NeonTopDownSceneRenderer.create(canvas, 450, 800);
   const guns: Record<string, GunMember> = gunFamily.members;
   const orb = orbFamily.members.basicOrb;
   const enemies: Enemy[] = [];
@@ -101,7 +105,7 @@ try {
     return value - Math.floor(value);
   };
 
-  const laneX = (lane: number) => canvas.width * (lane === 0 ? 0.38 : 0.62);
+  const laneX = (lane: number) => canvas.width * (lane === 0 ? 0.32 : 0.68);
   const playerY = () => canvas.height * 0.82;
   const scale = () => 1;
 
@@ -147,11 +151,11 @@ try {
   squad.targetX = laneX(0);
 
   const spawnEnemy = (lane: number, x = laneX(lane), y = 105 * scale(), rowId = ++entitySequence): void => {
-    enemies.push({ id: ++entitySequence, lane, x, y, health: orb.health, hitFlashUntil: 0, rowId });
+    enemies.push({ id: ++entitySequence, lane, x, y, health: orb.health, hitFlashUntil: 0, rowId, actor: new NeonShapeActor({ shape: swarmShapes.enemy }), dying: false });
   };
 
   const spawnPickup = (lane: number): void => {
-    pickups.push({ gunId: gunSelect.value, level: Number(levelSelect.value), lane, y: 135 * scale() });
+    pickups.push({ gunId: gunSelect.value, level: Number(levelSelect.value), lane, y: 135 * scale(), actor: new NeonShapeActor({ shape: swarmShapes.gunPickup }) });
   };
 
   document.querySelectorAll<HTMLButtonElement>("[data-spawn-enemy]").forEach(button => {
@@ -178,7 +182,7 @@ try {
     });
   });
   document.querySelectorAll<HTMLButtonElement>("[data-spawn-multiplier]").forEach(button => {
-    button.addEventListener("click", () => multipliers.push({ lane: Number(button.dataset.spawnMultiplier), y: 135 * scale() }));
+    button.addEventListener("click", () => multipliers.push({ lane: Number(button.dataset.spawnMultiplier), y: 135 * scale(), actor: new NeonShapeActor({ shape: swarmShapes.multiplier }) }));
   });
   document.querySelector<HTMLButtonElement>("#spawn-wave")!.addEventListener("click", () => {
     spawnEnemy(0);
@@ -269,7 +273,7 @@ try {
   const hitEnemy = (projectile: Projectile, enemy: Enemy, now: number): void => {
     projectile.hitEnemyIds.add(enemy.id);
     enemy.health -= projectile.damage;
-    enemy.y -= projectile.knockback;
+    enemy.actor.impact({ direction: { x: 0, y: 1 }, magnitude: (projectile.damage + projectile.knockback * .06) / orb.impactResistance });
     enemy.hitFlashUntil = now + orb.hitFlashDurationMs;
     effects.push({
       kind: "impact",
@@ -293,7 +297,9 @@ try {
         duration: orb.hitFlashDurationMs * 2,
         seed: enemy.id,
       });
-      enemies.splice(enemies.indexOf(enemy), 1);
+      enemy.dying = true;
+      enemy.actor.explodeMagnitude = orb.explosionMagnitude;
+      enemy.actor.dispose(NeonShapeDisposal.Explode);
       kills += 1;
       window.gameAudio?.play("EnemyDestroyed");
       updateReadout();
@@ -330,6 +336,7 @@ try {
         continue;
       }
       for (const enemy of [...enemies]) {
+        if (enemy.dying) continue;
         if (projectile.hitEnemyIds.has(enemy.id)) continue;
         const dx = projectile.x - enemy.x;
         const dy = projectile.y - enemy.y;
@@ -342,11 +349,14 @@ try {
     }
 
     for (const enemy of [...enemies]) {
-      enemy.y += orb.speed * scale() * delta;
-      if (enemy.y >= playerY()) enemies.splice(enemies.indexOf(enemy), 1);
+      enemy.actor.update(delta);
+      enemy.y += orb.speed * scale() * delta - enemy.actor.y * canvas.height / 2.5;
+      enemy.actor.moveTo(0, 0);
+      if (enemy.dying && enemy.actor.disposed) { enemies.splice(enemies.indexOf(enemy), 1); continue; }
+      if (!enemy.dying && enemy.y >= playerY()) enemies.splice(enemies.indexOf(enemy), 1);
     }
     for (const pickup of [...pickups]) {
-      pickup.y += 62 * scale() * delta;
+      pickup.actor.update(delta); pickup.y += 62 * scale() * delta;
       if (pickup.y >= playerY() - 12 * scale() && pickup.lane === playerLane) {
         equip(pickup.gunId, pickup.level);
         pickups.splice(pickups.indexOf(pickup), 1);
@@ -355,7 +365,7 @@ try {
       }
     }
     for (const pickup of [...multipliers]) {
-      pickup.y += 62 * scale() * delta;
+      pickup.actor.update(delta); pickup.y += 62 * scale() * delta;
       if (pickup.y >= playerY() - 12 * scale() && pickup.lane === playerLane) {
         squad.add(multiplierFamily.members.squadPlusOne.squadAdded);
         multipliers.splice(multipliers.indexOf(pickup), 1);
@@ -369,26 +379,11 @@ try {
   const draw = (now: number): void => {
     const s = scale();
     const primitives: NeonPrimitive[] = [];
-    for (const point of squad.points(playerY() + recoil, s)) primitives.push({ x: point.x, y: point.y, width: multiplierFamily.members.squadPlusOne.memberRadius * s, color: neonPalette.cyan, secondaryColor: neonPalette.deepBlue, glow: .85, shape: "orb", rimIntensity: .8 });
+    for (const point of squad.points(playerY() + recoil, s)) void point;
     for (const projectile of projectiles) {
-      primitives.push({
-        x: projectile.x, y: projectile.y + projectile.trailLength / 2,
-        width: Math.max(projectile.radius * projectile.trailWidthScale, 1.1 * s),
-        height: projectile.trailLength,
-        color: projectile.trailColor, secondaryColor: projectile.color,
-        glow: projectile.tracer ? 1.25 : 0.45,
-        intensity: projectile.visualIntensity * (projectile.tracer ? 1.45 : 0.72), shape: "bolt",
-      });
-      primitives.push({
-        x: projectile.x, y: projectile.y,
-        width: projectile.radius, height: projectile.radius * projectile.aspect,
-        color: projectile.color, secondaryColor: projectile.coreColor,
-        glow: projectile.tracer ? 1.4 : 0.72,
-        intensity: projectile.visualIntensity * (projectile.tracer ? 1.35 : 1),
-        shape: projectile.shape === "needle" ? "circle" : "bolt",
-      });
+      primitives.push(...new NeonProjectile({x:projectile.x,y:projectile.y,velocityX:projectile.vx,velocityY:-projectile.speed,radius:projectile.radius,length:projectile.radius*projectile.aspect,trailLength:projectile.trailLength,trailWidth:Math.max(projectile.radius*projectile.trailWidthScale,1.1*s),color:projectile.color,trailColor:projectile.trailColor,coreColor:projectile.coreColor,shape:projectile.shape as NeonProjectileShape,intensity:projectile.visualIntensity*(projectile.tracer?1.35:1),glow:projectile.tracer?1.4:.72}).primitives());
     }
-    for (const enemy of enemies) {
+    if (false) for (const enemy of enemies) {
       primitives.push({
         x: enemy.x + orb.radius * .35 * s,
         y: enemy.y + orb.radius * 1.12 * s,
@@ -411,7 +406,7 @@ try {
         shape: "orb",
       });
     }
-    for (const pickup of multipliers) {
+    if (false) for (const pickup of multipliers) {
       const spec = multiplierFamily.members.squadPlusOne;
       const pColor = neonPalette[spec.pickupColor];
       const tColor = neonPalette[spec.coreColor];
@@ -441,7 +436,7 @@ try {
         primitives.push({ x: wx + Math.cos(angle) * dist, y: pickup.y + Math.sin(angle) * dist * 0.7, width: 1.4 * s, color: pColor, glow: .95, intensity: .6 + Math.sin(now / 300 + sp) * .25, shape: "circle" });
       }
     }
-    for (const pickup of pickups) {
+    if (false) for (const pickup of pickups) {
       const gun = guns[pickup.gunId];
       const pickupColor = neonPalette[gun.visualIdentity.projectileColor];
       const trailColor = neonPalette[gun.visualIdentity.trailColor];
@@ -509,7 +504,23 @@ try {
         primitives.push({ x: effect.x, y: effect.y, width: size * .7, color: effect.secondaryColor, secondaryColor: effect.color, glow: life, intensity: life, shape: "spark" });
       }
     }
-    renderer.render(primitives, now / 1000);
+    
+    const zoom = +shapeZoom.value / 100;
+    const shapes: NeonTopDownShape[] = [];
+    for (const point of squad.points(playerY() + recoil, s)) shapes.push(actorInTopDownScene(new NeonShapeActor({ shape: swarmShapes.player }), point.x, point.y, 14 * zoom));
+    for (const enemy of enemies) shapes.push(actorInTopDownScene(enemy.actor, enemy.x, enemy.y, 18 * zoom, { rotationY: Math.sin(now / 700 + enemy.id) * .18 }));
+    for (const pickup of pickups) {
+      const gun = guns[pickup.gunId];
+      pickup.actor.label = shapeLabel(gun.label, "above", 10, 7);
+      pickup.actor.color = neonPalette[gun.visualIdentity.projectileColor];
+      shapes.push(actorInTopDownScene(pickup.actor, laneX(pickup.lane), pickup.y, 15 * zoom));
+    }
+    for (const pickup of multipliers) {
+      pickup.actor.label = shapeLabel(`${multiplierFamily.members.squadPlusOne.squadAdded + 1}x`, "center", 11, 0);
+      pickup.actor.color = neonPalette[multiplierFamily.members.squadPlusOne.pickupColor];
+      shapes.push(actorInTopDownScene(pickup.actor, laneX(pickup.lane), pickup.y, 16 * zoom));
+    }
+    renderer.render({ primitives, shapes }, now / 1000);
   };
 
   const frame = (now: number): void => {

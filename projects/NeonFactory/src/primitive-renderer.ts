@@ -184,7 +184,7 @@ export class NeonPrimitiveRenderer {
   #bindGroup: GPUBindGroup;
   #logicalSize: { width: number; height: number } | null = null;
 
-  private constructor(canvas: HTMLCanvasElement, device: GPUDevice, context: GPUCanvasContext, format: GPUTextureFormat) {
+  constructor(canvas: HTMLCanvasElement, device: GPUDevice, context: GPUCanvasContext, format: GPUTextureFormat) {
     this.canvas = canvas;
     this.device = device;
     this.#context = context;
@@ -232,7 +232,7 @@ export class NeonPrimitiveRenderer {
     return this;
   }
 
-  render(primitives: NeonPrimitive[], timeSeconds = 0): void {
+  render(primitives: NeonPrimitive[], timeSeconds = 0, preserveColor = false, targetView?: GPUTextureView): void {
     this.#resize();
     const visible = primitives.slice(0, maxPrimitives);
     const data = new Float32Array(visible.length * floatsPerPrimitive);
@@ -257,9 +257,9 @@ export class NeonPrimitiveRenderer {
     const encoder = this.device.createCommandEncoder();
     const pass = encoder.beginRenderPass({
       colorAttachments: [{
-        view: this.#context.getCurrentTexture().createView(),
+        view: targetView ?? this.#context.getCurrentTexture().createView(),
         clearValue: { r: 0.006, g: 0.009, b: 0.025, a: 1 },
-        loadOp: "clear",
+        loadOp: preserveColor ? "load" : "clear",
         storeOp: "store",
       }],
     });

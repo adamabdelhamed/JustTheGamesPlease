@@ -10,37 +10,6 @@ var neonPalette = {
   deepBlue: "#287dff",
   whiteHot: "#f4fbff"
 };
-var glowPresets = {
-  soft: 0.38,
-  standard: 0.65,
-  intense: 1
-};
-
-// projects/NeonFactory/src/orb.ts
-var NeonOrb = class {
-  x;
-  y;
-  radius;
-  color;
-  glow;
-  animate;
-  constructor(options = {}) {
-    this.x = options.x ?? 0.5;
-    this.y = options.y ?? 0.5;
-    this.radius = options.radius ?? 0.12;
-    this.color = options.color ?? neonPalette.cyan;
-    this.glow = options.glow ?? glowPresets.standard;
-    this.animate = options.animate ?? true;
-  }
-  update(options) {
-    Object.assign(this, options);
-    this.x = Math.max(0, Math.min(1, this.x));
-    this.y = Math.max(0, Math.min(1, this.y));
-    this.radius = Math.max(0.01, Math.min(0.5, this.radius));
-    this.glow = Math.max(0, Math.min(1.5, this.glow));
-    return this;
-  }
-};
 
 // projects/NeonFactory/src/geometric-shapes.ts
 var regular = (sides, rotation = -Math.PI / 2, sx = 1, sy = 1) => Array.from({ length: sides }, (_, i) => {
@@ -48,9 +17,9 @@ var regular = (sides, rotation = -Math.PI / 2, sx = 1, sy = 1) => Array.from({ l
   return [Math.cos(angle) * sx, Math.sin(angle) * sy];
 });
 var star = (points, inner = 0.42, rotation = -Math.PI / 2) => Array.from({ length: points * 2 }, (_, i) => {
-  const radius2 = i % 2 ? inner : 1;
+  const radius = i % 2 ? inner : 1;
   const angle = rotation + i * Math.PI / points;
-  return [Math.cos(angle) * radius2, Math.sin(angle) * radius2];
+  return [Math.cos(angle) * radius, Math.sin(angle) * radius];
 });
 var diamond = [[0, -1], [1, 0], [0, 1], [-1, 0]];
 var arrow = [[0, -1], [0.82, 0.68], [0.27, 0.45], [0, 0.92], [-0.27, 0.45], [-0.82, 0.68]];
@@ -208,8 +177,8 @@ var rotate = ([x, y, z], rx, ry, rz) => {
 };
 function mesh(instance) {
   const { shape } = instance;
-  const depth = shape.depth ?? 0.14;
-  const color2 = hex(instance.color ?? shape.color);
+  const depth2 = shape.depth ?? 0.14;
+  const color = hex(instance.color ?? shape.color);
   const scale = instance.scale ?? 1;
   const rx = instance.rotationX ?? 0, ry = instance.rotationY ?? 0, rz = instance.rotationZ ?? 0;
   const move = (point, z) => {
@@ -225,10 +194,10 @@ function mesh(instance) {
       instance.energySpeed ?? 1,
       instance.energyBleed ?? 0.35
     ];
-    [a, b, c].forEach((p) => output.push({ p, n, color: color2, glow: (instance.glow ?? 1) * (instance.opacity ?? 1), effect }));
+    [a, b, c].forEach((p) => output.push({ p, n, color, glow: (instance.glow ?? 1) * (instance.opacity ?? 1), effect }));
   };
-  const front = shape.points.map((point) => move(point, depth / 2));
-  const back = shape.points.map((point) => move(point, -depth / 2));
+  const front = shape.points.map((point) => move(point, depth2 / 2));
+  const back = shape.points.map((point) => move(point, -depth2 / 2));
   for (let i = 1; i < front.length - 1; i++) add(front[0], front[i], front[i + 1]);
   for (let i = 1; i < back.length - 1; i++) add(back[0], back[i + 1], back[i]);
   shape.points.forEach((_, i) => {
@@ -240,8 +209,8 @@ function mesh(instance) {
 }
 function edgeMesh(instance) {
   const { shape } = instance;
-  const depth = shape.depth ?? 0.14;
-  const color2 = hex(instance.color ?? shape.color);
+  const depth2 = shape.depth ?? 0.14;
+  const color = hex(instance.color ?? shape.color);
   const scale = instance.scale ?? 1;
   const rx = instance.rotationX ?? 0, ry = instance.rotationY ?? 0, rz = instance.rotationZ ?? 0;
   const move = (point, z) => {
@@ -254,8 +223,8 @@ function edgeMesh(instance) {
     const mx = (a[0] + b[0]) / 2 - (instance.x ?? 0), my = (a[1] + b[1]) / 2 - (instance.y ?? 0);
     const length = Math.hypot(mx, my) || 1;
     const magnitude = instance.explodeMagnitude ?? 0.55;
-    const speed = magnitude * (0.45 + (Math.sin(index * 91.17) * 0.5 + 0.5) * 0.55);
-    const dx = mx / length * progress * speed, dy = my / length * progress * speed + progress * progress * 0.18;
+    const speed2 = magnitude * (0.45 + (Math.sin(index * 91.17) * 0.5 + 0.5) * 0.55);
+    const dx = mx / length * progress * speed2, dy = my / length * progress * speed2 + progress * progress * 0.18;
     const angle = progress * (index % 2 ? 1 : -1) * 2.4;
     const transform = (p) => {
       const x = p[0] - (instance.x ?? 0), y = p[1] - (instance.y ?? 0);
@@ -280,7 +249,7 @@ function edgeMesh(instance) {
     const a0 = [a[0] - ox, a[1] - oy, a[2]], a1 = [a[0] + ox, a[1] + oy, a[2]];
     const b0 = [b[0] - ox, b[1] - oy, b[2]], b1 = [b[0] + ox, b[1] + oy, b[2]];
     const start = distance * 2.4, end = (distance + length) * 2.4;
-    const push = (p, along, across) => output.push({ p, n: [along, across, phase], color: color2, glow: (instance.glow ?? 1) * opacity * (instance.opacity ?? 1) * (1 + Math.sin((instance.explodeProgress ?? 0) * Math.PI) * (instance.explodeMagnitude ?? 0.55) * 2.2) * (1 - (instance.explodeProgress ?? 0) * 0.7), effect });
+    const push = (p, along, across) => output.push({ p, n: [along, across, phase], color, glow: (instance.glow ?? 1) * opacity * (instance.opacity ?? 1) * (1 + Math.sin((instance.explodeProgress ?? 0) * Math.PI) * (instance.explodeMagnitude ?? 0.55) * 2.2) * (1 - (instance.explodeProgress ?? 0) * 0.7), effect });
     push(a0, start, -1);
     push(a1, start, 1);
     push(b0, end, -1);
@@ -290,13 +259,13 @@ function edgeMesh(instance) {
     distance += length;
   };
   const addLoop = (points, z, phase) => points.forEach((point, index) => addLine(move(point, z), move(points[(index + 1) % points.length], z), phase + index * 0.73));
-  addLoop(shape.points, depth / 2, 0.3);
-  addLoop(shape.points, -depth / 2, 2.1);
+  addLoop(shape.points, depth2 / 2, 0.3);
+  addLoop(shape.points, -depth2 / 2, 2.1);
   shape.holes?.forEach((hole, index) => {
-    addLoop(hole, depth / 2 + 2e-3, 3.7 + index);
-    addLoop(hole, -depth / 2 - 2e-3, 5.2 + index);
+    addLoop(hole, depth2 / 2 + 2e-3, 3.7 + index);
+    addLoop(hole, -depth2 / 2 - 2e-3, 5.2 + index);
   });
-  shape.points.forEach((point, index) => addLine(move(point, -depth / 2), move(point, depth / 2), 6.1 + index));
+  shape.points.forEach((point, index) => addLine(move(point, -depth2 / 2), move(point, depth2 / 2), 6.1 + index));
   const time = performance.now() / 1e3 * (instance.energySpeed ?? 1);
   const branchStrength = (instance.energyIntensity ?? 1) * (instance.energyCoverage ?? 0.32);
   const random = (seed) => {
@@ -340,12 +309,12 @@ function edgeMesh(instance) {
         const end = points[segment + 1];
         const hazeStart = [start[0] + perpendicular[0] * drift, start[1] + perpendicular[1] * drift];
         const hazeEnd = [end[0] + perpendicular[0] * drift, end[1] + perpendicular[1] * drift];
-        addLine(move(hazeStart, depth / 2 + 2e-3), move(hazeEnd, depth / 2 + 2e-3), 31 + seed + segment, 1.45 + fade * 0.55, fade * 0.34);
+        addLine(move(hazeStart, depth2 / 2 + 2e-3), move(hazeEnd, depth2 / 2 + 2e-3), 31 + seed + segment, 1.45 + fade * 0.55, fade * 0.34);
       });
     }
     if (branchActive) {
       points.slice(0, -1).forEach((start, segment) => {
-        addLine(move(start, depth / 2 + 6e-3), move(points[segment + 1], depth / 2 + 6e-3), 11 + seed + segment, 0.42);
+        addLine(move(start, depth2 / 2 + 6e-3), move(points[segment + 1], depth2 / 2 + 6e-3), 11 + seed + segment, 0.42);
       });
     }
   });
@@ -887,32 +856,122 @@ function createTestPage(id, driver, statusElement) {
   return api;
 }
 
-// projects/NeonFactory/test-pages/orb/orb-test.ts
-var canvas = document.querySelector("#orb-canvas");
-var status = document.querySelector("#test-status");
-var error = document.querySelector("#error");
-var color = document.querySelector("#color");
-var radius = document.querySelector("#radius");
-var glow = document.querySelector("#glow");
-var animate = document.querySelector("#animate");
-var orb = new NeonOrb();
-var update = (options) => {
-  orb.update(options);
-  if (options.color) color.value = options.color;
-  if (options.radius !== void 0) radius.value = String(options.radius * 100);
-  if (options.glow !== void 0) glow.value = String(options.glow * 100);
-  if (options.animate !== void 0) animate.checked = options.animate;
+// projects/NeonFactory/test-pages/shapes/tuning-storage.ts
+var storageKey = "neonFactory.shapeTunings.v1";
+var defaultShapeTunings = {
+  zoom: 0.21,
+  depth: 0.06,
+  lineThickness: 0.54,
+  energyIntensity: 1.1,
+  energyCoverage: 0.32,
+  energySpeed: 0.79,
+  energyBleed: 0.35
 };
-var test = createTestPage("neon-factory-orb", { setOrb: update }, status);
-color.addEventListener("change", () => update({ color: color.value }));
-radius.addEventListener("input", () => update({ radius: Number(radius.value) / 100 }));
-glow.addEventListener("input", () => update({ glow: Number(glow.value) / 100 }));
-animate.addEventListener("change", () => update({ animate: animate.checked }));
+function loadShapeTuningStorage() {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(storageKey) ?? "null");
+    return {
+      version: 1,
+      tunings: { ...defaultShapeTunings, ...parsed?.tunings },
+      notes: parsed?.notes ?? {},
+      labels: parsed?.labels ?? {}
+    };
+  } catch {
+    return { version: 1, tunings: { ...defaultShapeTunings }, notes: {}, labels: {} };
+  }
+}
+function saveShapeTuningStorage(value) {
+  localStorage.setItem(storageKey, JSON.stringify(value));
+}
+function exportShapeTunings(storage2) {
+  const notedShapes = Object.entries(storage2.notes).filter(([, note]) => note.trim());
+  const notesJson = Object.fromEntries(notedShapes);
+  const markdown = `# NeonFactory Shape Tunings
+
+Generated: ${(/* @__PURE__ */ new Date()).toISOString()}
+
+## Global rendering tunings
+
+\`\`\`json
+${JSON.stringify(storage2.tunings, null, 2)}
+\`\`\`
+
+## Shape notes
+
+\`\`\`json
+${JSON.stringify(notesJson, null, 2)}
+\`\`\`
+
+## Shape label defaults
+
+\`\`\`json
+${JSON.stringify(storage2.labels, null, 2)}
+\`\`\`
+`;
+  const url = URL.createObjectURL(new Blob([markdown], { type: "text/markdown" }));
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = "neonfactory-shape-tunings.md";
+  anchor.click();
+  URL.revokeObjectURL(url);
+}
+
+// projects/NeonFactory/test-pages/shapes/gallery.ts
+var canvas = document.querySelector("#stage");
+var status = document.querySelector("#test-status");
+var labels = document.querySelector("#labels");
+var links = document.querySelector("#shape-links");
+var zoom = document.querySelector("#zoom");
+var depth = document.querySelector("#depth");
+var thickness = document.querySelector("#thickness");
+var intensity = document.querySelector("#intensity");
+var coverage = document.querySelector("#coverage");
+var speed = document.querySelector("#speed");
+var bleed = document.querySelector("#bleed");
+var exportButton = document.querySelector("#export");
+var error = document.querySelector("#error");
+var test = createTestPage("neon-factory-shape-gallery", {}, status);
+labels.innerHTML = neonShapeCatalog.map((shape) => `<span><b>${shape.family}</b> \xB7 ${shape.name}</span>`).join("<br>");
+links.innerHTML = neonShapeCatalog.map((shape) => `<a href="inspector.html?shape=${encodeURIComponent(shape.id)}" title="Inspect ${shape.name}"><span>${shape.name}</span></a>`).join("");
+var storage = loadShapeTuningStorage();
+zoom.value = String(storage.tunings.zoom * 100);
+depth.value = String(storage.tunings.depth * 100);
+thickness.value = String(storage.tunings.lineThickness * 100);
+intensity.value = String(storage.tunings.energyIntensity * 100);
+coverage.value = String(storage.tunings.energyCoverage * 100);
+speed.value = String(storage.tunings.energySpeed * 100);
+bleed.value = String(storage.tunings.energyBleed * 100);
+var saveTunings = () => {
+  storage.tunings = { zoom: Number(zoom.value) / 100, depth: Number(depth.value) / 100, lineThickness: Number(thickness.value) / 100, energyIntensity: Number(intensity.value) / 100, energyCoverage: Number(coverage.value) / 100, energySpeed: Number(speed.value) / 100, energyBleed: Number(bleed.value) / 100 };
+  saveShapeTuningStorage(storage);
+};
+[zoom, depth, thickness, intensity, coverage, speed, bleed].forEach((control) => control.addEventListener("input", saveTunings));
+exportButton.addEventListener("click", () => exportShapeTunings(storage));
 try {
-  const renderer = await NeonTopDownSceneRenderer.create(canvas, 800, 600);
+  const renderer = await NeonTopDownSceneRenderer.create(canvas, 900, 1180);
   let frame = 0;
   const render = (now) => {
-    renderer.render({ primitives: [{ x: orb.x * 800, y: orb.y * 600, width: orb.radius * 600, color: orb.color, glow: orb.glow, shape: "orb" }] }, now / 1e3);
+    const columns = 6, rows = Math.ceil(neonShapeCatalog.length / columns);
+    const instances = neonShapeCatalog.map((shape, index) => {
+      const column = index % columns, row = Math.floor(index / columns);
+      const phase = now / 1e3 + index * 0.31;
+      const auto = Math.sin(phase * 1.7) * 0.2;
+      return {
+        shape: { ...shape, depth: storage.tunings.depth },
+        x: 75 + column * 150,
+        y: 65 + row * 130,
+        size: storage.tunings.zoom * 90,
+        lineThickness: storage.tunings.lineThickness,
+        energyIntensity: storage.tunings.energyIntensity,
+        energyCoverage: storage.tunings.energyCoverage,
+        energySpeed: storage.tunings.energySpeed,
+        energyBleed: storage.tunings.energyBleed,
+        rotationX: shape.rock === "pitch" ? auto : 0.18,
+        rotationY: shape.rock === "yaw" ? auto : -0.15,
+        rotationZ: shape.rock === "roll" || shape.rock === "orbit" ? auto : 0
+      };
+    });
+    renderer.render({ shapes: instances }, now / 1e3);
     frame = requestAnimationFrame(render);
   };
   frame = requestAnimationFrame(render);
@@ -921,14 +980,12 @@ try {
     renderer.destroy();
   }, { once: true });
   test.ready();
-  test.assert("WebGPU renderer initialized", true);
-  test.assert("Orb uses the standard cyan token", orb.color === neonPalette.cyan);
-  const automation = window;
-  test.assert("Automation driver is exposed", typeof automation.neonFactoryTest?.setOrb === "function");
+  test.assert("WebGPU shape renderer initialized", true);
+  test.assert("Complete visual catalog is available", neonShapeCatalog.length >= 50, `${neonShapeCatalog.length} shapes`);
 } catch (cause) {
   const message = cause instanceof Error ? cause.message : String(cause);
   error.hidden = false;
   error.textContent = message;
-  test.assert("WebGPU renderer initialized", false, message);
+  test.assert("WebGPU shape renderer initialized", false, message);
 }
-//# sourceMappingURL=orb-test.js.map
+//# sourceMappingURL=gallery.js.map

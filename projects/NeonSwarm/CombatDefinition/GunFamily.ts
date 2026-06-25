@@ -41,6 +41,7 @@ export interface GunVisualIdentity {
   muzzleDurationMs: number;
   impactDurationMs: number;
   horizontalJitter: number;
+  pickupShapeZoom?: number;
 }
 
 export interface GunMember {

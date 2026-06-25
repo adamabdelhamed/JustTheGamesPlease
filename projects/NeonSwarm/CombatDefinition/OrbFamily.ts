@@ -17,6 +17,9 @@ export interface OrbMember {
   shadowStrength: number;
   hitFlashDurationMs: number;
   deathFlashScale: number;
+  shapeZoom: number;
+  impactResistance: number;
+  explosionMagnitude: number;
 }
 
 export class OrbFamilyDefinition extends FamilyDefinition<Record<string, OrbMember>> {
@@ -39,6 +42,9 @@ export class OrbFamilyDefinition extends FamilyDefinition<Record<string, OrbMemb
       shadowStrength: 0.72,
       hitFlashDurationMs: 90,
       deathFlashScale: 1.8,
+      shapeZoom: 3.4,
+      impactResistance: 1,
+      explosionMagnitude: .48,
     },
   } as const satisfies Record<string, OrbMember>;
 

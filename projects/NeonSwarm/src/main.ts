@@ -1,14 +1,15 @@
-import { NeonPrimitiveRenderer, NeonVictoryExperience, neonPalette, type NeonPrimitive } from "@just-the-games-please/neon-factory";
+import { NeonProjectile, NeonShapeActor, NeonShapeDisposal, NeonTopDownSceneRenderer, NeonVictoryExperience, neonPalette, type NeonPrimitive, type NeonTopDownShape } from "@just-the-games-please/neon-factory";
 import { gunFamily, multiplierFamily, orbFamily, trackFamily, type GunId, type MultiplierId, type TrackMember } from "../CombatDefinition";
 import { bindSquadInput } from "./input";
 import { SquadModel } from "./squad";
 import { AutoAimControlState, selectAutoAimOffset } from "./autoAim";
 import { applyPortraitStage } from "./viewport";
+import { actorInTopDownScene, shapeLabel, swarmShapes } from "./shapeVisuals";
 
-interface Enemy { lane: 0 | 1; x: number; y: number; health: number; rowId: number }
+interface Enemy { lane: 0 | 1; x: number; y: number; health: number; rowId: number; actor: NeonShapeActor; dying: boolean }
 interface Projectile { lane: 0 | 1; x: number; y: number; damage: number; speed: number; radius: number; color: string; trail: string }
-interface Pickup { lane: 0 | 1; y: number; gunId: GunId; level: number }
-interface MultiplierPickup { lane: 0 | 1; y: number; multiplierId: MultiplierId }
+interface Pickup { lane: 0 | 1; y: number; gunId: GunId; level: number; actor: NeonShapeActor }
+interface MultiplierPickup { lane: 0 | 1; y: number; multiplierId: MultiplierId; actor: NeonShapeActor }
 
 const canvas = document.querySelector<HTMLCanvasElement>("#game-canvas")!;
 const trackSelect = document.querySelector<HTMLElement>("#track-select")!;
@@ -25,9 +26,8 @@ developerTools.hidden = new URLSearchParams(location.search).get("dev") !== "1";
 applyPortraitStage(gameElement, trackFamily.members.electricCauseway.viewport);
 
 try {
-  const renderer = await NeonPrimitiveRenderer.create(canvas);
   const viewport = trackFamily.members.electricCauseway.viewport;
-  renderer.setLogicalSize(viewport.logicalWidth, viewport.logicalHeight);
+  const renderer = await NeonTopDownSceneRenderer.create(canvas, viewport.logicalWidth, viewport.logicalHeight);
   let activeTrack: TrackMember | null = null;
   let startedAt = 0;
   let lastFrame = performance.now();
@@ -48,7 +48,7 @@ try {
   let victory: NeonVictoryExperience | null = null;
 
   const scale = () => 1;
-  const laneX = (lane: number) => canvas.width * (lane === 0 ? .39 : .61);
+  const laneX = (lane: number) => canvas.width * (lane === 0 ? .32 : .68);
   const playerY = () => canvas.height * .82;
 
   const resetToTracks = (): void => {
@@ -172,16 +172,18 @@ try {
           y: 110 * scale(),
           health: orbFamily.members[event.enemyId].health,
           rowId: nextEnemy,
+          actor: new NeonShapeActor({ shape: swarmShapes.enemy }),
+          dying: false,
         });
       }
     }
     while (nextPickup < activeTrack.pickupSchedule.length && activeTrack.pickupSchedule[nextPickup].atSeconds <= elapsed) {
       const event = activeTrack.pickupSchedule[nextPickup++];
-      pickups.push({ lane: event.lane, y: 120 * scale(), gunId: event.gunId, level: event.level });
+      pickups.push({ lane: event.lane, y: 120 * scale(), gunId: event.gunId, level: event.level, actor: new NeonShapeActor({ shape: swarmShapes.gunPickup }) });
     }
     while (nextMultiplier < activeTrack.multiplierSchedule.length && activeTrack.multiplierSchedule[nextMultiplier].atSeconds <= elapsed) {
       const event = activeTrack.multiplierSchedule[nextMultiplier++];
-      multipliers.push({ lane: event.lane, y: 125 * scale(), multiplierId: event.multiplierId });
+      multipliers.push({ lane: event.lane, y: 125 * scale(), multiplierId: event.multiplierId, actor: new NeonShapeActor({ shape: swarmShapes.multiplier }) });
     }
 
     if (!aimControl.manual) {
@@ -199,12 +201,17 @@ try {
       shot.y -= shot.speed * delta;
       if (shot.y < 0) projectiles.splice(projectiles.indexOf(shot), 1);
       for (const enemy of [...enemies]) {
+        if (enemy.dying) continue;
         const hitRadius = shot.radius + orbFamily.members.basicOrb.radius * scale();
         if (shot.lane !== enemy.lane || Math.hypot(shot.x - enemy.x, shot.y - enemy.y) > hitRadius) continue;
         enemy.health -= shot.damage;
+        const impactMagnitude = (shot.damage + shot.radius * .12) / orbFamily.members.basicOrb.impactResistance;
+        enemy.actor.impact({ direction: { x: 0, y: 1 }, magnitude: impactMagnitude });
         projectiles.splice(projectiles.indexOf(shot), 1);
         if (enemy.health <= 0) {
-          enemies.splice(enemies.indexOf(enemy), 1);
+          enemy.dying = true;
+          enemy.actor.explodeMagnitude = orbFamily.members.basicOrb.explosionMagnitude;
+          enemy.actor.dispose(NeonShapeDisposal.Explode);
           window.gameAudio?.play("EnemyDestroyed");
         } else {
           window.gameAudio?.play("Hit");
@@ -213,15 +220,18 @@ try {
       }
     }
     for (const enemy of [...enemies]) {
-      enemy.y += orbFamily.members.basicOrb.speed * scale() * delta;
-      if (enemy.y >= playerY()) {
+      enemy.actor.setVelocity(0, 0).update(delta);
+      enemy.y += orbFamily.members.basicOrb.speed * scale() * delta - enemy.actor.y * canvas.height / 2.5;
+      enemy.actor.moveTo(0, 0);
+      if (enemy.dying && enemy.actor.disposed) { enemies.splice(enemies.indexOf(enemy), 1); continue; }
+      if (!enemy.dying && enemy.y >= playerY()) {
         breaches++;
         enemies.splice(enemies.indexOf(enemy), 1);
         window.gameAudio?.play("EnemyEscaped");
       }
     }
     for (const pickup of [...pickups]) {
-      pickup.y += 72 * scale() * delta;
+      pickup.actor.update(delta); pickup.y += 72 * scale() * delta;
       if (pickup.y >= playerY() - 15 * scale() && pickup.lane === playerLane) {
         gunId = pickup.gunId;
         gunLevel = pickup.level;
@@ -231,7 +241,7 @@ try {
       } else if (pickup.y > canvas.height) pickups.splice(pickups.indexOf(pickup), 1);
     }
     for (const pickup of [...multipliers]) {
-      pickup.y += 72 * scale() * delta;
+      pickup.actor.update(delta); pickup.y += 72 * scale() * delta;
       if (pickup.y >= playerY() - 15 * scale() && pickup.lane === playerLane) {
         squad.add(multiplierFamily.members[pickup.multiplierId].squadAdded);
         multipliers.splice(multipliers.indexOf(pickup), 1);
@@ -281,14 +291,11 @@ try {
       for (const point of squad.points(playerY(), s)) {
         const smear = Math.min(22 * s, Math.abs(squad.targetX - squad.x) * .45);
         if (smear > 2) primitives.push({ x: point.x - Math.sign(squad.targetX - squad.x) * smear * .5, y: point.y, width: smear, height: 2.2 * s, color: neonPalette.deepBlue, secondaryColor: neonPalette.cyan, glow: .45, intensity: .5, shape: "bolt" });
-        primitives.push({ x: point.x, y: point.y, width: multiplierFamily.members.squadPlusOne.memberRadius * s, color: neonPalette.cyan, secondaryColor: neonPalette.deepBlue, glow: .82, shape: "orb", rimIntensity: .8, shadowStrength: .4 });
       }
       for (const shot of projectiles) {
-        primitives.push({ x: shot.x, y: shot.y + 9 * s, width: Math.max(1.2 * s, shot.radius * .5), height: 18 * s, color: shot.trail, secondaryColor: shot.color, glow: .35, intensity: .7, shape: "bolt" });
-        primitives.push({ x: shot.x, y: shot.y, width: shot.radius, height: shot.radius * 2.5, color: shot.color, secondaryColor: shot.trail, glow: .65, shape: "bolt" });
+        primitives.push(...new NeonProjectile({x:shot.x,y:shot.y,velocityY:-shot.speed,radius:shot.radius,length:shot.radius*2.5,trailLength:18*s,trailWidth:Math.max(1.2*s,shot.radius*.5),color:shot.color,trailColor:shot.trail,shape:"dart"}).primitives());
       }
-      for (const enemy of enemies) primitives.push({ x: enemy.x, y: enemy.y, width: orbFamily.members.basicOrb.radius * s, color: neonPalette.pink, secondaryColor: neonPalette.violet, glow: .75, texture: .25, rimIntensity: 1.1, shadowStrength: .65, shape: "orb" });
-      for (const pickup of pickups) {
+      if (false) for (const pickup of pickups) {
         const visual = gunFamily.members[pickup.gunId].visualIdentity;
         const pColor = neonPalette[visual.projectileColor];
         const tColor = neonPalette[visual.trailColor];
@@ -325,7 +332,7 @@ try {
           primitives.push({ x: wx + Math.cos(angle) * dist, y: pickup.y + Math.sin(angle) * dist * 0.7, width: 1.4 * s, color: pColor, glow: .9, intensity: .55 + Math.sin(now / 300 + sp) * .25, shape: "circle" });
         }
       }
-      for (const pickup of multipliers) {
+      if (false) for (const pickup of multipliers) {
         const spec = multiplierFamily.members[pickup.multiplierId];
         const pColor = neonPalette[spec.pickupColor];
         const tColor = neonPalette[spec.coreColor];
@@ -357,7 +364,26 @@ try {
       }
     }
     if (victory) primitives.push(...victory.primitives(now));
-    renderer.render(primitives, now / 1000);
+    const shapeInstances: NeonTopDownShape[] = [];
+    const playerSize = 14;
+    for (const point of squad.points(playerY(), s)) {
+      const actor = new NeonShapeActor({ shape: swarmShapes.player });
+      shapeInstances.push(actorInTopDownScene(actor, point.x, point.y, playerSize, { rotationX: Math.sin(now / 650) * .12 }));
+    }
+    for (const enemy of enemies) shapeInstances.push(actorInTopDownScene(enemy.actor, enemy.x, enemy.y, 18, { rotationY: Math.sin(now / 700 + enemy.rowId) * .18 }));
+    for (const pickup of pickups) {
+      const gun = gunFamily.members[pickup.gunId];
+      pickup.actor.label = shapeLabel(gun.label, "above", 10, 7);
+      pickup.actor.color = neonPalette[gun.visualIdentity.projectileColor];
+      shapeInstances.push(actorInTopDownScene(pickup.actor, laneX(pickup.lane), pickup.y, 15));
+    }
+    for (const pickup of multipliers) {
+      const spec = multiplierFamily.members[pickup.multiplierId];
+      pickup.actor.label = shapeLabel(`${spec.squadAdded + 1}x`, "center", 11, 0);
+      pickup.actor.color = neonPalette[spec.pickupColor];
+      shapeInstances.push(actorInTopDownScene(pickup.actor, laneX(pickup.lane), pickup.y, 16));
+    }
+    renderer.render({ primitives, shapes: shapeInstances }, now / 1000);
   };
 
   const frame = (now: number) => {
