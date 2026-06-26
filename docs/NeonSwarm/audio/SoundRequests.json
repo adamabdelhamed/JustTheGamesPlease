@@ -1,0 +1,260 @@
+[
+  {
+    "id": "Primary",
+    "description": "short crisp neon arcade pulse pistol shot, bright synthetic laser pop with tiny muzzle snap, clean one-shot, no voice, no music",
+    "location": "docs/NeonSwarm/audio",
+    "count": 3
+  },
+  {
+    "id": "NeedlerFire",
+    "description": "very short rapid neon needle gun burst, light synthetic ticks with airy electric spray, futuristic arcade, no voice, no music",
+    "location": "docs/NeonSwarm/audio",
+    "count": 3
+  },
+  {
+    "id": "BurstCarbineFire",
+    "description": "short grouped three-shot neon carbine burst, punchy synthetic pulses in tight rhythm, bright arcade energy, no voice, no music",
+    "location": "docs/NeonSwarm/audio",
+    "count": 3
+  },
+  {
+    "id": "HeavyCannonFire",
+    "description": "short heavy neon cannon blast, deep synthetic thump with sharp electric muzzle crack, powerful but clean, no voice, no music",
+    "location": "docs/NeonSwarm/audio",
+    "count": 3
+  },
+  {
+    "id": "SplitterRifleFire",
+    "description": "short paired neon split rifle shot, twin bright energy prongs firing together with stereo-like snap, no voice, no music",
+    "location": "docs/NeonSwarm/audio",
+    "count": 3
+  },
+  {
+    "id": "ProjectileHit",
+    "description": "short neon projectile impact spark, glassy synthetic ping with tiny electric scatter, satisfying arcade hit feedback, no voice, no music",
+    "location": "docs/NeonSwarm/audio",
+    "count": 3
+  },
+  {
+    "id": "HeavyImpact",
+    "description": "short heavy neon projectile impact, dense electric punch with low thud and bright ring spark, no voice, no music",
+    "location": "docs/NeonSwarm/audio",
+    "count": 3
+  },
+  {
+    "id": "ProjectileMiss",
+    "description": "very short neon projectile exit whoosh, thin synthetic zip fading upward, subtle and non-annoying, no voice, no music",
+    "location": "docs/NeonSwarm/audio",
+    "count": 1
+  },
+  {
+    "id": "EnemySpawn",
+    "description": "short subtle neon enemy materialize sound, synthetic shimmer with low threat pulse, readable but not loud, no voice, no music",
+    "location": "docs/NeonSwarm/audio",
+    "count": 3
+  },
+  {
+    "id": "EnemyHit",
+    "description": "short basic orb enemy damage sound, bright synthetic crack with soft glassy spark, arcade feedback, no voice, no music",
+    "location": "docs/NeonSwarm/audio",
+    "count": 3
+  },
+  {
+    "id": "EnemyDestroyed",
+    "description": "short neon orb enemy destruction burst, crisp synthetic pop with tiny glass shards and electric fizz, no voice, no music",
+    "location": "docs/NeonSwarm/audio",
+    "count": 3
+  },
+  {
+    "id": "EnemyEscaped",
+    "description": "short ominous enemy breach alert, descending synthetic warning chirp with restrained arcade urgency, no voice, no music",
+    "location": "docs/NeonSwarm/audio",
+    "count": 1
+  },
+  {
+    "id": "PlayerDamage",
+    "description": "short squad member damage burst, sharp neon impact with electric crackle and small body pop, urgent but not harsh, no voice, no music",
+    "location": "docs/NeonSwarm/audio",
+    "count": 3
+  },
+  {
+    "id": "SquadMemberLost",
+    "description": "short neon squad member destroyed sound, tiny synthetic explosion with falling spark tail, emotional but arcade-clean, no voice, no music",
+    "location": "docs/NeonSwarm/audio",
+    "count": 3
+  },
+  {
+    "id": "LaneSwitch",
+    "description": "very short neon lane dash sound, clean lateral electric swipe with soft whoosh, responsive input feedback, no voice, no music",
+    "location": "docs/NeonSwarm/audio",
+    "count": 3
+  },
+  {
+    "id": "AimRelease",
+    "description": "very short subtle joystick aim release sound, soft synthetic recenter tick, lightweight interface feedback, no voice, no music",
+    "location": "docs/NeonSwarm/audio",
+    "count": 1
+  },
+  {
+    "id": "Pickup",
+    "description": "short satisfying neon pickup sound, bright synthetic shimmer with clean upward sparkle, futuristic arcade, no voice, no music",
+    "location": "docs/NeonSwarm/audio",
+    "count": 3
+  },
+  {
+    "id": "PickupGun",
+    "description": "short neon weapon pickup sound, crisp mechanical energy lock-in with bright rising synth sparkle, no voice, no music",
+    "location": "docs/NeonSwarm/audio",
+    "count": 3
+  },
+  {
+    "id": "PickupShield",
+    "description": "short neon shield pickup sound, protective synthetic shimmer with rounded energy bloom, reassuring arcade feel, no voice, no music",
+    "location": "docs/NeonSwarm/audio",
+    "count": 3
+  },
+  {
+    "id": "PickupSword",
+    "description": "short neon sword pickup sound, sharp crystalline unsheathing shimmer with clean energy rise, no voice, no music",
+    "location": "docs/NeonSwarm/audio",
+    "count": 3
+  },
+  {
+    "id": "PickupMultiplier",
+    "description": "short squad multiplier pickup sound, bright expanding synthetic chime with confident powerup lift, no voice, no music",
+    "location": "docs/NeonSwarm/audio",
+    "count": 3
+  },
+  {
+    "id": "WeaponReady",
+    "description": "short neon weapon ready confirmation, compact energy charge and click, satisfying but subtle, no voice, no music",
+    "location": "docs/NeonSwarm/audio",
+    "count": 1
+  },
+  {
+    "id": "Shield",
+    "description": "short neon shield activation sound, smooth protective energy bubble forming with bright synthetic ring, no voice, no music",
+    "location": "docs/NeonSwarm/audio",
+    "count": 1
+  },
+  {
+    "id": "ShieldImpact",
+    "description": "short neon shield absorbs hit sound, rounded electric barrier thump with sparkling deflection, protective and readable, no voice, no music",
+    "location": "docs/NeonSwarm/audio",
+    "count": 3
+  },
+  {
+    "id": "ShieldBreak",
+    "description": "short neon shield break sound, brittle synthetic glass crack with collapsing energy fizz, urgent but clean, no voice, no music",
+    "location": "docs/NeonSwarm/audio",
+    "count": 1
+  },
+  {
+    "id": "ShieldRecharge",
+    "description": "short neon shield recharge sound, soft rising energy refill with clean protective chime, no voice, no music",
+    "location": "docs/NeonSwarm/audio",
+    "count": 1
+  },
+  {
+    "id": "ShieldPulse",
+    "description": "short expanding neon shield pulse, smooth shockwave ring with low synthetic push and bright edge sparkle, no voice, no music",
+    "location": "docs/NeonSwarm/audio",
+    "count": 3
+  },
+  {
+    "id": "ShieldAura",
+    "description": "subtle looping-feel one-shot neon frost aura pulse, cool synthetic hum with crystalline shimmer, non-musical, no voice, no music",
+    "location": "docs/NeonSwarm/audio",
+    "count": 1
+  },
+  {
+    "id": "SwordSwing",
+    "description": "short fast neon sword swing, sharp synthetic blade arc with airy electric slash, clean melee feel, no voice, no music",
+    "location": "docs/NeonSwarm/audio",
+    "count": 3
+  },
+  {
+    "id": "SwordHeavySwing",
+    "description": "short heavy neon cleaver swing, thick synthetic blade whoosh with weighty electric edge, no voice, no music",
+    "location": "docs/NeonSwarm/audio",
+    "count": 3
+  },
+  {
+    "id": "SwordStab",
+    "description": "short precise neon rapier stab, thin crystalline electric thrust with clean impact point, no voice, no music",
+    "location": "docs/NeonSwarm/audio",
+    "count": 3
+  },
+  {
+    "id": "SwordHit",
+    "description": "short neon melee hit, bright blade contact spark with synthetic slice and tiny glass crackle, no voice, no music",
+    "location": "docs/NeonSwarm/audio",
+    "count": 3
+  },
+  {
+    "id": "LowHealthWarning",
+    "description": "short restrained low squad warning beep, soft descending neon alarm pulse, urgent but not annoying, no voice, no music",
+    "location": "docs/NeonSwarm/audio",
+    "count": 1
+  },
+  {
+    "id": "WavePressure",
+    "description": "short subtle incoming pressure cue, rising synthetic tension ping with neon arcade urgency, no voice, no music",
+    "location": "docs/NeonSwarm/audio",
+    "count": 1
+  },
+  {
+    "id": "Streak",
+    "description": "short neon success streak sound, bright upward arcade flourish with sparkling synthetic accent, no voice, no music",
+    "location": "docs/NeonSwarm/audio",
+    "count": 1
+  },
+  {
+    "id": "TrackStart",
+    "description": "short neon track start sound, clean futuristic ready pulse with rising energy, confident arcade feel, no voice, no music",
+    "location": "docs/NeonSwarm/audio",
+    "count": 1
+  },
+  {
+    "id": "ButtonClick",
+    "description": "very short neon UI button click, crisp synthetic tick with tiny glass sparkle, clean interface feedback, no voice, no music",
+    "location": "docs/NeonSwarm/audio",
+    "count": 1
+  },
+  {
+    "id": "MenuOpen",
+    "description": "short neon menu transition sound, smooth synthetic panel whoosh with bright digital edge, no voice, no music",
+    "location": "docs/NeonSwarm/audio",
+    "count": 1
+  },
+  {
+    "id": "PuzzleComplete",
+    "description": "short victorious neon level complete fanfare, bright synthetic arcade flourish with sparkling finish, no voice, no music",
+    "location": "docs/NeonSwarm/audio",
+    "count": 1
+  },
+  {
+    "id": "GameOver",
+    "description": "short neon game over sting, descending synthetic failure tone with dark electric tail, no voice, no music",
+    "location": "docs/NeonSwarm/audio",
+    "count": 1
+  },
+  {
+    "id": "Boss",
+    "description": "short intense neon boss threat intro, layered synthetic alarm hit with heavy energy swell, no voice, no music",
+    "location": "docs/NeonSwarm/audio",
+    "count": 1
+  },
+  {
+    "id": "BossDestroyed",
+    "description": "short large neon boss destruction explosion, dense synthetic burst with glassy sparks and triumphant energy release, no voice, no music",
+    "location": "docs/NeonSwarm/audio",
+    "count": 1
+  },
+  {
+    "id": "Secondary",
+    "description": "short secondary weapon energy shot, distinct from primary fire, rounded synthetic blast with bright neon edge, no voice, no music",
+    "location": "docs/NeonSwarm/audio",
+    "count": 3
+  }
+]

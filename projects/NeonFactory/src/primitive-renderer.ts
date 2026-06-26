@@ -60,7 +60,7 @@ struct VertexOutput {
   let item = items[instance];
   let local = corners[vertex];
   var pixelOffset = local * item.size;
-  if (item.shape > 6.5 && item.shape < 7.5) {
+  if (item.texture != 0) {
     let c = cos(item.texture);
     let s = sin(item.texture);
     pixelOffset = vec2f(pixelOffset.x * c - pixelOffset.y * s, pixelOffset.x * s + pixelOffset.y * c);

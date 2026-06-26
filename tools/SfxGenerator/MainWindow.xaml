@@ -1,0 +1,101 @@
+<Window x:Class="SfxGenerator.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="ElevenLabs Sound Effect Curation" Height="820" Width="1120"
+        MinHeight="620" MinWidth="900">
+    <DockPanel Margin="12">
+        <StackPanel DockPanel.Dock="Top" Margin="0,0,0,12">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <StackPanel Orientation="Horizontal">
+                    <Button Content="Load JSON from Clipboard" Click="LoadClipboard_Click" Margin="0,0,8,0" Padding="10,6" />
+                    <Button Content="Load JSON from File" Click="LoadFile_Click" Margin="0,0,8,0" Padding="10,6" />
+                    <Button Content="Generate All Missing" Click="GenerateAll_Click" Padding="10,6" />
+                </StackPanel>
+                <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                    <TextBlock Text="API key" VerticalAlignment="Center" Margin="0,0,8,0" />
+                    <PasswordBox x:Name="ApiKeyBox" Width="260" PasswordChar="*" ToolTip="Uses ELEVENLABS_API_KEY first when set. This field is used only for this app session." />
+                </StackPanel>
+            </Grid>
+            <TextBlock x:Name="StatusText" Margin="0,10,0,0" Foreground="#b00020" TextWrapping="Wrap" />
+            <TextBlock x:Name="SessionText" Margin="0,4,0,0" Foreground="#444" TextWrapping="Wrap" />
+        </StackPanel>
+
+        <ScrollViewer VerticalScrollBarVisibility="Auto">
+            <ItemsControl ItemsSource="{Binding Groups}">
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                        <Border BorderBrush="#c8c8c8" BorderThickness="1" CornerRadius="4" Padding="12" Margin="0,0,0,12">
+                            <StackPanel>
+                                <TextBlock Text="{Binding Request.Id}" FontSize="22" FontWeight="SemiBold" />
+                                <TextBlock Text="{Binding Request.Description, StringFormat=Description: {0}}" TextWrapping="Wrap" Margin="0,4,0,4" />
+                                <TextBlock Text="{Binding Request.Count, StringFormat=Install targets: {0}}" FontWeight="SemiBold" Margin="0,0,0,10" />
+                                <ItemsControl ItemsSource="{Binding Targets}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <Border BorderBrush="#e2e2e2" BorderThickness="1" Padding="10" Margin="0,0,0,10">
+                                                <StackPanel>
+                                                    <Grid>
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="*" />
+                                                            <ColumnDefinition Width="Auto" />
+                                                            <ColumnDefinition Width="Auto" />
+                                                        </Grid.ColumnDefinitions>
+                                                        <StackPanel>
+                                                            <TextBlock Text="{Binding RelativePath, StringFormat=Target file: {0}}" FontWeight="SemiBold" />
+                                                            <TextBlock Text="{Binding Status, StringFormat=Status: {0}}" Foreground="#444" Margin="0,3,0,0" />
+                                                        </StackPanel>
+                                                        <Button Grid.Column="1" Content="Regenerate Candidates" Click="Regenerate_Click" Margin="8,0,0,0" Padding="8,5" />
+                                                        <Button Grid.Column="2" Content="Open Folder" Click="OpenFolder_Click" Margin="8,0,0,0" Padding="8,5" />
+                                                    </Grid>
+                                                    <ItemsControl ItemsSource="{Binding Candidates}" Margin="0,8,0,0">
+                                                        <ItemsControl.ItemTemplate>
+                                                            <DataTemplate>
+                                                                <StackPanel Orientation="Horizontal" Margin="0,2,0,2">
+                                                                    <TextBlock Text="{Binding Index, StringFormat=Candidate {0}}" Width="92" VerticalAlignment="Center" />
+                                                                    <Button Content="Play" Click="Play_Click" Padding="8,4" Margin="0,0,6,0" />
+                                                                    <Button Content="Select and Replace Target" Click="Select_Click" Padding="8,4" Margin="0,0,8,0" />
+                                                                    <TextBlock Text="Selected" Foreground="#0a6f28" FontWeight="SemiBold" VerticalAlignment="Center">
+                                                                        <TextBlock.Style>
+                                                                            <Style TargetType="TextBlock">
+                                                                                <Setter Property="Visibility" Value="Collapsed" />
+                                                                                <Style.Triggers>
+                                                                                    <DataTrigger Binding="{Binding IsSelected}" Value="True">
+                                                                                        <Setter Property="Visibility" Value="Visible" />
+                                                                                    </DataTrigger>
+                                                                                </Style.Triggers>
+                                                                            </Style>
+                                                                        </TextBlock.Style>
+                                                                    </TextBlock>
+                                                                    <TextBlock Text="Playing" Foreground="#005a9e" Margin="12,0,0,0" FontWeight="SemiBold" VerticalAlignment="Center">
+                                                                        <TextBlock.Style>
+                                                                            <Style TargetType="TextBlock">
+                                                                                <Setter Property="Visibility" Value="Collapsed" />
+                                                                                <Style.Triggers>
+                                                                                    <DataTrigger Binding="{Binding IsPlaying}" Value="True">
+                                                                                        <Setter Property="Visibility" Value="Visible" />
+                                                                                    </DataTrigger>
+                                                                                </Style.Triggers>
+                                                                            </Style>
+                                                                        </TextBlock.Style>
+                                                                    </TextBlock>
+                                                                </StackPanel>
+                                                            </DataTemplate>
+                                                        </ItemsControl.ItemTemplate>
+                                                    </ItemsControl>
+                                                </StackPanel>
+                                            </Border>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </StackPanel>
+                        </Border>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+        </ScrollViewer>
+    </DockPanel>
+</Window>

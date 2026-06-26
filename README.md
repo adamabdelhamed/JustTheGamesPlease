@@ -101,3 +101,30 @@ gameAudio.playRotated('Step', 3);                 // Step, Step_Alt1, Step_Alt2,
 ```
 
 Preload all known audio IDs near game startup. Preloading is intentionally non-blocking and best effort; it reduces first-play latency without delaying the game.
+
+## Sound effect curation tool
+
+The WPF ElevenLabs curation tool lives in `tools/SfxGenerator`. It loads a JSON array of sound requests, generates five MP3 candidates for each install target, lets you preview candidates, and copies the selected MP3 into the repo path shown in the target row.
+
+Run it from Windows with:
+
+```cmd
+BuildAndRunDotNet.cmd
+```
+
+Configure the ElevenLabs API key with the `ELEVENLABS_API_KEY` environment variable, or enter it in the tool's API key field for the current app session. The environment variable takes precedence.
+
+Expected request JSON:
+
+```json
+[
+  {
+    "id": "Explode",
+    "description": "short bright neon arcade explosion, synthetic, punchy, no voice, no music, short tail",
+    "location": "assets/audio/sfx",
+    "count": 3
+  }
+]
+```
+
+For `count: 1`, the install target is `{id}.mp3`. For larger counts, the tool uses alt mode and installs `{id}.mp3`, `{id}_Alt1.mp3`, `{id}_Alt2.mp3`, and so on. Generated candidates and `session.json` are stored under `.tools/sfx-generator/sessions`.

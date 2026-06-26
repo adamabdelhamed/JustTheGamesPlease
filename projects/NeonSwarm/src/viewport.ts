@@ -18,6 +18,12 @@ export interface ProjectedScene {
   shapes: NeonTopDownShape[];
 }
 
+export interface HelicopterViewport {
+  width: number;
+  height: number;
+  playerY: number;
+}
+
 export function applyPortraitStage(stage: HTMLElement, policy: PortraitViewportPolicy): void {
   stage.style.setProperty("--stage-aspect", `${policy.aspectWidth} / ${policy.aspectHeight}`);
 }
@@ -39,30 +45,9 @@ export function projectHelicopterScene(
   primitives: readonly NeonPrimitive[],
   shapes: readonly NeonTopDownShape[],
   settings: HelicopterCameraSettings,
-  viewport: { width: number; height: number; playerY: number },
+  viewport: HelicopterViewport,
 ): ProjectedScene {
-  const centerX = viewport.width / 2;
-  const pitch = settings.lookAngleDegrees * Math.PI / 180;
-  const cos = Math.cos(pitch);
-  const sin = Math.sin(pitch);
-  const focalLength = viewport.height * settings.zoom;
-  const horizonY = viewport.height * settings.horizon;
-  const minDepth = 20;
-
-  const projectPoint = (x: number, y: number): { x: number; y: number; scale: number; depth: number } => {
-    const worldX = x - centerX;
-    const worldZ = viewport.playerY - y + settings.followDistance;
-    const relativeY = -settings.height;
-    const cameraY = relativeY * cos + worldZ * sin;
-    const cameraZ = Math.max(minDepth, worldZ * cos - relativeY * sin);
-    const scale = focalLength / cameraZ;
-    return {
-      x: centerX + worldX * scale,
-      y: horizonY - cameraY * scale,
-      scale,
-      depth: cameraZ,
-    };
-  };
+  const projectPoint = projectHelicopterPointFactory(settings, viewport);
 
   const projectedPrimitives = primitives.map(primitive => {
     if (primitive.shape === "line") {
@@ -88,12 +73,21 @@ export function projectHelicopterScene(
     const point = projectPoint(primitive.x, primitive.y);
     const width = primitive.width * point.scale;
     const height = (primitive.height ?? primitive.width) * point.scale;
+    let rotation = primitive.rotation;
+    if (rotation !== undefined) {
+      const axisLength = Math.max(primitive.height ?? primitive.width, primitive.width, 1);
+      const directionX = -Math.sin(rotation);
+      const directionY = Math.cos(rotation);
+      const end = projectPoint(primitive.x + directionX * axisLength, primitive.y + directionY * axisLength);
+      rotation = Math.atan2(point.x - end.x, end.y - point.y);
+    }
     return {
       ...primitive,
       x: point.x,
       y: point.y,
       width,
       height,
+      rotation,
     };
   });
 
@@ -111,6 +105,40 @@ export function projectHelicopterScene(
     .sort((a, b) => ((b.z ?? 0) - (a.z ?? 0)));
 
   return { primitives: projectedPrimitives, shapes: projectedShapes };
+}
+
+export function projectHelicopterPoint(
+  x: number,
+  y: number,
+  settings: HelicopterCameraSettings,
+  viewport: HelicopterViewport,
+): { x: number; y: number; scale: number; depth: number } {
+  return projectHelicopterPointFactory(settings, viewport)(x, y);
+}
+
+function projectHelicopterPointFactory(settings: HelicopterCameraSettings, viewport: HelicopterViewport) {
+  const centerX = viewport.width / 2;
+  const pitch = settings.lookAngleDegrees * Math.PI / 180;
+  const cos = Math.cos(pitch);
+  const sin = Math.sin(pitch);
+  const focalLength = viewport.height * settings.zoom;
+  const horizonY = viewport.height * settings.horizon;
+  const minDepth = 20;
+
+  return (x: number, y: number): { x: number; y: number; scale: number; depth: number } => {
+    const worldX = x - centerX;
+    const worldZ = viewport.playerY - y + settings.followDistance;
+    const relativeY = -settings.height;
+    const cameraY = relativeY * cos + worldZ * sin;
+    const cameraZ = Math.max(minDepth, worldZ * cos - relativeY * sin);
+    const scale = focalLength / cameraZ;
+    return {
+      x: centerX + worldX * scale,
+      y: horizonY - cameraY * scale,
+      scale,
+      depth: cameraZ,
+    };
+  };
 }
 
 export function worldYForProjectedY(

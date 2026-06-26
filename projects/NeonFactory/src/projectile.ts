@@ -19,6 +19,11 @@ export interface NeonProjectileOptions {
   glow?: number;
 }
 
+const rotationForScreenForwardVector = (x: number, y: number): number => {
+  const length = Math.hypot(x, y) || 1;
+  return Math.atan2(x / length, -y / length);
+};
+
 export class NeonProjectile {
   x: number;
   y: number;
@@ -52,16 +57,21 @@ export class NeonProjectile {
     const split = this.shape === "splitBolt";
     const needle = this.shape === "needle";
     const slug = this.shape === "slug";
+    const speed = Math.hypot(this.velocityX, this.velocityY) || 1;
+    const directionX = this.velocityX / speed;
+    const directionY = this.velocityY / speed;
+    const rotation = rotationForScreenForwardVector(this.velocityX, this.velocityY);
     const items: NeonPrimitive[] = [{
-      x:this.x,y:this.y-this.velocityY/Math.abs(this.velocityY||1)*this.trailLength*.5,
+      x:this.x-directionX*this.trailLength*.5,y:this.y-directionY*this.trailLength*.5,
       width:this.trailWidth,height:this.trailLength,color:this.trailColor,secondaryColor:this.color,
-      glow:this.glow*.6,intensity:this.intensity*.72,shape:"bolt",
+      glow:this.glow*.6,intensity:this.intensity*.72,shape:"bolt",rotation,
     }];
     const width=slug?this.radius*1.5:needle?this.radius*.65:this.radius;
     const height=slug?this.length*.75:this.length;
-    const add=(offset:number)=>items.push({x:this.x+offset,y:this.y,width,height,color:this.color,secondaryColor:this.coreColor,glow:this.glow,intensity:this.intensity,shape:needle?"circle":"bolt"});
+    const sideX = -directionY;
+    const sideY = directionX;
+    const add=(offset:number)=>items.push({x:this.x+sideX*offset,y:this.y+sideY*offset,width,height,color:this.color,secondaryColor:this.coreColor,glow:this.glow,intensity:this.intensity,shape:needle?"circle":"bolt",rotation});
     if(split){add(-this.radius*.7);add(this.radius*.7)}else add(0);
     return items;
   }
 }
-

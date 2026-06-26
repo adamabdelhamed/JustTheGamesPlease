@@ -14,3 +14,6 @@ Desktop.ini
 # Node / TypeScript tooling
 node_modules/
 npm-debug.log*
+
+# Local tool output
+.tools/

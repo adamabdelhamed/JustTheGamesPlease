@@ -5,6 +5,7 @@ import { SquadModel } from "./squad";
 import { AutoAimControlState, selectAutoAimOffset } from "./autoAim";
 import { applyPortraitStage, defaultHelicopterCameraSettings, projectHelicopterScene, worldYForProjectedY, type HelicopterCameraSettings } from "./viewport";
 import { actorInTopDownScene, shapeLabel, swarmShapes } from "./shapeVisuals";
+import { actorOrientation } from "./renderOrientation";
 import { ShieldState, resolveShieldContact, tickShield } from "./combat/shieldEvaluator";
 import { SwordState, tickSword } from "./combat/swordEvaluator";
 import { queryNearbyThreats } from "./combat/nearbyThreatQuery";
@@ -81,6 +82,29 @@ document.querySelector<HTMLButtonElement>("#camera-output")!.addEventListener("c
   if (navigator.clipboard) await navigator.clipboard.writeText(output).catch(() => undefined);
 });
 
+const gunFireSoundIds: Record<GunId, string> = {
+  pulsePistol: "Primary",
+  needlerSmg: "NeedlerFire",
+  burstCarbine: "BurstCarbineFire",
+  heavyCannon: "HeavyCannonFire",
+  splitterRifle: "SplitterRifleFire",
+};
+
+const swordSwingSoundIds: Record<SwordId, string> = {
+  arcBlade: "SwordSwing",
+  cleaver: "SwordHeavySwing",
+  needleRapier: "SwordStab",
+};
+
+const playRotatedSfx = (id: string, alternatives: number): void => window.gameAudio?.playRotated(id, alternatives);
+const playSfx = (id: string): void => window.gameAudio?.play(id);
+const playGunFire = (gunId: GunId): void => playRotatedSfx(gunFireSoundIds[gunId], 3);
+const playSwordSwing = (swordId: SwordId): void => playRotatedSfx(swordSwingSoundIds[swordId], 3);
+const playPickup = (id: "PickupGun" | "PickupShield" | "PickupSword" | "PickupMultiplier"): void => {
+  playRotatedSfx("Pickup", 3);
+  playRotatedSfx(id, 3);
+};
+
 try {
   const viewport = defaultTrack.viewport;
   const renderer = await NeonTopDownSceneRenderer.create(canvas, viewport.logicalWidth, viewport.logicalHeight);
@@ -128,6 +152,12 @@ try {
     shield: null,
     sword: null,
   };
+  const actorVisualRoles = {
+    player: "groundForward",
+    enemy: "tumblingBillboard",
+    gunPickup: "screenBillboard",
+    multiplier: "screenBillboard",
+  } as const;
 
   const scale = () => 1;
   const laneX = (lane: number) => canvas.width * (lane === 0 ? .32 : .68);
@@ -166,6 +196,7 @@ try {
     failureReason = "";
     activeByFamily.shield = null;
     activeByFamily.sword = null;
+    playSfx("MenuOpen");
   };
 
   const startTrack = (track: TrackMember): void => {
@@ -203,6 +234,7 @@ try {
     trackSelect.hidden = true;
     result.hidden = true;
     status.textContent = "Tap a side to switch lanes. Small joystick motion aims; full motion crosses lanes.";
+    playSfx("TrackStart");
   };
 
   trackList.innerHTML = Object.entries(trackFamily.members).map(([id, track]) => `
@@ -218,6 +250,7 @@ try {
     lane: () => squad.lane,
     setLane: lane => {
       if (!activeTrack) return;
+      if (lane !== squad.lane) playRotatedSfx("LaneSwitch", 3);
       squad.setLane(lane, laneX, combatNow);
       playerLane = lane;
       aimControl.laneSelected();
@@ -229,6 +262,7 @@ try {
     },
     releaseAim: () => {
       aimControl.aimReleased();
+      playSfx("AimRelease");
     },
   });
 
@@ -243,7 +277,7 @@ try {
     const points = squad.points(playerY(), scale()).map(point => ({ x: point.x, y: playerY() - 20 * scale() }));
     gunSimulation.fire(gun, tuning, playerLane, points, combatNow, scale());
     cooldown += 1 / tuning.fireRatePerSecond;
-    window.gameAudio?.playRotated("Primary", 3);
+    playGunFire(gunId);
   };
 
   // ---------------------------------------------------------------------------
@@ -260,9 +294,9 @@ try {
         centerX: canvas.width / 2, centerY: canvas.height * .38,
         width: canvas.width, height: canvas.height, particleCount: 120,
       });
-      window.gameAudio?.play("PuzzleComplete");
+      playSfx("PuzzleComplete");
     } else {
-      window.gameAudio?.play("GameOver");
+      playSfx("GameOver");
     }
     activeTrack = null;
   };
@@ -313,6 +347,7 @@ try {
           actor: new NeonShapeActor({ shape: swarmShapes.enemy }),
           dying: false,
         });
+        playRotatedSfx("EnemySpawn", 3);
       } else if (entity.id.startsWith("pickup.weapon.gun.")) {
         const candidate = entity.id.slice("pickup.weapon.gun.".length);
         if (!(candidate in gunFamily.members)) throw new Error(`Track uses unknown gun id "${entity.id}".`);
@@ -346,7 +381,7 @@ try {
     // --- Gun fire ---
     cooldown -= delta;
     if (cooldown <= 0) fire();
-    if (gunSimulation.updateFiring(combatNow) > 0) window.gameAudio?.playRotated("Primary", 3);
+    if (gunSimulation.updateFiring(combatNow) > 0) playGunFire(gunId);
 
     // --- Projectile movement + hit detection ---
     gunSimulation.updateProjectiles(delta, combatNow, enemies.map(enemy => Object.assign(enemy, {
@@ -358,8 +393,11 @@ try {
         gameEnemy.dying = true;
         gameEnemy.actor.explodeMagnitude = orbFamily.members.basicOrb.explosionMagnitude;
         gameEnemy.actor.dispose(NeonShapeDisposal.Explode);
-        window.gameAudio?.play("EnemyDestroyed");
-      } else window.gameAudio?.play("Hit");
+        playRotatedSfx("EnemyDestroyed", 3);
+      } else {
+        playRotatedSfx("ProjectileHit", 3);
+        playRotatedSfx("EnemyHit", 3);
+      }
     });
 
     // ---------------------------------------------------------------------------
@@ -401,7 +439,7 @@ try {
             enemy.y += (dy / dist) * shieldResult.pushDistance * scale();
           }
         }
-        window.gameAudio?.play("Hit");
+        playRotatedSfx("ShieldPulse", 3);
       }
 
       // Apply contact damage (contact mode)
@@ -416,7 +454,7 @@ try {
             enemy.dying = true;
             enemy.actor.explodeMagnitude = orbFamily.members.basicOrb.explosionMagnitude;
             enemy.actor.dispose(NeonShapeDisposal.Explode);
-            window.gameAudio?.play("EnemyDestroyed");
+            playRotatedSfx("EnemyDestroyed", 3);
           }
         }
       }
@@ -442,17 +480,18 @@ try {
       );
 
       if (swordResult.swingTriggered && swordResult.hitEnemyIds.length > 0) {
-        window.gameAudio?.play("Hit");
+        playSwordSwing(swordState.swordId);
         for (const enemy of [...enemies]) {
           if (enemy.dying) continue;
           if (!swordResult.hitEnemyIds.includes(enemy.id ?? 0)) continue;
           enemy.health -= swordResult.damage;
           enemy.actor.impact({ direction: { x: 0, y: 1 }, magnitude: swordResult.damage / orbFamily.members.basicOrb.impactResistance });
+          playRotatedSfx("SwordHit", 3);
           if (enemy.health <= 0) {
             enemy.dying = true;
             enemy.actor.explodeMagnitude = orbFamily.members.basicOrb.explosionMagnitude;
             enemy.actor.dispose(NeonShapeDisposal.Explode);
-            window.gameAudio?.play("EnemyDestroyed");
+            playRotatedSfx("EnemyDestroyed", 3);
           }
         }
       }
@@ -482,10 +521,10 @@ try {
             enemy.dying = true;
             enemy.actor.explodeMagnitude = orbFamily.members.basicOrb.explosionMagnitude;
             enemy.actor.dispose(NeonShapeDisposal.Explode);
-            window.gameAudio?.play("EnemyDestroyed");
+            playRotatedSfx("EnemyDestroyed", 3);
           } else {
             enemy.actor.impact({ direction: { x: 0, y: 1 }, magnitude: shieldContact.damageAbsorbed / orbFamily.members.basicOrb.impactResistance });
-            window.gameAudio?.play("Hit");
+            playRotatedSfx("ShieldImpact", 3);
           }
           continue;
         }
@@ -503,7 +542,9 @@ try {
         playerActors.splice(hitIndex, 1);
         squad.remove();
         enemies.splice(enemies.indexOf(enemy), 1);
-        window.gameAudio?.play("EnemyDestroyed");
+        playRotatedSfx("PlayerDamage", 3);
+        playRotatedSfx("SquadMemberLost", 3);
+        if (squad.count === 1) playSfx("LowHealthWarning");
         if (squad.count === 0) { failureReason = "The entire squad was destroyed on contact."; finish(false); return; }
         continue;
       }
@@ -511,7 +552,7 @@ try {
       if (enemy.y >= playerY()) {
         breaches++;
         enemies.splice(enemies.indexOf(enemy), 1);
-        window.gameAudio?.play("EnemyEscaped");
+        playSfx("EnemyEscaped");
         failureReason = "An enemy passed the defense line.";
         finish(false);
         return;
@@ -525,7 +566,8 @@ try {
         activeByFamily.gun = { id: pickup.gunId, level: 1 };
         cooldown = 0;
         gunPickups.splice(gunPickups.indexOf(pickup), 1);
-        window.gameAudio?.play("Pickup");
+        playPickup("PickupGun");
+        playSfx("WeaponReady");
       } else if (pickup.y > canvas.height) gunPickups.splice(gunPickups.indexOf(pickup), 1);
     }
 
@@ -536,7 +578,8 @@ try {
         const def = shieldFamily.members[pickup.shieldId];
         activeByFamily.shield = new ShieldState(pickup.shieldId, def.maxCharges);
         shieldPickups.splice(shieldPickups.indexOf(pickup), 1);
-        window.gameAudio?.play("Pickup");
+        playPickup("PickupShield");
+        playSfx("Shield");
       } else if (pickup.y > canvas.height) shieldPickups.splice(shieldPickups.indexOf(pickup), 1);
     }
 
@@ -546,7 +589,8 @@ try {
         // Family-scoped exclusivity: replace existing sword
         activeByFamily.sword = new SwordState(pickup.swordId);
         swordPickups.splice(swordPickups.indexOf(pickup), 1);
-        window.gameAudio?.play("Pickup");
+        playPickup("PickupSword");
+        playSfx("WeaponReady");
       } else if (pickup.y > canvas.height) swordPickups.splice(swordPickups.indexOf(pickup), 1);
     }
 
@@ -556,7 +600,7 @@ try {
         squad.add(multiplierFamily.members[pickup.multiplierId].squadAdded);
         syncPlayerActors();
         multipliers.splice(multipliers.indexOf(pickup), 1);
-        window.gameAudio?.play("Pickup");
+        playPickup("PickupMultiplier");
       } else if (pickup.y > canvas.height) multipliers.splice(multipliers.indexOf(pickup), 1);
     }
 
@@ -642,28 +686,28 @@ try {
       }));
     }
     const playerSize = 14;
+    const helicopterViewport = { width: canvas.width, height: canvas.height, playerY: playerY() };
+    const projectileForward = { x: 0, y: -1 };
     for (const [index, point] of squad.points(playerY(), s).entries()) {
       const actor = playerActors[index] ?? new NeonShapeActor({ shape: swarmShapes.player });
-      shapeInstances.push(actorInTopDownScene(actor, point.x, point.y, playerSize, { rotationX: Math.sin(now / 650) * .12 }));
+      shapeInstances.push(actorInTopDownScene(actor, point.x, point.y, playerSize, actorOrientation(actorVisualRoles.player, { camera: cameraSettings, viewport: helicopterViewport, x: point.x, y: point.y, now, phase: index, facing: projectileForward })));
     }
     for (const item of explodingPlayers) shapeInstances.push(actorInTopDownScene(item.actor, item.x, item.y, playerSize));
-    for (const enemy of enemies) shapeInstances.push(actorInTopDownScene(enemy.actor, enemy.x, enemy.y, 18, { rotationY: Math.sin(now / 700 + enemy.rowId) * .18 }));
+    for (const enemy of enemies) shapeInstances.push(actorInTopDownScene(enemy.actor, enemy.x, enemy.y, 18, actorOrientation(actorVisualRoles.enemy, { camera: cameraSettings, viewport: helicopterViewport, x: enemy.x, y: enemy.y, now, phase: enemy.rowId })));
     for (const pickup of gunPickups) {
       const gun = gunFamily.members[pickup.gunId];
       pickup.actor.label = shapeLabel(gun.label, "above", 10, 7);
       pickup.actor.color = neonPalette[gun.visualIdentity.projectileColor];
-      shapeInstances.push(actorInTopDownScene(pickup.actor, pickup.x, pickup.y, 15));
+      shapeInstances.push(actorInTopDownScene(pickup.actor, pickup.x, pickup.y, 15, actorOrientation(actorVisualRoles.gunPickup, { camera: cameraSettings, viewport: helicopterViewport, x: pickup.x, y: pickup.y, now })));
     }
     for (const pickup of multipliers) {
       const spec = multiplierFamily.members[pickup.multiplierId];
       pickup.actor.label = shapeLabel(`${spec.squadAdded + 1}x`, "center", 11, 0);
       pickup.actor.color = neonPalette[spec.pickupColor];
-      shapeInstances.push(actorInTopDownScene(pickup.actor, pickup.x, pickup.y, 16));
+      shapeInstances.push(actorInTopDownScene(pickup.actor, pickup.x, pickup.y, 16, actorOrientation(actorVisualRoles.multiplier, { camera: cameraSettings, viewport: helicopterViewport, x: pickup.x, y: pickup.y, now })));
     }
     const projected = projectHelicopterScene(primitives, shapeInstances, cameraSettings, {
-      width: canvas.width,
-      height: canvas.height,
-      playerY: playerY(),
+      ...helicopterViewport,
     });
     renderer.render(projected, now / 1000);
   };
