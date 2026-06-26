@@ -17,9 +17,7 @@ const sceneNames: Record<LaneRunnerSceneId, string> = {
   neonHall: "Neon Hall",
 };
 
-const hallVanishingY = 0.46;
 const hallBottomWidth = 0.92;
-const hallHorizonWidth = 0.08;
 const hallFloorColor = "#05101f";
 const hallDeepBlue = "#12356a";
 const hallMutedBlue = "#1b4c8d";
@@ -61,27 +59,25 @@ function createNeonHall(options: LaneRunnerSceneOptions): NeonTopDownScene {
 }
 
 function hallGeometry(width: number, height: number) {
-  const vp = { x: width * .5, y: height * hallVanishingY };
+  const vp = { x: width * .5, y: -height };
   const bottomY = height * .985;
-  const horizonY = height * hallVanishingY;
   const bottomHalf = width * hallBottomWidth * .5;
-  const horizonHalf = width * hallHorizonWidth * .5;
   return {
     width,
     height,
     vp,
     leftBottom: { x: width * .5 - bottomHalf, y: bottomY },
     rightBottom: { x: width * .5 + bottomHalf, y: bottomY },
-    leftHorizon: { x: vp.x - horizonHalf, y: horizonY },
-    rightHorizon: { x: vp.x + horizonHalf, y: horizonY },
+    leftHorizon: { x: width * .5 - bottomHalf, y: vp.y },
+    rightHorizon: { x: width * .5 + bottomHalf, y: vp.y },
   };
 }
 
 function addHallBase(items: NeonPrimitive[], width: number, height: number, timeMs: number): void {
   const pulse = .55 + Math.sin(timeMs * hallEnergySpeed) * .2;
-  items.push({ x: width / 2, y: height * .76, width: width * .5, height: height * .43, color: hallFloorColor, secondaryColor: "#02050d", glow: .05, intensity: .23, shape: "bolt" });
-  items.push({ x: width / 2, y: height * hallVanishingY, width: width * .34, height: 1.4, color: hallDeepBlue, secondaryColor: hallMutedCyan, glow: .3, intensity: .18 + pulse * .07, shape: "bolt" });
-  items.push({ x: width / 2, y: height * .49, width: width * .18, height: 1.2, color: hallAccentPink, secondaryColor: hallMutedViolet, glow: .24, intensity: .08, shape: "bolt" });
+  items.push({ x: width / 2, y: height * .42, width: width * hallBottomWidth, height: height * 1.08, color: hallFloorColor, secondaryColor: "#02050d", glow: .05, intensity: .23, shape: "bolt" });
+  items.push({ x: width / 2, y: -height * .9, width: width * .34, height: 1.4, color: hallDeepBlue, secondaryColor: hallMutedCyan, glow: .3, intensity: .18 + pulse * .07, shape: "bolt" });
+  items.push({ x: width / 2, y: -height * .78, width: width * .18, height: 1.2, color: hallAccentPink, secondaryColor: hallMutedViolet, glow: .24, intensity: .08, shape: "bolt" });
 }
 
 function addHallRails(items: NeonPrimitive[], geometry: ReturnType<typeof hallGeometry>): void {

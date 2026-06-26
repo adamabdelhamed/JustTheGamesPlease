@@ -65,6 +65,26 @@ export function projectHelicopterScene(
   };
 
   const projectedPrimitives = primitives.map(primitive => {
+    if (primitive.shape === "line") {
+      const rotation = primitive.rotation ?? 0;
+      const halfLength = primitive.height ?? primitive.width;
+      const directionX = -Math.sin(rotation);
+      const directionY = Math.cos(rotation);
+      const start = projectPoint(primitive.x - directionX * halfLength, primitive.y - directionY * halfLength);
+      const end = projectPoint(primitive.x + directionX * halfLength, primitive.y + directionY * halfLength);
+      const dx = end.x - start.x;
+      const dy = end.y - start.y;
+      const scale = (start.scale + end.scale) * .5;
+      return {
+        ...primitive,
+        x: (start.x + end.x) / 2,
+        y: (start.y + end.y) / 2,
+        width: primitive.width * scale,
+        height: Math.hypot(dx, dy) / 2,
+        rotation: Math.atan2(-dx, dy),
+      };
+    }
+
     const point = projectPoint(primitive.x, primitive.y);
     const width = primitive.width * point.scale;
     const height = (primitive.height ?? primitive.width) * point.scale;
@@ -91,4 +111,23 @@ export function projectHelicopterScene(
     .sort((a, b) => ((b.z ?? 0) - (a.z ?? 0)));
 
   return { primitives: projectedPrimitives, shapes: projectedShapes };
+}
+
+export function worldYForProjectedY(
+  screenY: number,
+  settings: HelicopterCameraSettings,
+  viewport: { height: number; playerY: number },
+): number {
+  const pitch = settings.lookAngleDegrees * Math.PI / 180;
+  const cos = Math.cos(pitch);
+  const sin = Math.sin(pitch);
+  const focalLength = viewport.height * settings.zoom;
+  const horizonY = viewport.height * settings.horizon;
+  const relativeY = -settings.height;
+  const screenRatio = (horizonY - screenY) / focalLength;
+  const denominator = sin - screenRatio * cos;
+  if (Math.abs(denominator) < .0001) return Number.NEGATIVE_INFINITY;
+
+  const worldZ = -relativeY * (cos + screenRatio * sin) / denominator;
+  return viewport.playerY + settings.followDistance - worldZ;
 }

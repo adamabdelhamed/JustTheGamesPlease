@@ -7,7 +7,7 @@ export interface CombatTuning {
 }
 
 export const combatTuning = {
-  globalSpeedMultiplier: 2.0,
+  globalSpeedMultiplier: 1.5,
 } as const satisfies CombatTuning;
 
 if (!Number.isFinite(combatTuning.globalSpeedMultiplier) || combatTuning.globalSpeedMultiplier <= 0) {

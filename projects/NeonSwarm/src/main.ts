@@ -3,7 +3,7 @@ import { combatTuning, gunFamily, multiplierFamily, orbFamily, parseTrackDefinit
 import { bindSquadInput } from "./input";
 import { SquadModel } from "./squad";
 import { AutoAimControlState, selectAutoAimOffset } from "./autoAim";
-import { applyPortraitStage, defaultHelicopterCameraSettings, projectHelicopterScene, type HelicopterCameraSettings } from "./viewport";
+import { applyPortraitStage, defaultHelicopterCameraSettings, projectHelicopterScene, worldYForProjectedY, type HelicopterCameraSettings } from "./viewport";
 import { actorInTopDownScene, shapeLabel, swarmShapes } from "./shapeVisuals";
 import { ShieldState, resolveShieldContact, tickShield } from "./combat/shieldEvaluator";
 import { SwordState, tickSword } from "./combat/swordEvaluator";
@@ -134,6 +134,17 @@ try {
   const entityX = (entity: ParsedTrackEntity) => laneX(entity.side === "left" ? 0 : 1) + (entity.laneIndex - 2) * 15 * scale();
   const playerY = () => canvas.height * .82;
   const activeSceneId = (): LaneRunnerSceneId => sceneOverride ?? activeTrack?.environment.sceneId ?? defaultTrack.environment.sceneId;
+  const entityBaseY = (entity: ParsedTrackEntity): number => entity.id === "pickup.unitMultiplier.2x" ? 125 : entity.id.startsWith("pickup.") ? 120 : 110;
+  const entitySpeed = (entity: ParsedTrackEntity): number =>
+    (entity.id === "enemy.basic" ? orbFamily.members.basicOrb.speed : 72) * entity.speedMultiplier * scale();
+  const visualSpawnY = (): number =>
+    worldYForProjectedY(canvas.height * .14, cameraSettings, { height: canvas.height, playerY: playerY() });
+  const enemySpawnY = (entity: ParsedTrackEntity): number =>
+    entityBaseY(entity) * scale() - entitySpeed(entity) * spawnLeadSeconds(entity);
+  const pickupSpawnY = (baseY: number, entity: ParsedTrackEntity): number =>
+    baseY * scale() - entitySpeed(entity) * spawnLeadSeconds(entity);
+  const spawnLeadSeconds = (entity: ParsedTrackEntity): number =>
+    Math.min(entity.distanceFromPlayer, Math.max(0, (entityBaseY(entity) * scale() - visualSpawnY()) / entitySpeed(entity)));
 
   // ---------------------------------------------------------------------------
   // Reset / start
@@ -284,7 +295,10 @@ try {
 
     runStatus.textContent = `${gunFamily.members[gunId].label}${shieldDef ? ` · ${shieldDef.label}` : ""}${swordDef ? ` · ${swordDef.label}` : ""} · ${Math.max(0, activeTrack.durationSeconds - elapsed).toFixed(1)}s`;
 
-    while (nextTrackEntity < trackEntities.length && trackEntities[nextTrackEntity].distanceFromPlayer <= elapsed) {
+    while (
+      nextTrackEntity < trackEntities.length &&
+      trackEntities[nextTrackEntity].distanceFromPlayer <= elapsed + spawnLeadSeconds(trackEntities[nextTrackEntity])
+    ) {
       const entity = trackEntities[nextTrackEntity++];
       const lane = entity.side === "left" ? 0 : 1;
       if (entity.id === "enemy.basic") {
@@ -292,7 +306,7 @@ try {
           id: ++entityIdCounter,
           lane,
           x: entityX(entity),
-          y: 110 * scale(),
+          y: enemySpawnY(entity),
           health: orbFamily.members.basicOrb.health * activeTrack.definition.balance.enemyHp,
           speedMultiplier: entity.speedMultiplier,
           rowId: entity.rowIndex,
@@ -302,17 +316,17 @@ try {
       } else if (entity.id.startsWith("pickup.weapon.gun.")) {
         const candidate = entity.id.slice("pickup.weapon.gun.".length);
         if (!(candidate in gunFamily.members)) throw new Error(`Track uses unknown gun id "${entity.id}".`);
-        gunPickups.push({ lane, x: entityX(entity), y: 120 * scale(), gunId: candidate as GunId, level: 1, speedMultiplier: entity.speedMultiplier, actor: new NeonShapeActor({ shape: swarmShapes.gunPickup }) });
+        gunPickups.push({ lane, x: entityX(entity), y: pickupSpawnY(120, entity), gunId: candidate as GunId, level: 1, speedMultiplier: entity.speedMultiplier, actor: new NeonShapeActor({ shape: swarmShapes.gunPickup }) });
       } else if (entity.id.startsWith("pickup.weapon.shield.")) {
         const candidate = entity.id.slice("pickup.weapon.shield.".length);
         if (!(candidate in shieldFamily.members)) throw new Error(`Track uses unknown shield id "${entity.id}".`);
-        shieldPickups.push({ lane, x: entityX(entity), y: 120 * scale(), shieldId: candidate as ShieldId, speedMultiplier: entity.speedMultiplier });
+        shieldPickups.push({ lane, x: entityX(entity), y: pickupSpawnY(120, entity), shieldId: candidate as ShieldId, speedMultiplier: entity.speedMultiplier });
       } else if (entity.id.startsWith("pickup.weapon.sword.")) {
         const candidate = entity.id.slice("pickup.weapon.sword.".length);
         if (!(candidate in swordFamily.members)) throw new Error(`Track uses unknown sword id "${entity.id}".`);
-        swordPickups.push({ lane, x: entityX(entity), y: 120 * scale(), swordId: candidate as SwordId, speedMultiplier: entity.speedMultiplier });
+        swordPickups.push({ lane, x: entityX(entity), y: pickupSpawnY(120, entity), swordId: candidate as SwordId, speedMultiplier: entity.speedMultiplier });
       } else if (entity.id === "pickup.unitMultiplier.2x") {
-        multipliers.push({ lane, x: entityX(entity), y: 125 * scale(), multiplierId: "squadPlusOne", speedMultiplier: entity.speedMultiplier, actor: new NeonShapeActor({ shape: swarmShapes.multiplier }) });
+        multipliers.push({ lane, x: entityX(entity), y: pickupSpawnY(125, entity), multiplierId: "squadPlusOne", speedMultiplier: entity.speedMultiplier, actor: new NeonShapeActor({ shape: swarmShapes.multiplier }) });
       } else {
         throw new Error(`Track entity id "${entity.id}" is not supported by the lane runner.`);
       }
