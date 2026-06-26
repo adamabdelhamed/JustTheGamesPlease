@@ -11,6 +11,7 @@ public sealed class SoundRequest
     public string Description { get; set; } = "";
     public string Location { get; set; } = "";
     public int Count { get; set; } = 1;
+    public bool Loop { get; set; }
 }
 
 public sealed class SoundTarget : NotifyBase
@@ -23,6 +24,9 @@ public sealed class SoundTarget : NotifyBase
     public string RelativePath { get; set; } = "";
     public string FullPath { get; set; } = "";
     public ObservableCollection<SoundCandidate> Candidates { get; set; } = new();
+
+    [JsonIgnore]
+    public ObservableCollection<SoundTarget> InstallTargets { get; set; } = new();
 
     [JsonIgnore]
     public bool IsBusy
@@ -42,6 +46,7 @@ public sealed class SoundCandidate : NotifyBase
 {
     private bool _isSelected;
     private bool _isPlaying;
+    private SoundTarget? _selectedInstallTarget;
 
     public int Index { get; set; }
     public string TempPath { get; set; } = "";
@@ -61,6 +66,13 @@ public sealed class SoundCandidate : NotifyBase
 
     [JsonIgnore]
     public SoundTarget? Target { get; set; }
+
+    [JsonIgnore]
+    public SoundTarget? SelectedInstallTarget
+    {
+        get => _selectedInstallTarget;
+        set => SetField(ref _selectedInstallTarget, value);
+    }
 }
 
 public sealed class RequestGroup
@@ -75,6 +87,11 @@ public sealed class SessionState
     public string RepoRoot { get; set; } = "";
     public string SessionFolder { get; set; } = "";
     public List<SoundTarget> Targets { get; set; } = new();
+}
+
+public sealed class ToolSettings
+{
+    public string ApiKey { get; set; } = "";
 }
 
 public abstract class NotifyBase : INotifyPropertyChanged

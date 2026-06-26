@@ -14,6 +14,7 @@ public partial class MainWindow : Window
     private readonly ElevenLabsClient _elevenLabsClient = new(new HttpClient());
     private readonly AudioPlaybackService _audioPlayback = new();
     private readonly SessionStore _sessionStore;
+    private readonly SettingsStore _settingsStore;
     private string _sessionFolder = "";
     private string _originalJson = "";
     private bool _isBusy;
@@ -25,8 +26,10 @@ public partial class MainWindow : Window
         InitializeComponent();
         _repoRoot = FindRepoRoot(AppContext.BaseDirectory);
         _sessionStore = new SessionStore(_repoRoot);
+        _settingsStore = new SettingsStore(_repoRoot);
         DataContext = this;
         SessionText.Text = $"Repo root: {_repoRoot}";
+        _ = LoadSettingsAsync();
     }
 
     private async void LoadClipboard_Click(object sender, RoutedEventArgs e)
@@ -50,9 +53,9 @@ public partial class MainWindow : Window
             StatusText.Text = "";
             var requests = RequestLoader.ParseRequests(json);
             var groups = RequestLoader.ExpandTargets(requests, _repoRoot);
-            foreach (var target in groups.SelectMany(group => group.Targets))
+            foreach (var group in groups)
             {
-                AttachTarget(target);
+                AttachGroup(group);
             }
 
             Groups.Clear();
@@ -116,9 +119,25 @@ public partial class MainWindow : Window
             return;
         }
 
+        await InstallCandidateAsync(candidate, candidate.Target);
+    }
+
+    private async void SelectSlot_Click(object sender, RoutedEventArgs e)
+    {
+        if (_isBusy ||
+            sender is not FrameworkElement { DataContext: SoundCandidate candidate } ||
+            candidate.SelectedInstallTarget is null)
+        {
+            return;
+        }
+
+        await InstallCandidateAsync(candidate, candidate.SelectedInstallTarget);
+    }
+
+    private async Task InstallCandidateAsync(SoundCandidate candidate, SoundTarget target)
+    {
         await RunBusyAsync(async () =>
         {
-            var target = candidate.Target;
             Directory.CreateDirectory(Path.GetDirectoryName(target.FullPath)!);
             File.Copy(candidate.TempPath, target.FullPath, true);
             foreach (var existing in target.Candidates)
@@ -151,6 +170,7 @@ public partial class MainWindow : Window
             throw new InvalidOperationException("Set ELEVENLABS_API_KEY or enter an API key in the UI.");
         }
 
+        await SaveApiKeyIfNeededAsync();
         EnsureSession();
         target.IsBusy = true;
         target.Status = "Generating candidates...";
@@ -162,7 +182,7 @@ public partial class MainWindow : Window
             {
                 var path = _sessionStore.GetCandidatePath(_sessionFolder, target, index);
                 await _elevenLabsClient.GenerateSoundEffectAsync(apiKey, target.Request.Description, path, CancellationToken.None);
-                target.Candidates.Add(new SoundCandidate { Index = index, TempPath = path, Target = target });
+                target.Candidates.Add(new SoundCandidate { Index = index, TempPath = path, Target = target, SelectedInstallTarget = target });
                 target.Status = $"Generated {index} of {CandidateCount} candidates";
                 await SaveSessionAsync();
             }
@@ -217,11 +237,53 @@ public partial class MainWindow : Window
         return string.IsNullOrWhiteSpace(environmentValue) ? ApiKeyBox.Password : environmentValue;
     }
 
+    private async Task LoadSettingsAsync()
+    {
+        try
+        {
+            var settings = await _settingsStore.LoadAsync();
+            if (string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("ELEVENLABS_API_KEY")))
+            {
+                ApiKeyBox.Password = settings.ApiKey;
+            }
+        }
+        catch (Exception exception)
+        {
+            StatusText.Text = $"Could not load settings: {exception.Message}";
+        }
+    }
+
+    private async void SaveApiKey_Click(object sender, RoutedEventArgs e)
+    {
+        await SaveApiKeyIfNeededAsync();
+        StatusText.Text = "API key saved.";
+    }
+
+    private async Task SaveApiKeyIfNeededAsync()
+    {
+        if (!string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("ELEVENLABS_API_KEY")))
+        {
+            return;
+        }
+
+        await _settingsStore.SaveAsync(new ToolSettings { ApiKey = ApiKeyBox.Password });
+    }
+
+    private static void AttachGroup(RequestGroup group)
+    {
+        foreach (var target in group.Targets)
+        {
+            target.InstallTargets = group.Targets;
+            AttachTarget(target);
+        }
+    }
+
     private static void AttachTarget(SoundTarget target)
     {
         foreach (var candidate in target.Candidates)
         {
             candidate.Target = target;
+            candidate.SelectedInstallTarget ??= target;
         }
     }
 

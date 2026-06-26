@@ -96,13 +96,28 @@ const swordSwingSoundIds: Record<SwordId, string> = {
   needleRapier: "SwordStab",
 };
 
+const soundAlternativeCounts: Partial<Record<string, number>> = {
+  Primary: 3,
+  EnemyDestroyed: 2,
+  EnemyHit: 2,
+  EnemySpawn: 2,
+  ProjectileHit: 2,
+};
+
 const playRotatedSfx = (id: string, alternatives: number): void => window.gameAudio?.playRotated(id, alternatives);
 const playSfx = (id: string): void => window.gameAudio?.play(id);
-const playGunFire = (gunId: GunId): void => playRotatedSfx(gunFireSoundIds[gunId], 3);
-const playSwordSwing = (swordId: SwordId): void => playRotatedSfx(swordSwingSoundIds[swordId], 3);
+const playLibrarySfx = (id: string): void => {
+  const alternatives = soundAlternativeCounts[id] ?? 0;
+  if (alternatives > 0) playRotatedSfx(id, alternatives);
+  else playSfx(id);
+};
+const playGunFire = (gunId: GunId): void => {
+  playLibrarySfx(gunFireSoundIds[gunId]);
+};
+const playSwordSwing = (swordId: SwordId): void => playLibrarySfx(swordSwingSoundIds[swordId]);
 const playPickup = (id: "PickupGun" | "PickupShield" | "PickupSword" | "PickupMultiplier"): void => {
-  playRotatedSfx("Pickup", 3);
-  playRotatedSfx(id, 3);
+  playLibrarySfx("Pickup");
+  playLibrarySfx(id);
 };
 
 try {
@@ -250,7 +265,7 @@ try {
     lane: () => squad.lane,
     setLane: lane => {
       if (!activeTrack) return;
-      if (lane !== squad.lane) playRotatedSfx("LaneSwitch", 3);
+      if (lane !== squad.lane) playLibrarySfx("LaneSwitch");
       squad.setLane(lane, laneX, combatNow);
       playerLane = lane;
       aimControl.laneSelected();
@@ -347,7 +362,7 @@ try {
           actor: new NeonShapeActor({ shape: swarmShapes.enemy }),
           dying: false,
         });
-        playRotatedSfx("EnemySpawn", 3);
+        playLibrarySfx("EnemySpawn");
       } else if (entity.id.startsWith("pickup.weapon.gun.")) {
         const candidate = entity.id.slice("pickup.weapon.gun.".length);
         if (!(candidate in gunFamily.members)) throw new Error(`Track uses unknown gun id "${entity.id}".`);
@@ -393,10 +408,10 @@ try {
         gameEnemy.dying = true;
         gameEnemy.actor.explodeMagnitude = orbFamily.members.basicOrb.explosionMagnitude;
         gameEnemy.actor.dispose(NeonShapeDisposal.Explode);
-        playRotatedSfx("EnemyDestroyed", 3);
+        playLibrarySfx("EnemyDestroyed");
       } else {
-        playRotatedSfx("ProjectileHit", 3);
-        playRotatedSfx("EnemyHit", 3);
+        playLibrarySfx("ProjectileHit");
+        playLibrarySfx("EnemyHit");
       }
     });
 
@@ -439,7 +454,7 @@ try {
             enemy.y += (dy / dist) * shieldResult.pushDistance * scale();
           }
         }
-        playRotatedSfx("ShieldPulse", 3);
+        playLibrarySfx("ShieldPulse");
       }
 
       // Apply contact damage (contact mode)
@@ -454,7 +469,7 @@ try {
             enemy.dying = true;
             enemy.actor.explodeMagnitude = orbFamily.members.basicOrb.explosionMagnitude;
             enemy.actor.dispose(NeonShapeDisposal.Explode);
-            playRotatedSfx("EnemyDestroyed", 3);
+            playLibrarySfx("EnemyDestroyed");
           }
         }
       }
@@ -486,12 +501,12 @@ try {
           if (!swordResult.hitEnemyIds.includes(enemy.id ?? 0)) continue;
           enemy.health -= swordResult.damage;
           enemy.actor.impact({ direction: { x: 0, y: 1 }, magnitude: swordResult.damage / orbFamily.members.basicOrb.impactResistance });
-          playRotatedSfx("SwordHit", 3);
+          playLibrarySfx("SwordHit");
           if (enemy.health <= 0) {
             enemy.dying = true;
             enemy.actor.explodeMagnitude = orbFamily.members.basicOrb.explosionMagnitude;
             enemy.actor.dispose(NeonShapeDisposal.Explode);
-            playRotatedSfx("EnemyDestroyed", 3);
+            playLibrarySfx("EnemyDestroyed");
           }
         }
       }
@@ -521,10 +536,10 @@ try {
             enemy.dying = true;
             enemy.actor.explodeMagnitude = orbFamily.members.basicOrb.explosionMagnitude;
             enemy.actor.dispose(NeonShapeDisposal.Explode);
-            playRotatedSfx("EnemyDestroyed", 3);
+            playLibrarySfx("EnemyDestroyed");
           } else {
             enemy.actor.impact({ direction: { x: 0, y: 1 }, magnitude: shieldContact.damageAbsorbed / orbFamily.members.basicOrb.impactResistance });
-            playRotatedSfx("ShieldImpact", 3);
+            playLibrarySfx("ShieldImpact");
           }
           continue;
         }
@@ -542,8 +557,8 @@ try {
         playerActors.splice(hitIndex, 1);
         squad.remove();
         enemies.splice(enemies.indexOf(enemy), 1);
-        playRotatedSfx("PlayerDamage", 3);
-        playRotatedSfx("SquadMemberLost", 3);
+        playLibrarySfx("PlayerDamage");
+        playLibrarySfx("SquadMemberLost");
         if (squad.count === 1) playSfx("LowHealthWarning");
         if (squad.count === 0) { failureReason = "The entire squad was destroyed on contact."; finish(false); return; }
         continue;

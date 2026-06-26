@@ -17,7 +17,8 @@
                 </StackPanel>
                 <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
                     <TextBlock Text="API key" VerticalAlignment="Center" Margin="0,0,8,0" />
-                    <PasswordBox x:Name="ApiKeyBox" Width="260" PasswordChar="*" ToolTip="Uses ELEVENLABS_API_KEY first when set. This field is used only for this app session." />
+                    <PasswordBox x:Name="ApiKeyBox" Width="260" PasswordChar="*" ToolTip="Uses ELEVENLABS_API_KEY first when set. Saved API keys are stored under .tools/sfx-generator/settings.json." />
+                    <Button Content="Save" Click="SaveApiKey_Click" Margin="8,0,0,0" Padding="10,6" />
                 </StackPanel>
             </Grid>
             <TextBlock x:Name="StatusText" Margin="0,10,0,0" Foreground="#b00020" TextWrapping="Wrap" />
@@ -31,8 +32,12 @@
                         <Border BorderBrush="#c8c8c8" BorderThickness="1" CornerRadius="4" Padding="12" Margin="0,0,0,12">
                             <StackPanel>
                                 <TextBlock Text="{Binding Request.Id}" FontSize="22" FontWeight="SemiBold" />
-                                <TextBlock Text="{Binding Request.Description, StringFormat=Description: {0}}" TextWrapping="Wrap" Margin="0,4,0,4" />
-                                <TextBlock Text="{Binding Request.Count, StringFormat=Install targets: {0}}" FontWeight="SemiBold" Margin="0,0,0,10" />
+                                <TextBlock Text="Description" Margin="0,6,0,2" />
+                                <TextBox Text="{Binding Request.Description, UpdateSourceTrigger=PropertyChanged}" TextWrapping="Wrap" AcceptsReturn="True" MinHeight="54" Margin="0,0,0,6" />
+                                <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
+                                    <TextBlock Text="{Binding Request.Count, StringFormat=Install targets: {0}}" FontWeight="SemiBold" Margin="0,0,16,0" />
+                                    <TextBlock Text="{Binding Request.Loop, StringFormat=Intended to loop: {0}}" FontWeight="SemiBold" />
+                                </StackPanel>
                                 <ItemsControl ItemsSource="{Binding Targets}">
                                     <ItemsControl.ItemTemplate>
                                         <DataTemplate>
@@ -57,7 +62,9 @@
                                                                 <StackPanel Orientation="Horizontal" Margin="0,2,0,2">
                                                                     <TextBlock Text="{Binding Index, StringFormat=Candidate {0}}" Width="92" VerticalAlignment="Center" />
                                                                     <Button Content="Play" Click="Play_Click" Padding="8,4" Margin="0,0,6,0" />
-                                                                    <Button Content="Select and Replace Target" Click="Select_Click" Padding="8,4" Margin="0,0,8,0" />
+                                                                    <Button Content="Install Here" Click="Select_Click" Padding="8,4" Margin="0,0,8,0" />
+                                                                    <ComboBox ItemsSource="{Binding Target.InstallTargets}" SelectedItem="{Binding SelectedInstallTarget}" DisplayMemberPath="RelativePath" Width="260" Margin="0,0,6,0" />
+                                                                    <Button Content="Install To Slot" Click="SelectSlot_Click" Padding="8,4" Margin="0,0,8,0" />
                                                                     <TextBlock Text="Selected" Foreground="#0a6f28" FontWeight="SemiBold" VerticalAlignment="Center">
                                                                         <TextBlock.Style>
                                                                             <Style TargetType="TextBlock">
