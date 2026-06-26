@@ -72,11 +72,11 @@ export const generatedTrack: TrackMember = {
 .E.E. | .E.E.
 ..E.. | ..E..
 ..... | .....
-.E.E. | ..E..
-..... | .E.E.
+.E... | ..E..
+..... | ...E.
 ..E.. | .....
-..... | .....
-..E.. | .E.E.
+..... | ...b.
+..G.. | .....
 ..P.. | .....
 `,
     legend: {
@@ -84,7 +84,7 @@ export const generatedTrack: TrackMember = {
       "P": { id: "player.start" },
       "E": { id: "enemy.basic" },
       "2": { id: "pickup.unitMultiplier.2x", speed: 0.8 },
-      "G": { id: "pickup.weapon.gun.pulsePistol", speed: 0.75 },
+      "G": { id: "pickup.weapon.gun.pulsePistol", speed: 1 },
       "I": { id: "pickup.weapon.gun.burstCarbine", speed: 0.85 },
       "J": { id: "pickup.weapon.gun.heavyCannon", speed: 0.9 },
       "S": { id: "pickup.weapon.shield.lightGuard", speed: 0.8 },

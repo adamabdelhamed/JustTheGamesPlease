@@ -38,24 +38,24 @@ export const generatedTrack: TrackMember = {
 ..... | .....
 ..E.. | .E.E.
 ..... | .....
-.E.E. | ..E..
+.E... | ..E..
 ..... | .....
-..E.. | .E.E.
-..... | .....
+..... | ...E.
+..G.. | .....
 ..P.. | .....
 `,
     legend: {
       ".": { id: "empty" },
       "P": { id: "player.start" },
       "E": { id: "enemy.basic" },
-      "G": { id: "pickup.weapon.gun.pulsePistol", speed: 0.75 },
-      "S": { id: "pickup.weapon.shield.lightGuard", speed: 0.8 },
-      "a": { id: "pickup.weapon.sword.arcBlade", speed: 0.85 },
-      "2": { id: "pickup.unitMultiplier.2x", speed: 0.8 },
+      "G": { id: "pickup.weapon.gun.pulsePistol", speed: 1 },
+      "S": { id: "pickup.weapon.shield.lightGuard", speed: 1 },
+      "a": { id: "pickup.weapon.sword.arcBlade", speed: 1 },
+      "2": { id: "pickup.unitMultiplier.2x", speed: 1 },
     },
     balance: {
       enemyHp: 1.0,
-      enemySpeed: 1.5,
+      enemySpeed: 1,
     },
   },
 } satisfies TrackMember;

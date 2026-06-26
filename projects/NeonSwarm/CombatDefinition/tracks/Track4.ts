@@ -123,26 +123,26 @@ EEE.. | ..E..
 ..... | .....
 ..X.. | .....
 ..... | .....
-EEE.. | ..E..
+.EE.. | ..E..
 ..... | .E.E.
-.E.E. | .E.E.
+.E... | .E...
 ..... | .....
 ..E.. | ..E..
-.E.E. | .....
-..H.. | .E.E.
+...E. | .....
+..H.. | ...E.
 ..E.. | ..E..
 ..... | .....
-.E.E. | .E.E.
+.E... | ...E.
 ..E.. | ..E..
-..... | ..P..
-..E.. | .E.E.
-..... | .....
+..E.. | ..P..
+..S.. | ..K..
+..b.. | .....
 ..L.. | .....
 `,
     legend: {
       ".": { id: "empty" },
       "E": { id: "enemy.basic" },
-      "G": { id: "pickup.weapon.gun.pulsePistol", speed: 0.75 },
+      "G": { id: "pickup.weapon.gun.pulsePistol", speed: 1.2 },
       "2": { id: "pickup.unitMultiplier.2x", speed: 0.8 },
       "S": { id: "pickup.weapon.shield.lightGuard", speed: 0.8 },
       "a": { id: "pickup.weapon.sword.arcBlade", speed: 0.85 },
@@ -158,7 +158,7 @@ EEE.. | ..E..
     },
     balance: {
       enemyHp: 1.0,
-      enemySpeed: 1.05,
+      enemySpeed: 1.0,
     },
   },
 } satisfies TrackMember;

@@ -162,11 +162,11 @@ try {
   //   5. shieldAura         — slow/debuff aura
   // ---------------------------------------------------------------------------
   const activeByFamily: {
-    gun: { id: GunId; level: number };
+    gun: { id: GunId; level: number } | null;
     shield: ShieldState | null;
     sword: SwordState | null;
   } = {
-    gun: { id: "pulsePistol", level: 1 },
+    gun: null,
     shield: null,
     sword: null,
   };
@@ -224,6 +224,7 @@ try {
     enemyExitEffects = [];
     victory = null;
     failureReason = "";
+    activeByFamily.gun = null;
     activeByFamily.shield = null;
     activeByFamily.sword = null;
     playSfx("MenuOpen");
@@ -239,7 +240,7 @@ try {
     const playerStart = allEntities.find(entity => entity.id === "player.start");
     const startLane: 0 | 1 = playerStart?.side === "right" ? 1 : 0;
     playerLane = startLane;
-    activeByFamily.gun = { id: track.startingGun, level: track.startingGunLevel };
+    activeByFamily.gun = null;
     activeByFamily.shield = null;
     activeByFamily.sword = null;
     cooldown = 0;
@@ -302,6 +303,7 @@ try {
   // ---------------------------------------------------------------------------
 
   const fire = (): void => {
+    if (!activeByFamily.gun) return;
     const { id: gunId, level: gunLevel } = activeByFamily.gun;
     const gun = gunFamily.members[gunId];
     const tuning = gun.levels.find(item => item.level === gunLevel) ?? gun.levels[0];
@@ -355,11 +357,11 @@ try {
     if (!activeTrack) return;
     const elapsed = combatElapsed;
 
-    const { id: gunId } = activeByFamily.gun;
+    const gunStatus = activeByFamily.gun ? gunFamily.members[activeByFamily.gun.id].label : "No weapon";
     const shieldDef = activeByFamily.shield ? shieldFamily.members[activeByFamily.shield.shieldId] : null;
     const swordDef = activeByFamily.sword ? swordFamily.members[activeByFamily.sword.swordId] : null;
 
-    runStatus.textContent = `${gunFamily.members[gunId].label}${shieldDef ? ` · ${shieldDef.label}` : ""}${swordDef ? ` · ${swordDef.label}` : ""} · ${Math.max(0, activeTrack.durationSeconds - elapsed).toFixed(1)}s`;
+    runStatus.textContent = `${gunStatus}${shieldDef ? ` · ${shieldDef.label}` : ""}${swordDef ? ` · ${swordDef.label}` : ""} · ${Math.max(0, activeTrack.durationSeconds - elapsed).toFixed(1)}s`;
 
     while (
       nextTrackEntity < trackEntities.length &&
@@ -415,9 +417,11 @@ try {
     gameElement.dataset.squadAim = squad.aimOffset.toFixed(2);
 
     // --- Gun fire ---
-    cooldown -= delta;
-    if (cooldown <= 0) fire();
-    if (gunSimulation.updateFiring(combatNow) > 0) playGunFire(gunId);
+    if (activeByFamily.gun) {
+      cooldown -= delta;
+      if (cooldown <= 0) fire();
+      if (gunSimulation.updateFiring(combatNow) > 0) playGunFire(activeByFamily.gun.id);
+    }
 
     // --- Projectile movement + hit detection ---
     gunSimulation.updateProjectiles(delta, combatNow, enemies.map(enemy => Object.assign(enemy, {
