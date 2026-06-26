@@ -21,39 +21,41 @@
 
     <div class="editor-layout">
       <aside class="tool-panel">
-        <details open>
-          <summary>Track details</summary>
-          <label>Existing track <select id="track-source"></select></label>
-          <label>Export name <input id="export-name" value="newTrack"></label>
-          <label>Display name <input id="display-name" value="New Track"></label>
-          <label>Description <textarea id="description">A hand-authored Neon Swarm track.</textarea></label>
-          <label>Scene <select id="scene-select"></select></label>
-          <label>Enemy HP <input id="enemy-hp" type="number" min="0.1" step="0.1" value="1"></label>
-          <label>Enemy speed <input id="enemy-speed" type="number" min="0.1" step="0.1" value="1"></label>
-        </details>
+        <div class="tool-scroll">
+          <details open>
+            <summary>Track details</summary>
+            <label>Existing track <select id="track-source"></select></label>
+            <label>Export name <input id="export-name" value="newTrack"></label>
+            <label>Display name <input id="display-name" value="New Track"></label>
+            <label>Description <textarea id="description">A hand-authored Neon Swarm track.</textarea></label>
+            <label>Scene <select id="scene-select"></select></label>
+            <label>Enemy HP <input id="enemy-hp" type="number" min="0.1" step="0.1" value="1"></label>
+            <label>Enemy speed <input id="enemy-speed" type="number" min="0.1" step="0.1" value="1"></label>
+          </details>
 
-        <details open>
-          <summary>Place entity</summary>
-          <div id="palette" class="palette" role="listbox" aria-label="Track entities"></div>
-          <label>Local speed <input id="entity-speed" type="number" min="0.1" step="0.1" value="1"></label>
-          <p class="selection" id="selection">Selected: nearest row, left lane, column 1</p>
-          <div class="button-row">
-            <button id="place-cell" type="button">Place selected</button>
-            <button id="erase-cell" type="button" class="secondary">Erase selected</button>
-          </div>
-        </details>
+          <details open>
+            <summary>Place entity</summary>
+            <div id="palette" class="palette" role="listbox" aria-label="Track entities"></div>
+            <label>Local speed <input id="entity-speed" type="number" min="0.1" step="0.1" value="1"></label>
+            <p class="selection" id="selection">Selected: nearest row, left lane, column 1</p>
+            <div class="button-row">
+              <button id="place-cell" type="button">Place selected</button>
+              <button id="erase-cell" type="button" class="secondary">Erase selected</button>
+            </div>
+          </details>
 
-        <details open>
-          <summary>Rows</summary>
-          <div class="button-row">
-            <button id="insert-row-far" type="button">Insert above</button>
-            <button id="insert-row-near" type="button">Insert below</button>
-          </div>
-          <button id="delete-row" type="button" class="secondary">Delete selected row</button>
-          <button id="clear-grid" type="button" class="secondary">Clear all cells</button>
-        </details>
+          <details open>
+            <summary>Rows</summary>
+            <div class="button-row">
+              <button id="insert-row-far" type="button">Insert above</button>
+              <button id="insert-row-near" type="button">Insert below</button>
+            </div>
+            <button id="delete-row" type="button" class="secondary">Delete selected row</button>
+            <button id="clear-grid" type="button" class="secondary">Clear all cells</button>
+          </details>
+        </div>
 
-        <details open>
+        <details class="export-dock" open>
           <summary>Export</summary>
           <button id="export-track" type="button">Export TypeScript</button>
           <p id="export-status" class="selection" role="status"></p>

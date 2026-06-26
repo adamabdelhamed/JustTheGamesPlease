@@ -78,6 +78,7 @@ let toolRevision = 0;
 let selectionToolRevision = toolRevision;
 
 const grid = document.querySelector<HTMLElement>("#track-grid")!;
+const gridPanel = document.querySelector<HTMLElement>(".grid-panel")!;
 const palette = document.querySelector<HTMLElement>("#palette")!;
 const speedInput = document.querySelector<HTMLInputElement>("#entity-speed")!;
 const selectionReadout = document.querySelector<HTMLElement>("#selection")!;
@@ -204,7 +205,8 @@ function renderPalette(): void {
     for (const item of paletteItems.filter(candidate => candidate.family === family)) {
       const button = document.createElement("button");
       button.type = "button";
-      button.innerHTML = `<span class="symbol">${item.symbol}</span><span>${item.label}<br><small>${item.id}</small></span>`;
+      button.title = item.id;
+      button.innerHTML = `<span class="symbol">${item.symbol}</span><span>${item.label}</span>`;
       button.addEventListener("click", () => {
         selectedItem = item;
         toolRevision++;
@@ -366,11 +368,12 @@ function syncGridCanvasSize(): { width: number; height: number } {
   const origin = gridContent.getBoundingClientRect();
   const bounds = [laneHeadings, grid, nearLabel].map(element => element.getBoundingClientRect());
   const width = Math.max(1, Math.ceil(Math.max(...bounds.map(bound => bound.right - origin.left))));
-  const height = Math.max(1, Math.ceil(Math.max(...bounds.map(bound => bound.bottom - origin.top))));
+  const height = Math.max(1, Math.ceil(gridPanel.clientHeight));
   gridCanvas.width = width;
   gridCanvas.height = height;
   gridCanvas.style.width = `${width}px`;
   gridCanvas.style.height = `${height}px`;
+  gridCanvas.style.transform = `translateY(${gridPanel.scrollTop}px)`;
   return { width, height };
 }
 
@@ -382,6 +385,7 @@ function gridShapes(now: number): NeonTopDownShape[] {
     multiplier: new NeonShapeActor({ shape: swarmShapes.multiplier }),
   };
   const canvasBounds = gridCanvas.getBoundingClientRect();
+  const panelBounds = gridPanel.getBoundingClientRect();
   const viewport = { width: gridCanvas.width, height: gridCanvas.height, playerY: gridCanvas.height };
   const helicopterViewport = helicopterViewportFor(viewport.width, viewport.height, viewport.playerY);
   const shapes: NeonTopDownShape[] = [];
@@ -403,6 +407,7 @@ function gridShapes(now: number): NeonTopDownShape[] {
         const button = cellAt({ row, side, column });
         if (!button) continue;
         const bounds = button.getBoundingClientRect();
+        if (bounds.bottom < panelBounds.top || bounds.top > panelBounds.bottom) continue;
         const x = bounds.left - canvasBounds.left + bounds.width / 2;
         const y = bounds.top - canvasBounds.top + bounds.height / 2;
         const size = Math.min(bounds.width, bounds.height) * .3;
