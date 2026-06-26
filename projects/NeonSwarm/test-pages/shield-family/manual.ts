@@ -12,6 +12,7 @@ import { SquadModel } from "../../src/squad";
 import { AutoAimControlState, selectAutoAimOffset } from "../../src/autoAim";
 import { defaultHelicopterCameraSettings, applyPortraitStage, projectHelicopterScene } from "../../src/viewport";
 import { actorInTopDownScene, shapeLabel, swarmShapes } from "../../src/shapeVisuals";
+import { enemyOrientation, helicopterViewportFor, playerOrientation } from "../../src/renderOrientation";
 import { resolveShieldContact, ShieldState, tickShield } from "../../src/combat/shieldEvaluator";
 import { queryNearbyThreats } from "../../src/combat/nearbyThreatQuery";
 import { shieldPickupVisual, shieldVisuals } from "../../src/familyVisuals";
@@ -43,6 +44,9 @@ const enemyHpInput = document.querySelector<HTMLInputElement>("#enemy-hp")!;
 const shieldStrengthReadout = document.querySelector<HTMLElement>("#shield-strength")!;
 const gameElement = document.querySelector<HTMLElement>("#game")!;
 applyPortraitStage(gameElement, { aspectWidth: 9, aspectHeight: 16 });
+const audioId = (id: string): string => `../../../../audio/${id}`;
+const playSfx = (id: string): void => window.gameAudio?.play(audioId(id));
+const playEnemyDestroyed = (): void => window.gameAudio?.playRotated(audioId("EnemyDestroyed"), 2);
 
 try {
   const renderer = await NeonTopDownSceneRenderer.create(canvas, 450, 800);
@@ -79,7 +83,8 @@ try {
     initialShieldStrength = def.mode === "charge" ? def.maxCharges : 0;
     shieldStrength = initialShieldStrength;
     shieldSelect.value = id;
-    window.gameAudio?.play("Pickup");
+    playSfx("PickupShield");
+    playSfx("Shield");
     updateReadout();
   };
 
@@ -128,7 +133,7 @@ try {
     playerActor.explodeMagnitude = 0.8;
     playerActor.dispose(NeonShapeDisposal.Explode);
     weaponReadout.textContent = "Shield broken";
-    window.gameAudio?.play("EnemyDestroyed");
+    playSfx("ShieldBreak");
   };
 
   document.querySelectorAll<HTMLButtonElement>("[data-spawn-enemy]").forEach(b => b.addEventListener("click", () => spawnEnemy(Number(b.dataset.spawnEnemy) as 0 | 1)));
@@ -196,10 +201,10 @@ try {
           e.actor.dispose(NeonShapeDisposal.Explode);
           kills++;
           updateReadout();
-          window.gameAudio?.play("EnemyDestroyed");
+          playEnemyDestroyed();
           continue;
         }
-        window.gameAudio?.play("Hit");
+        playSfx("ShieldImpact");
       }
       const pts = squad.points(playerY(), scale());
       const hit = pts.findIndex(pt => Math.hypot(pt.x - e.x, pt.y - e.y) <= orb.radius * 3.2);
@@ -255,13 +260,10 @@ try {
         now, scale: s,
       }));
     }
-    shapes.push(actorInTopDownScene(playerActor, squad.x, playerY(), 14));
-    for (const e of enemies) shapes.push(actorInTopDownScene(e.actor, e.x, e.y, 18, { rotationY: Math.sin(now / 700 + e.id) * .18 }));
-    renderer.render(projectHelicopterScene(primitives, shapes, defaultHelicopterCameraSettings, {
-      width: canvas.width,
-      height: canvas.height,
-      playerY: playerY(),
-    }), now / 1000);
+    const helicopterViewport = helicopterViewportFor(canvas.width, canvas.height, playerY());
+    shapes.push(actorInTopDownScene(playerActor, squad.x, playerY(), 14, playerOrientation(defaultHelicopterCameraSettings, helicopterViewport, squad.x, playerY(), now)));
+    for (const e of enemies) shapes.push(actorInTopDownScene(e.actor, e.x, e.y, 18, enemyOrientation(defaultHelicopterCameraSettings, helicopterViewport, e.x, e.y, now, e.rowId)));
+    renderer.render(projectHelicopterScene(primitives, shapes, defaultHelicopterCameraSettings, helicopterViewport), now / 1000);
   };
 
   const frame = (now: number): void => { update(now); draw(now); requestAnimationFrame(frame); };

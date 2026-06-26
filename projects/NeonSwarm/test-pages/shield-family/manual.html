@@ -61,7 +61,17 @@
   <script src="../../../lib/top-bar/top-bar.js"></script>
   <script src="../../../lib/audio/audio.js"></script>
   <script src="../../../lib/controller/controller.js"></script>
-  <script>gameAudio.preload(['Primary','Primary_Alt1','Primary_Alt2','Primary_Alt3','Pickup','Hit','EnemyDestroyed']);</script>
+  <script>
+    gameAudio.preload([
+      '../../../../audio/PickupShield',
+      '../../../../audio/Shield',
+      '../../../../audio/ShieldImpact',
+      '../../../../audio/ShieldBreak',
+      '../../../../audio/EnemyDestroyed',
+      '../../../../audio/EnemyDestroyed_Alt1',
+      '../../../../audio/EnemyDestroyed_Alt2'
+    ]);
+  </script>
   <script type="module" src="manual.js"></script>
 </body>
 </html>

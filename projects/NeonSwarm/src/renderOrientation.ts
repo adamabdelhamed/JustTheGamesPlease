@@ -44,3 +44,60 @@ export function actorOrientation(role: ActorVisualRole, context: ActorOrientatio
       return {};
   }
 }
+
+export function helicopterViewportFor(width: number, height: number, playerY: number): HelicopterViewport {
+  return { width, height, playerY };
+}
+
+export function playerOrientation(
+  camera: HelicopterCameraSettings,
+  viewport: HelicopterViewport,
+  x: number,
+  y: number,
+  now: number,
+  phase = 0,
+): Partial<NeonShapeInstance> {
+  return actorOrientation("groundForward", {
+    camera,
+    viewport,
+    x,
+    y,
+    now,
+    phase,
+    facing: { x: 0, y: -1 },
+  });
+}
+
+export function enemyOrientation(
+  camera: HelicopterCameraSettings,
+  viewport: HelicopterViewport,
+  x: number,
+  y: number,
+  now: number,
+  phase = 0,
+): Partial<NeonShapeInstance> {
+  return actorOrientation("tumblingBillboard", {
+    camera,
+    viewport,
+    x,
+    y,
+    now,
+    phase,
+  });
+}
+
+export function billboardOrientation(
+  camera: HelicopterCameraSettings,
+  viewport: HelicopterViewport,
+  x: number,
+  y: number,
+  now: number,
+): Partial<NeonShapeInstance> {
+  return actorOrientation("screenBillboard", {
+    camera,
+    viewport,
+    x,
+    y,
+    now,
+  });
+}

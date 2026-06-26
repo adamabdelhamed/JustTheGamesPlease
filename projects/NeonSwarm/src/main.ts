@@ -5,7 +5,7 @@ import { SquadModel } from "./squad";
 import { AutoAimControlState, selectAutoAimOffset } from "./autoAim";
 import { applyPortraitStage, defaultHelicopterCameraSettings, projectHelicopterScene, worldYForProjectedY, type HelicopterCameraSettings } from "./viewport";
 import { actorInTopDownScene, shapeLabel, swarmShapes } from "./shapeVisuals";
-import { actorOrientation } from "./renderOrientation";
+import { billboardOrientation, enemyOrientation, helicopterViewportFor, playerOrientation } from "./renderOrientation";
 import { ShieldState, resolveShieldContact, tickShield } from "./combat/shieldEvaluator";
 import { SwordState, tickSword } from "./combat/swordEvaluator";
 import { queryNearbyThreats } from "./combat/nearbyThreatQuery";
@@ -701,25 +701,24 @@ try {
       }));
     }
     const playerSize = 14;
-    const helicopterViewport = { width: canvas.width, height: canvas.height, playerY: playerY() };
-    const projectileForward = { x: 0, y: -1 };
+    const helicopterViewport = helicopterViewportFor(canvas.width, canvas.height, playerY());
     for (const [index, point] of squad.points(playerY(), s).entries()) {
       const actor = playerActors[index] ?? new NeonShapeActor({ shape: swarmShapes.player });
-      shapeInstances.push(actorInTopDownScene(actor, point.x, point.y, playerSize, actorOrientation(actorVisualRoles.player, { camera: cameraSettings, viewport: helicopterViewport, x: point.x, y: point.y, now, phase: index, facing: projectileForward })));
+      shapeInstances.push(actorInTopDownScene(actor, point.x, point.y, playerSize, playerOrientation(cameraSettings, helicopterViewport, point.x, point.y, now, index)));
     }
     for (const item of explodingPlayers) shapeInstances.push(actorInTopDownScene(item.actor, item.x, item.y, playerSize));
-    for (const enemy of enemies) shapeInstances.push(actorInTopDownScene(enemy.actor, enemy.x, enemy.y, 18, actorOrientation(actorVisualRoles.enemy, { camera: cameraSettings, viewport: helicopterViewport, x: enemy.x, y: enemy.y, now, phase: enemy.rowId })));
+    for (const enemy of enemies) shapeInstances.push(actorInTopDownScene(enemy.actor, enemy.x, enemy.y, 18, enemyOrientation(cameraSettings, helicopterViewport, enemy.x, enemy.y, now, enemy.rowId)));
     for (const pickup of gunPickups) {
       const gun = gunFamily.members[pickup.gunId];
       pickup.actor.label = shapeLabel(gun.label, "above", 10, 7);
       pickup.actor.color = neonPalette[gun.visualIdentity.projectileColor];
-      shapeInstances.push(actorInTopDownScene(pickup.actor, pickup.x, pickup.y, 15, actorOrientation(actorVisualRoles.gunPickup, { camera: cameraSettings, viewport: helicopterViewport, x: pickup.x, y: pickup.y, now })));
+      shapeInstances.push(actorInTopDownScene(pickup.actor, pickup.x, pickup.y, 15, billboardOrientation(cameraSettings, helicopterViewport, pickup.x, pickup.y, now)));
     }
     for (const pickup of multipliers) {
       const spec = multiplierFamily.members[pickup.multiplierId];
       pickup.actor.label = shapeLabel(`${spec.squadAdded + 1}x`, "center", 11, 0);
       pickup.actor.color = neonPalette[spec.pickupColor];
-      shapeInstances.push(actorInTopDownScene(pickup.actor, pickup.x, pickup.y, 16, actorOrientation(actorVisualRoles.multiplier, { camera: cameraSettings, viewport: helicopterViewport, x: pickup.x, y: pickup.y, now })));
+      shapeInstances.push(actorInTopDownScene(pickup.actor, pickup.x, pickup.y, 16, billboardOrientation(cameraSettings, helicopterViewport, pickup.x, pickup.y, now)));
     }
     const projected = projectHelicopterScene(primitives, shapeInstances, cameraSettings, {
       ...helicopterViewport,

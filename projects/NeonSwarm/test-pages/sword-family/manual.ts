@@ -13,6 +13,7 @@ import { SquadModel } from "../../src/squad";
 import { AutoAimControlState, selectAutoAimOffset } from "../../src/autoAim";
 import { defaultHelicopterCameraSettings, applyPortraitStage, projectHelicopterScene } from "../../src/viewport";
 import { actorInTopDownScene, shapeLabel, swarmShapes } from "../../src/shapeVisuals";
+import { enemyOrientation, helicopterViewportFor, playerOrientation } from "../../src/renderOrientation";
 import { SwordState, tickSword } from "../../src/combat/swordEvaluator";
 import { queryNearbyThreats } from "../../src/combat/nearbyThreatQuery";
 import { swordPickupVisual, swordVisuals } from "../../src/familyVisuals";
@@ -42,6 +43,14 @@ const scoreReadout = document.querySelector<HTMLElement>("#score-readout")!;
 const specReadout = document.querySelector<HTMLElement>("#spec-readout")!;
 const gameElement = document.querySelector<HTMLElement>("#game")!;
 applyPortraitStage(gameElement, { aspectWidth: 9, aspectHeight: 16 });
+const audioId = (id: string): string => `../../../../audio/${id}`;
+const playSfx = (id: string): void => window.gameAudio?.play(audioId(id));
+const playEnemyDestroyed = (): void => window.gameAudio?.playRotated(audioId("EnemyDestroyed"), 2);
+const swordSwingSoundIds: Record<SwordId, string> = {
+  arcBlade: "SwordSwing",
+  cleaver: "SwordHeavySwing",
+  needleRapier: "SwordStab",
+};
 
 try {
   const renderer = await NeonTopDownSceneRenderer.create(canvas, 450, 800);
@@ -73,7 +82,7 @@ try {
     activeSwordId = id;
     swordState = new SwordState(id);
     swordSelect.value = id;
-    window.gameAudio?.play("Pickup");
+    playSfx("PickupSword");
     updateReadout();
   };
 
@@ -123,7 +132,7 @@ try {
     playerActor.explodeMagnitude = 0.8;
     playerActor.dispose(NeonShapeDisposal.Explode);
     weaponReadout.textContent = "Player defeated";
-    window.gameAudio?.play("EnemyDestroyed");
+    playSfx("SwordHit");
   };
 
   document.querySelectorAll<HTMLButtonElement>("[data-spawn-enemy]").forEach(b => b.addEventListener("click", () => spawnEnemy(Number(b.dataset.spawnEnemy) as 0 | 1)));
@@ -179,7 +188,7 @@ try {
     const swordResult = tickSword(swordState, def, threats, px, py, now, delta, neonPalette[def.color]);
 
     if (swordResult.swingTriggered && swordResult.hitEnemyIds.length > 0) {
-      window.gameAudio?.play("Hit");
+      playSfx(swordSwingSoundIds[activeSwordId]);
       for (const e of [...enemies]) {
         if (e.dying || !swordResult.hitEnemyIds.includes(e.id)) continue;
         e.health -= swordResult.damage;
@@ -187,7 +196,7 @@ try {
         if (e.health <= 0) {
           e.dying = true; e.actor.explodeMagnitude = orb.explosionMagnitude;
           e.actor.dispose(NeonShapeDisposal.Explode);
-          kills++; updateReadout(); window.gameAudio?.play("EnemyDestroyed");
+          kills++; updateReadout(); playEnemyDestroyed();
         }
       }
     }
@@ -241,13 +250,10 @@ try {
         now, scale: s,
       }));
     }
-    shapes.push(actorInTopDownScene(playerActor, squad.x, py, 14));
-    for (const e of enemies) shapes.push(actorInTopDownScene(e.actor, e.x, e.y, 18, { rotationY: Math.sin(now / 700 + e.id) * .18 }));
-    renderer.render(projectHelicopterScene(primitives, shapes, defaultHelicopterCameraSettings, {
-      width: canvas.width,
-      height: canvas.height,
-      playerY: playerY(),
-    }), now / 1000);
+    const helicopterViewport = helicopterViewportFor(canvas.width, canvas.height, playerY());
+    shapes.push(actorInTopDownScene(playerActor, squad.x, py, 14, playerOrientation(defaultHelicopterCameraSettings, helicopterViewport, squad.x, py, now)));
+    for (const e of enemies) shapes.push(actorInTopDownScene(e.actor, e.x, e.y, 18, enemyOrientation(defaultHelicopterCameraSettings, helicopterViewport, e.x, e.y, now, e.rowId)));
+    renderer.render(projectHelicopterScene(primitives, shapes, defaultHelicopterCameraSettings, helicopterViewport), now / 1000);
   };
 
   const frame = (now: number): void => { update(now); draw(now); requestAnimationFrame(frame); };

@@ -5,6 +5,7 @@ import { SquadModel } from "../../src/squad";
 import { AutoAimControlState, selectAutoAimOffset } from "../../src/autoAim";
 import { defaultHelicopterCameraSettings, applyPortraitStage, projectHelicopterScene } from "../../src/viewport";
 import { actorInTopDownScene, shapeLabel, swarmShapes } from "../../src/shapeVisuals";
+import { billboardOrientation, enemyOrientation, helicopterViewportFor, playerOrientation } from "../../src/renderOrientation";
 import { GunSimulation } from "../../src/combat/gunSimulation";
 
 interface Enemy {
@@ -389,24 +390,23 @@ try {
     
     const zoom = +shapeZoom.value / 100;
     const shapes: NeonTopDownShape[] = [];
-    for (const point of squad.points(playerY() + recoil, s)) shapes.push(actorInTopDownScene(new NeonShapeActor({ shape: swarmShapes.player }), point.x, point.y, 14 * zoom));
-    for (const enemy of enemies) shapes.push(actorInTopDownScene(enemy.actor, enemy.x, enemy.y, 18 * zoom, { rotationY: Math.sin(now / 700 + enemy.id) * .18 }));
+    const helicopterViewport = helicopterViewportFor(canvas.width, canvas.height, playerY());
+    for (const [index, point] of squad.points(playerY() + recoil, s).entries()) {
+      shapes.push(actorInTopDownScene(new NeonShapeActor({ shape: swarmShapes.player }), point.x, point.y, 14 * zoom, playerOrientation(defaultHelicopterCameraSettings, helicopterViewport, point.x, point.y, now, index)));
+    }
+    for (const enemy of enemies) shapes.push(actorInTopDownScene(enemy.actor, enemy.x, enemy.y, 18 * zoom, enemyOrientation(defaultHelicopterCameraSettings, helicopterViewport, enemy.x, enemy.y, now, enemy.rowId)));
     for (const pickup of pickups) {
       const gun = guns[pickup.gunId];
       pickup.actor.label = shapeLabel(gun.label, "above", 10, 7);
       pickup.actor.color = neonPalette[gun.visualIdentity.projectileColor];
-      shapes.push(actorInTopDownScene(pickup.actor, laneX(pickup.lane), pickup.y, 15 * zoom));
+      shapes.push(actorInTopDownScene(pickup.actor, laneX(pickup.lane), pickup.y, 15 * zoom, billboardOrientation(defaultHelicopterCameraSettings, helicopterViewport, laneX(pickup.lane), pickup.y, now)));
     }
     for (const pickup of multipliers) {
       pickup.actor.label = shapeLabel(`${multiplierFamily.members.squadPlusOne.squadAdded + 1}x`, "center", 11, 0);
       pickup.actor.color = neonPalette[multiplierFamily.members.squadPlusOne.pickupColor];
-      shapes.push(actorInTopDownScene(pickup.actor, laneX(pickup.lane), pickup.y, 16 * zoom));
+      shapes.push(actorInTopDownScene(pickup.actor, laneX(pickup.lane), pickup.y, 16 * zoom, billboardOrientation(defaultHelicopterCameraSettings, helicopterViewport, laneX(pickup.lane), pickup.y, now)));
     }
-    renderer.render(projectHelicopterScene(primitives, shapes, defaultHelicopterCameraSettings, {
-      width: canvas.width,
-      height: canvas.height,
-      playerY: playerY(),
-    }), now / 1000);
+    renderer.render(projectHelicopterScene(primitives, shapes, defaultHelicopterCameraSettings, helicopterViewport), now / 1000);
   };
 
   const frame = (now: number): void => {
