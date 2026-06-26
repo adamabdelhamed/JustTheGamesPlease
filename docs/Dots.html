@@ -8,6 +8,7 @@
 <link rel="apple-touch-icon" sizes="180x180" href="icons/links-180.png">
 <link rel="manifest" href="manifests/links.webmanifest">
 <meta name="theme-color" content="#05071c"><meta name="mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="Neon Links">
+<script src="lib/url-options.js"></script>
 <script src="lib/analytics.js"></script>
 <script src="lib/recording/recording.js"></script>
 <style>
@@ -309,9 +310,9 @@ const dialogTitle = document.getElementById("dialogTitle");
 const dialogText = document.getElementById("dialogText");
 const levelLabel = document.getElementById("levelLabel");
 const difficultyEl = document.getElementById("difficulty");
-const query = new URLSearchParams(location.search);
-const devMode = query.get("dev") === "1";
-const rendererMode = query.get("renderer") === "1";
+const urlOptions = window.JustTheGamesPlease.urlOptions;
+const devMode = urlOptions.isEnabled("dev");
+const rendererMode = urlOptions.isEnabled("renderer");
 let recording = null;
 
 const colors = ["#56ccff","#ff5fb7","#7cffb2","#ffd166","#a78bfa","#ff8a5b"];

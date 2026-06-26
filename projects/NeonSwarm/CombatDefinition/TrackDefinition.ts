@@ -1,4 +1,4 @@
-import type { NeonColorName } from "@just-the-games-please/neon-factory";
+import type { LaneRunnerSceneId } from "@just-the-games-please/neon-factory";
 import type { GunId } from "./GunFamily";
 
 export interface TrackLegendEntry {
@@ -31,13 +31,7 @@ export interface TrackMember {
     logicalHeight: number;
   };
   environment: {
-    floorColor: NeonColorName;
-    crackColor: NeonColorName;
-    airColor: NeonColorName;
-    horizonColor: NeonColorName;
-    pulseRate: number;
-    crackDensity: number;
-    airStreakCount: number;
+    sceneId: LaneRunnerSceneId;
   };
   definition: TrackDefinition;
 }

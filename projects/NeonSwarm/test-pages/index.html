@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>Neon Swarm Test Center</title>
   <link rel="stylesheet" href="index.css">
+  <script src="../../lib/url-options.js"></script>
 </head>
 <body>
   <main id="test-center" hidden>
@@ -14,65 +15,66 @@
         <h1>Test Center</h1>
         <p>Manual labs and automated suites organized by game subsystem.</p>
       </div>
-      <a class="back" href="../../NeonSwarm.html?dev=1">Back to Tracks</a>
+      <a class="back" href="../../NeonSwarm.html#dev-1">Back to Tracks</a>
     </header>
     <section>
       <h2>Combat</h2>
       <article>
         <div><span class="family">GUN FAMILY</span><h3>Forward projectile weapons</h3></div>
         <nav>
-          <a href="gun-family/manual.html?dev=1"><strong>Manual Lab</strong><span>Spawn enemies, pickups, and tune visual behavior.</span></a>
-          <a href="gun-family/smoke.html?dev=1"><strong>Smoke Suite</strong><span>All guns defeat the weakest orb before contact.</span></a>
+          <a href="gun-family/manual.html#dev-1"><strong>Manual Lab</strong><span>Spawn enemies, pickups, and tune visual behavior.</span></a>
+          <a href="gun-family/smoke.html#dev-1"><strong>Smoke Suite</strong><span>All guns defeat the weakest orb before contact.</span></a>
         </nav>
       </article>
       <article>
         <div><span class="family">SHIELD FAMILY</span><h3>Defensive near-player energy fields</h3></div>
         <nav>
-          <a href="shield-family/manual.html?dev=1"><strong>Manual Lab</strong><span>Spawn enemies, collect shields, test each mode (charge, pulse, contact, aura).</span></a>
-          <a href="shield-family/smoke.html?dev=1"><strong>Smoke Suite</strong><span>All shields pass definition validation for their mode.</span></a>
+          <a href="shield-family/manual.html#dev-1"><strong>Manual Lab</strong><span>Spawn enemies, collect shields, test each mode (charge, pulse, contact, aura).</span></a>
+          <a href="shield-family/smoke.html#dev-1"><strong>Smoke Suite</strong><span>All shields pass definition validation for their mode.</span></a>
         </nav>
       </article>
       <article>
         <div><span class="family">SWORD FAMILY</span><h3>Target-triggered close-range attacks</h3></div>
         <nav>
-          <a href="sword-family/manual.html?dev=1"><strong>Manual Lab</strong><span>Spawn enemies, observe target-triggered slash arcs — no firing into empty lanes.</span></a>
-          <a href="sword-family/smoke.html?dev=1"><strong>Smoke Suite</strong><span>All swords pass definition validation for range, arc, damage, and cooldown.</span></a>
+          <a href="sword-family/manual.html#dev-1"><strong>Manual Lab</strong><span>Spawn enemies, observe target-triggered slash arcs — no firing into empty lanes.</span></a>
+          <a href="sword-family/smoke.html#dev-1"><strong>Smoke Suite</strong><span>All swords pass definition validation for range, arc, damage, and cooldown.</span></a>
         </nav>
       </article>
       <article>
         <div><span class="family">INPUT & TARGETING</span><h3>Within-lane auto aim</h3></div>
         <nav>
-          <a href="auto-aim/smoke.html?dev=1"><strong>Smoke Suite</strong><span>Centered squads clean up symmetric outside survivors.</span></a>
+          <a href="auto-aim/smoke.html#dev-1"><strong>Smoke Suite</strong><span>Centered squads clean up symmetric outside survivors.</span></a>
         </nav>
       </article>
       <article>
         <div><span class="family">MULTIPLIER FAMILY</span><h3>Squad growth and formations</h3></div>
         <nav>
-          <a href="multiplier-family/smoke.html?dev=1"><strong>Smoke Suite</strong><span>Pickup growth, cap, rows, and five-wide targeting.</span></a>
+          <a href="multiplier-family/smoke.html#dev-1"><strong>Smoke Suite</strong><span>Pickup growth, cap, rows, and five-wide targeting.</span></a>
         </nav>
       </article>
       <article>
         <div><span class="family">TRACK AUTHORING</span><h3>Two-lane layout editor</h3></div>
         <nav>
-          <a href="track-editor/index.html?dev=1"><strong>Track Editor</strong><span>Paint enemies, shields, swords, and pickups onto a grid, then export a typed track file.</span></a>
+          <a href="track-editor/index.html#dev-1"><strong>Track Editor</strong><span>Paint enemies, shields, swords, and pickups onto a grid, then export a typed track file.</span></a>
         </nav>
       </article>
       <article>
         <div><span class="family">TRACK GENERATOR</span><h3>AI-assisted prompt builder</h3></div>
         <nav>
-          <a href="track-generator/index.html?dev=1"><strong>Prompt Generator</strong><span>Construct guidelines and requirements into an LLM prompt to design a track.</span></a>
+          <a href="track-generator/index.html#dev-1"><strong>Prompt Generator</strong><span>Construct guidelines and requirements into an LLM prompt to design a track.</span></a>
         </nav>
       </article>
     </section>
   </main>
   <section id="dev-required" class="dev-required" hidden>
     <h1>Developer mode required</h1>
-    <p>Open this page from the game with <code>?dev=1</code>.</p>
+    <p>Open this page from the game with <code>?dev=1</code> or <code>#dev-1</code>.</p>
   </section>
   <script>
-    const developer = new URLSearchParams(location.search).get('dev') === '1';
+    const developer = window.JustTheGamesPlease.urlOptions.isEnabled('dev');
     document.querySelector('#test-center').hidden = !developer;
     document.querySelector('#dev-required').hidden = developer;
   </script>
 </body>
 </html>
+

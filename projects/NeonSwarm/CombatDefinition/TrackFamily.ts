@@ -1,4 +1,4 @@
-import { neonPalette } from "@just-the-games-please/neon-factory";
+import { isLaneRunnerSceneId } from "@just-the-games-please/neon-factory";
 import { FamilyDefinition } from "./FamilyDefinition";
 import type { TrackMember } from "./TrackDefinition";
 import { parseTrackDefinition } from "./TrackDefinition";
@@ -20,8 +20,7 @@ export class TrackFamilyDefinition extends FamilyDefinition<Record<string, Track
       this.require(track.viewport.orientation === "portrait" && track.viewport.aspectHeight > track.viewport.aspectWidth, `${id} must use its declared portrait viewport.`);
       this.require(track.viewport.logicalWidth > 0 && track.viewport.logicalHeight > 0, `${id} logical viewport must be positive.`);
       parseTrackDefinition(track.definition);
-      this.require(track.environment.crackDensity > 0 && track.environment.airStreakCount > 0, `${id} environment must contain detail.`);
-      this.require(neonPalette[track.environment.floorColor] !== undefined, `${id} has an unknown floor color.`);
+      this.require(isLaneRunnerSceneId(track.environment.sceneId), `${id} has an unknown scene id.`);
     }
   }
 }

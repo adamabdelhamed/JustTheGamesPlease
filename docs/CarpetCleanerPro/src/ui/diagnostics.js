@@ -4,7 +4,7 @@ export function createDiagnosticsPanel() {
   const root = document.querySelector('#diagnostics');
   const status = document.querySelector('#diagStatus');
   const values = document.querySelector('#diagValues');
-  const enabled = new URLSearchParams(location.search).get('dev') === '1';
+  const enabled = window.JustTheGamesPlease?.urlOptions?.isEnabled('dev') ?? false;
   root.hidden = !enabled;
   const state = new Map();
   let lastPaint = 0;

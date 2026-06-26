@@ -12,7 +12,7 @@ await build({
   format: "esm",
   platform: "browser",
   target: "es2022",
-  sourcemap: true,
+  sourcemap: "inline",
 });
 
 await build({
@@ -22,7 +22,7 @@ await build({
   format: "esm",
   platform: "browser",
   target: "es2022",
-  sourcemap: true,
+  sourcemap: "inline",
 });
 
 await mkdir(resolve(docs, "lib/neonfactory-tests/orb"), { recursive: true });
@@ -40,24 +40,24 @@ await Promise.all([
 await mkdir(resolve(docs, "lib/neonfactory-tests/shapes"), { recursive: true });
 await mkdir(resolve(docs, "lib/neonfactory-tests/projectiles"), { recursive: true });
 await Promise.all([
-  build({entryPoints:[resolve(root,"projects/NeonFactory/test-pages/projectiles/projectiles.ts")],outfile:resolve(docs,"lib/neonfactory-tests/projectiles/projectiles.js"),bundle:true,format:"esm",platform:"browser",target:"es2022",sourcemap:true}),
+  build({entryPoints:[resolve(root,"projects/NeonFactory/test-pages/projectiles/projectiles.ts")],outfile:resolve(docs,"lib/neonfactory-tests/projectiles/projectiles.js"),bundle:true,format:"esm",platform:"browser",target:"es2022",sourcemap:"inline"}),
   cp(resolve(root,"projects/NeonFactory/test-pages/projectiles/index.html"),resolve(docs,"lib/neonfactory-tests/projectiles/index.html")),
   cp(resolve(root,"projects/NeonFactory/test-pages/projectiles/projectiles.css"),resolve(docs,"lib/neonfactory-tests/projectiles/projectiles.css")),
   cp(resolve(root,"projects/NeonFactory/test-pages/index.html"),resolve(docs,"lib/neonfactory-tests/index.html")),
   build({
     entryPoints: [resolve(root, "projects/NeonFactory/test-pages/shapes/gallery.ts")],
     outfile: resolve(docs, "lib/neonfactory-tests/shapes/gallery.js"),
-    bundle: true, format: "esm", platform: "browser", target: "es2022", sourcemap: true,
+    bundle: true, format: "esm", platform: "browser", target: "es2022", sourcemap: "inline",
   }),
   build({
     entryPoints: [resolve(root, "projects/NeonFactory/test-pages/shapes/tuning-storage.ts")],
     outfile: resolve(docs, "lib/neonfactory-tests/shapes/tuning-storage.js"),
-    bundle: true, format: "esm", platform: "browser", target: "es2022", sourcemap: true,
+    bundle: true, format: "esm", platform: "browser", target: "es2022", sourcemap: "inline",
   }),
   build({
     entryPoints: [resolve(root, "projects/NeonFactory/test-pages/shapes/inspector.ts")],
     outfile: resolve(docs, "lib/neonfactory-tests/shapes/inspector.js"),
-    bundle: true, format: "esm", platform: "browser", target: "es2022", sourcemap: true,
+    bundle: true, format: "esm", platform: "browser", target: "es2022", sourcemap: "inline",
   }),
   cp(resolve(root, "projects/NeonFactory/test-pages/shapes/gallery.html"), resolve(docs, "lib/neonfactory-tests/shapes/gallery.html")),
   cp(resolve(root, "projects/NeonFactory/test-pages/shapes/inspector.html"), resolve(docs, "lib/neonfactory-tests/shapes/inspector.html")),
@@ -71,7 +71,7 @@ await build({
   format: "esm",
   platform: "browser",
   target: "es2022",
-  sourcemap: true,
+  sourcemap: "inline",
 });
 
 await mkdir(resolve(docs, "NeonSwarm"), { recursive: true });
@@ -116,52 +116,52 @@ await Promise.all([
   build({
     entryPoints: [resolve(root, "projects/NeonSwarm/test-pages/gun-family/manual.ts")],
     outfile: resolve(docs, "NeonSwarm/tests/gun-family/manual.js"),
-    bundle: true, format: "esm", platform: "browser", target: "es2022", sourcemap: true,
+    bundle: true, format: "esm", platform: "browser", target: "es2022", sourcemap: "inline",
   }),
   build({
     entryPoints: [resolve(root, "projects/NeonSwarm/test-pages/gun-family/smoke.ts")],
     outfile: resolve(docs, "NeonSwarm/tests/gun-family/smoke.js"),
-    bundle: true, format: "esm", platform: "browser", target: "es2022", sourcemap: true,
+    bundle: true, format: "esm", platform: "browser", target: "es2022", sourcemap: "inline",
   }),
   build({
     entryPoints: [resolve(root, "projects/NeonSwarm/test-pages/shield-family/manual.ts")],
     outfile: resolve(docs, "NeonSwarm/tests/shield-family/manual.js"),
-    bundle: true, format: "esm", platform: "browser", target: "es2022", sourcemap: true,
+    bundle: true, format: "esm", platform: "browser", target: "es2022", sourcemap: "inline",
   }),
   build({
     entryPoints: [resolve(root, "projects/NeonSwarm/test-pages/shield-family/smoke.ts")],
     outfile: resolve(docs, "NeonSwarm/tests/shield-family/smoke.js"),
-    bundle: true, format: "esm", platform: "browser", target: "es2022", sourcemap: true,
+    bundle: true, format: "esm", platform: "browser", target: "es2022", sourcemap: "inline",
   }),
   build({
     entryPoints: [resolve(root, "projects/NeonSwarm/test-pages/sword-family/manual.ts")],
     outfile: resolve(docs, "NeonSwarm/tests/sword-family/manual.js"),
-    bundle: true, format: "esm", platform: "browser", target: "es2022", sourcemap: true,
+    bundle: true, format: "esm", platform: "browser", target: "es2022", sourcemap: "inline",
   }),
   build({
     entryPoints: [resolve(root, "projects/NeonSwarm/test-pages/sword-family/smoke.ts")],
     outfile: resolve(docs, "NeonSwarm/tests/sword-family/smoke.js"),
-    bundle: true, format: "esm", platform: "browser", target: "es2022", sourcemap: true,
+    bundle: true, format: "esm", platform: "browser", target: "es2022", sourcemap: "inline",
   }),
   build({
     entryPoints: [resolve(root, "projects/NeonSwarm/test-pages/multiplier-family/smoke.ts")],
     outfile: resolve(docs, "NeonSwarm/tests/multiplier-family/smoke.js"),
-    bundle: true, format: "esm", platform: "browser", target: "es2022", sourcemap: true,
+    bundle: true, format: "esm", platform: "browser", target: "es2022", sourcemap: "inline",
   }),
   build({
     entryPoints: [resolve(root, "projects/NeonSwarm/test-pages/auto-aim/smoke.ts")],
     outfile: resolve(docs, "NeonSwarm/tests/auto-aim/smoke.js"),
-    bundle: true, format: "esm", platform: "browser", target: "es2022", sourcemap: true,
+    bundle: true, format: "esm", platform: "browser", target: "es2022", sourcemap: "inline",
   }),
   build({
     entryPoints: [resolve(root, "projects/NeonSwarm/test-pages/track-editor/track-editor.ts")],
     outfile: resolve(docs, "NeonSwarm/tests/track-editor/track-editor.js"),
-    bundle: true, format: "esm", platform: "browser", target: "es2022", sourcemap: true,
+    bundle: true, format: "esm", platform: "browser", target: "es2022", sourcemap: "inline",
   }),
   build({
     entryPoints: [resolve(root, "projects/NeonSwarm/test-pages/track-generator/track-generator.ts")],
     outfile: resolve(docs, "NeonSwarm/tests/track-generator/track-generator.js"),
-    bundle: true, format: "esm", platform: "browser", target: "es2022", sourcemap: true,
+    bundle: true, format: "esm", platform: "browser", target: "es2022", sourcemap: "inline",
   }),
 ]);
 

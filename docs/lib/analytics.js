@@ -1,7 +1,9 @@
 (function (window, document) {
   'use strict';
 
-  if (new URLSearchParams(window.location.search).get('dev') === '1') {
+  const devMode = window.JustTheGamesPlease.urlOptions.isEnabled('dev');
+
+  if (devMode) {
     const noop = function () {};
     window.gameAnalytics = {
       capture: noop,

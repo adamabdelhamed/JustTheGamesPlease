@@ -14,13 +14,7 @@ export const generatedTrack: TrackMember = {
     logicalHeight: 800,
   },
   environment: {
-    floorColor: "violet",
-    crackColor: "pink",
-    airColor: "cyan",
-    horizonColor: "deepBlue",
-    pulseRate: 1.35,
-    crackDensity: 17,
-    airStreakCount: 12,
+    sceneId: "neonHall",
   },
   definition: {
     layout: `

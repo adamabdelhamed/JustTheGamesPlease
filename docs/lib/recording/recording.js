@@ -1,9 +1,9 @@
 (function (global, document) {
   'use strict';
 
-  const query = new URLSearchParams(global.location.search);
-  const devMode = query.get('dev') === '1';
-  const rendererMode = query.get('renderer') === '1';
+  const urlOptions = global.JustTheGamesPlease.urlOptions;
+  const devMode = urlOptions.isEnabled('dev');
+  const rendererMode = urlOptions.isEnabled('renderer');
   const games = new Map();
 
   if (rendererMode) {

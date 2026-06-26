@@ -6,6 +6,7 @@
   <title>Neon Swarm · Track Editor</title>
   <link rel="stylesheet" href="../index.css">
   <link rel="stylesheet" href="track-editor.css">
+  <script src="../../../lib/url-options.js"></script>
 </head>
 <body>
   <main id="editor" hidden>
@@ -15,7 +16,7 @@
         <h1>Track Editor</h1>
         <p>Select a cell, then choose what belongs there. Rows at the bottom are encountered first.</p>
       </div>
-      <a class="back" href="../index.html?dev=1">Back to Test Center</a>
+      <a class="back" href="../index.html#dev-1">Back to Test Center</a>
     </header>
 
     <div class="editor-layout">
@@ -54,7 +55,7 @@
 
   <section id="dev-required" class="dev-required" hidden>
     <h1>Developer mode required</h1>
-    <p>Open this page with <code>?dev=1</code>.</p>
+    <p>Open this page with <code>?dev=1</code> or <code>#dev-1</code>.</p>
   </section>
   <script type="module" src="track-editor.js"></script>
 </body>

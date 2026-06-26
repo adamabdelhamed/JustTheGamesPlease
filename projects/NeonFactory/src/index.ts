@@ -1,6 +1,5 @@
 export { glowPresets, neonPalette, type NeonColorName } from "./tokens";
 export { NeonOrb, type NeonOrbOptions } from "./orb";
-export { NeonRenderer } from "./renderer";
 export {
   neonShapeCatalog,
   getNeonShape,
@@ -23,6 +22,14 @@ export {
   type NeonShapeVector,
 } from "./geometric-shape-actor";
 export { NeonTopDownSceneRenderer, type NeonTopDownScene, type NeonTopDownShape } from "./top-down-scene";
+export {
+  createLaneRunnerScene,
+  getLaneRunnerSceneName,
+  isLaneRunnerSceneId,
+  laneRunnerSceneIds,
+  type LaneRunnerSceneId,
+  type LaneRunnerSceneOptions,
+} from "./lane-runner-scenes";
 export { NeonProjectile, type NeonProjectileOptions, type NeonProjectileShape } from "./projectile";
 export {
   NeonPrimitiveRenderer,

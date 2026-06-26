@@ -12,7 +12,8 @@
   <meta name="apple-mobile-web-app-title" content="Just The Games">
   <meta name="description" content="Free, ad-free static HTML games. No timers, no popups. Just clean, simple games you can play instantly.">
   <meta name="theme-color" content="#03050c">
-  <script src="lib/analytics.js"></script>
+  <script src="lib/url-options.js"></script>
+<script src="lib/analytics.js"></script>
   <style>
     :root {
       color-scheme: dark;
@@ -1242,7 +1243,7 @@
     <a href="Privacy.html">Privacy</a>
   </footer>
   <script>
-    const showInProgress = new URLSearchParams(location.search).get('dev') === '1';
+    const showInProgress = window.JustTheGamesPlease.urlOptions.isEnabled('dev');
     document.querySelectorAll('.game-card').forEach(card => {
       if (card.dataset.status === 'InProgress' && !showInProgress) {
         card.remove();
@@ -1251,7 +1252,7 @@
 
       if (showInProgress) {
         const destination = new URL(card.getAttribute('href'), location.href);
-        destination.searchParams.set('dev', '1');
+        destination.hash = destination.hash ? `${destination.hash}/dev-1` : 'dev-1';
         card.setAttribute('href', `${destination.pathname.split('/').pop()}${destination.search}${destination.hash}`);
       }
     });

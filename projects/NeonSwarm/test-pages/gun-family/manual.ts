@@ -1,9 +1,9 @@
-import { NeonShapeActor, NeonShapeDisposal, NeonTopDownSceneRenderer, neonPalette, type NeonPrimitive, type NeonTopDownShape } from "@just-the-games-please/neon-factory";
+import { createLaneRunnerScene, NeonShapeActor, NeonShapeDisposal, NeonTopDownSceneRenderer, neonPalette, type NeonPrimitive, type NeonTopDownShape } from "@just-the-games-please/neon-factory";
 import { gunFamily, multiplierFamily, orbFamily, type GunLevel, type GunMember } from "../../CombatDefinition";
 import { bindSquadInput } from "../../src/input";
 import { SquadModel } from "../../src/squad";
 import { AutoAimControlState, selectAutoAimOffset } from "../../src/autoAim";
-import { applyPortraitStage } from "../../src/viewport";
+import { defaultHelicopterCameraSettings, applyPortraitStage, projectHelicopterScene } from "../../src/viewport";
 import { actorInTopDownScene, shapeLabel, swarmShapes } from "../../src/shapeVisuals";
 import { GunSimulation } from "../../src/combat/gunSimulation";
 
@@ -260,7 +260,9 @@ try {
 
   const draw = (now: number): void => {
     const s = scale();
-    const primitives: NeonPrimitive[] = [];
+    const primitives: NeonPrimitive[] = [
+      ...(createLaneRunnerScene({ sceneId: "neonHall", width: canvas.width, height: canvas.height, timeMs: now }).primitives ?? []),
+    ];
     for (const point of squad.points(playerY() + recoil, s)) void point;
     primitives.push(...gunSimulation.projectilePrimitives());
     if (false) for (const enemy of enemies) {
@@ -400,7 +402,11 @@ try {
       pickup.actor.color = neonPalette[multiplierFamily.members.squadPlusOne.pickupColor];
       shapes.push(actorInTopDownScene(pickup.actor, laneX(pickup.lane), pickup.y, 16 * zoom));
     }
-    renderer.render({ primitives, shapes }, now / 1000);
+    renderer.render(projectHelicopterScene(primitives, shapes, defaultHelicopterCameraSettings, {
+      width: canvas.width,
+      height: canvas.height,
+      playerY: playerY(),
+    }), now / 1000);
   };
 
   const frame = (now: number): void => {

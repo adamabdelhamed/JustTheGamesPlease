@@ -1,9 +1,9 @@
-import { NeonShapeActor, NeonShapeDisposal, NeonTopDownSceneRenderer, NeonVictoryExperience, neonPalette, type NeonPrimitive, type NeonTopDownShape } from "@just-the-games-please/neon-factory";
-import { gunFamily, multiplierFamily, orbFamily, parseTrackDefinition, shieldFamily, swordFamily, trackFamily, type GunId, type MultiplierId, type ParsedTrackEntity, type ShieldId, type SwordId, type TrackMember, type SwordTargetingMode } from "../CombatDefinition";
+import { NeonShapeActor, NeonShapeDisposal, NeonTopDownSceneRenderer, NeonVictoryExperience, createLaneRunnerScene, getLaneRunnerSceneName, isLaneRunnerSceneId, laneRunnerSceneIds, neonPalette, type LaneRunnerSceneId, type NeonPrimitive, type NeonTopDownShape } from "@just-the-games-please/neon-factory";
+import { combatTuning, gunFamily, multiplierFamily, orbFamily, parseTrackDefinition, shieldFamily, swordFamily, trackFamily, type GunId, type MultiplierId, type ParsedTrackEntity, type ShieldId, type SwordId, type TrackMember, type SwordTargetingMode } from "../CombatDefinition";
 import { bindSquadInput } from "./input";
 import { SquadModel } from "./squad";
 import { AutoAimControlState, selectAutoAimOffset } from "./autoAim";
-import { applyPortraitStage } from "./viewport";
+import { applyPortraitStage, defaultHelicopterCameraSettings, projectHelicopterScene, type HelicopterCameraSettings } from "./viewport";
 import { actorInTopDownScene, shapeLabel, swarmShapes } from "./shapeVisuals";
 import { ShieldState, resolveShieldContact, tickShield } from "./combat/shieldEvaluator";
 import { SwordState, tickSword } from "./combat/swordEvaluator";
@@ -36,16 +36,58 @@ const resultDetail = document.querySelector<HTMLElement>("#result-detail")!;
 const error = document.querySelector<HTMLElement>("#error")!;
 const developerTools = document.querySelector<HTMLElement>("#developer-tools")!;
 const gameElement = document.querySelector<HTMLElement>("#game")!;
-developerTools.hidden = new URLSearchParams(location.search).get("dev") !== "1";
+const cameraLab = document.querySelector<HTMLElement>("#camera-lab")!;
+const sceneLab = document.querySelector<HTMLElement>("#scene-lab")!;
+const sceneSelect = document.querySelector<HTMLSelectElement>("#scene-select")!;
+const cameraOutputText = document.querySelector<HTMLOutputElement>("#camera-output-text")!;
+const urlOptions = window.JustTheGamesPlease?.urlOptions;
+const developerMode = urlOptions?.isEnabled("dev") ?? false;
+developerTools.hidden = !developerMode;
+cameraLab.hidden = !(developerMode && (urlOptions?.isEnabled("cameracontrols") ?? false));
+sceneLab.hidden = !developerMode;
 const defaultTrack = Object.values(trackFamily.members)[0];
 applyPortraitStage(gameElement, defaultTrack.viewport);
+
+let sceneOverride: LaneRunnerSceneId | null = null;
+if (developerMode) {
+  const sceneFromUrl = (urlOptions as { get?(name: string): string | null } | undefined)?.get?.("scene");
+  if (sceneFromUrl && isLaneRunnerSceneId(sceneFromUrl)) sceneOverride = sceneFromUrl;
+}
+
+sceneSelect.innerHTML = laneRunnerSceneIds.map(sceneId => `<option value="${sceneId}">${getLaneRunnerSceneName(sceneId)}</option>`).join("");
+sceneSelect.value = sceneOverride ?? defaultTrack.environment.sceneId;
+sceneSelect.addEventListener("change", () => {
+  sceneOverride = isLaneRunnerSceneId(sceneSelect.value) ? sceneSelect.value : null;
+});
+
+const cameraSettings: HelicopterCameraSettings = { ...defaultHelicopterCameraSettings };
+const bindCameraSlider = (id: string, key: keyof HelicopterCameraSettings): HTMLInputElement => {
+  const input = document.querySelector<HTMLInputElement>(id)!;
+  input.value = String(cameraSettings[key]);
+  input.addEventListener("input", () => {
+    cameraSettings[key] = Number(input.value);
+    cameraOutputText.value = "";
+  });
+  return input;
+};
+bindCameraSlider("#camera-height", "height");
+bindCameraSlider("#camera-look", "lookAngleDegrees");
+bindCameraSlider("#camera-back", "followDistance");
+bindCameraSlider("#camera-zoom", "zoom");
+bindCameraSlider("#camera-horizon", "horizon");
+document.querySelector<HTMLButtonElement>("#camera-output")!.addEventListener("click", async () => {
+  const output = `camera: height=${cameraSettings.height.toFixed(0)}, lookAngleDegrees=${cameraSettings.lookAngleDegrees.toFixed(0)}, followDistance=${cameraSettings.followDistance.toFixed(0)}, zoom=${cameraSettings.zoom.toFixed(2)}, horizon=${cameraSettings.horizon.toFixed(2)}`;
+  cameraOutputText.value = output;
+  if (navigator.clipboard) await navigator.clipboard.writeText(output).catch(() => undefined);
+});
 
 try {
   const viewport = defaultTrack.viewport;
   const renderer = await NeonTopDownSceneRenderer.create(canvas, viewport.logicalWidth, viewport.logicalHeight);
   let activeTrack: TrackMember | null = null;
-  let startedAt = 0;
   let lastFrame = performance.now();
+  let combatElapsed = 0;
+  let combatNow = 0;
   let playerLane: 0 | 1 = 0;
   let cooldown = 0;
   let entityIdCounter = 0;
@@ -91,6 +133,7 @@ try {
   const laneX = (lane: number) => canvas.width * (lane === 0 ? .32 : .68);
   const entityX = (entity: ParsedTrackEntity) => laneX(entity.side === "left" ? 0 : 1) + (entity.laneIndex - 2) * 15 * scale();
   const playerY = () => canvas.height * .82;
+  const activeSceneId = (): LaneRunnerSceneId => sceneOverride ?? activeTrack?.environment.sceneId ?? defaultTrack.environment.sceneId;
 
   // ---------------------------------------------------------------------------
   // Reset / start
@@ -116,8 +159,10 @@ try {
 
   const startTrack = (track: TrackMember): void => {
     activeTrack = track;
-    startedAt = performance.now();
-    lastFrame = startedAt;
+    if (!sceneOverride) sceneSelect.value = track.environment.sceneId;
+    lastFrame = performance.now();
+    combatElapsed = 0;
+    combatNow = 0;
     const allEntities = parseTrackDefinition(track.definition);
     const playerStart = allEntities.find(entity => entity.id === "player.start");
     const startLane: 0 | 1 = playerStart?.side === "right" ? 1 : 0;
@@ -162,7 +207,7 @@ try {
     lane: () => squad.lane,
     setLane: lane => {
       if (!activeTrack) return;
-      squad.setLane(lane, laneX, performance.now());
+      squad.setLane(lane, laneX, combatNow);
       playerLane = lane;
       aimControl.laneSelected();
     },
@@ -185,7 +230,7 @@ try {
     const gun = gunFamily.members[gunId];
     const tuning = gun.levels.find(item => item.level === gunLevel) ?? gun.levels[0];
     const points = squad.points(playerY(), scale()).map(point => ({ x: point.x, y: playerY() - 20 * scale() }));
-    gunSimulation.fire(gun, tuning, playerLane, points, performance.now(), scale());
+    gunSimulation.fire(gun, tuning, playerLane, points, combatNow, scale());
     cooldown += 1 / tuning.fireRatePerSecond;
     window.gameAudio?.playRotated("Primary", 3);
   };
@@ -220,15 +265,18 @@ try {
   // Update
   // ---------------------------------------------------------------------------
 
-  const update = (now: number): void => {
-    const delta = Math.min(.05, (now - lastFrame) / 1000);
-    lastFrame = now;
+  const update = (frameNow: number): void => {
+    const rawDelta = Math.min(.05, (frameNow - lastFrame) / 1000);
+    lastFrame = frameNow;
+    const delta = rawDelta * combatTuning.globalSpeedMultiplier;
+    combatElapsed += delta;
+    combatNow = combatElapsed * 1000;
     for (const item of [...explodingPlayers]) {
       item.actor.update(delta);
       if (item.actor.disposed) explodingPlayers.splice(explodingPlayers.indexOf(item), 1);
     }
     if (!activeTrack) return;
-    const elapsed = (now - startedAt) / 1000;
+    const elapsed = combatElapsed;
 
     const { id: gunId } = activeByFamily.gun;
     const shieldDef = activeByFamily.shield ? shieldFamily.members[activeByFamily.shield.shieldId] : null;
@@ -284,10 +332,10 @@ try {
     // --- Gun fire ---
     cooldown -= delta;
     if (cooldown <= 0) fire();
-    if (gunSimulation.updateFiring(now) > 0) window.gameAudio?.playRotated("Primary", 3);
+    if (gunSimulation.updateFiring(combatNow) > 0) window.gameAudio?.playRotated("Primary", 3);
 
     // --- Projectile movement + hit detection ---
-    gunSimulation.updateProjectiles(delta, now, enemies.map(enemy => Object.assign(enemy, {
+    gunSimulation.updateProjectiles(delta, combatNow, enemies.map(enemy => Object.assign(enemy, {
       radius: orbFamily.members.basicOrb.radius * scale(),
     })), { top: -40 * scale(), left: -40, right: canvas.width + 40 }, (shot, enemy) => {
       const gameEnemy = enemy as Enemy & { radius: number };
@@ -326,7 +374,7 @@ try {
         purpose: "shield",
       });
 
-      const shieldResult = tickShield(shieldState, shieldDef, shieldThreats, px, py, now, delta);
+      const shieldResult = tickShield(shieldState, shieldDef, shieldThreats, px, py, combatNow, delta);
 
       // Apply push (pulse mode)
       if (shieldResult.pushEnemyIds.length > 0) {
@@ -375,7 +423,7 @@ try {
       });
 
       const swordResult = tickSword(
-        swordState, swordDef, swordThreats, px, py, now, delta,
+        swordState, swordDef, swordThreats, px, py, combatNow, delta,
         neonPalette[swordDef.color],
       );
 
@@ -414,7 +462,7 @@ try {
       if (activeByFamily.shield && shieldDef) {
         const shieldContact = resolveShieldContact(activeByFamily.shield, shieldDef, Object.assign(enemy, {
           radius: orbFamily.members.basicOrb.radius * scale(),
-        }), px, py, now, scale());
+        }), px, py, combatNow, scale());
         if (shieldContact.absorbed) {
           if (shieldContact.enemyDestroyed) {
             enemy.dying = true;
@@ -502,40 +550,17 @@ try {
   };
 
   // ---------------------------------------------------------------------------
-  // Environment rendering (unchanged)
+  // Environment rendering
   // ---------------------------------------------------------------------------
 
   const environment = (track: TrackMember, now: number): NeonPrimitive[] => {
-    const s = scale();
-    const pulse = .6 + Math.sin(now / 1000 * track.environment.pulseRate * Math.PI * 2) * .2;
-    const items: NeonPrimitive[] = [];
-    items.push({ x: canvas.width / 2, y: canvas.height * .76, width: canvas.width * .44, height: canvas.height * .46, color: neonPalette[track.environment.floorColor], secondaryColor: "#030712", glow: .1, intensity: .22, shape: "bolt" });
-    items.push({ x: canvas.width / 2, y: canvas.height * .49, width: canvas.width * .34, height: 2 * s, color: neonPalette[track.environment.horizonColor], glow: .8, intensity: pulse, shape: "bolt" });
-    for (let depth = 0; depth < 8; depth++) {
-      const perspective = depth / 7;
-      const y = canvas.height * (.53 + perspective * .38);
-      const width = canvas.width * (.2 + perspective * .25);
-      items.push({ x: canvas.width / 2, y, width, height: (1 + perspective * 1.5) * s, color: neonPalette[track.environment.floorColor], glow: .3, intensity: .18 + pulse * .18, shape: "bolt" });
-    }
-    for (const side of [-1, 1]) {
-      for (let segment = 0; segment < 9; segment++) {
-        const perspective = segment / 8;
-        const x = canvas.width / 2 + side * canvas.width * (.1 + perspective * .13);
-        const y = canvas.height * (.53 + perspective * .38);
-        items.push({ x, y, width: (1 + perspective) * s, height: (18 + perspective * 42) * s, color: neonPalette[track.environment.crackColor], glow: .42, intensity: .22 + pulse * .2, shape: "bolt" });
-      }
-    }
-    for (let index = 0; index < track.environment.crackDensity; index++) {
-      const x = canvas.width * (.3 + ((index * 37) % 100) / 250);
-      const y = canvas.height * (.56 + ((index * 61) % 100) / 250);
-      items.push({ x, y, width: (1 + index % 3) * s, height: (20 + index % 5 * 12) * s, color: neonPalette[track.environment.crackColor], glow: .5, intensity: pulse * (.45 + index % 4 * .1), shape: index % 3 ? "bolt" : "spark" });
-    }
-    for (let index = 0; index < track.environment.airStreakCount; index++) {
-      const x = canvas.width * (.12 + ((index * 53) % 100) / 130);
-      const y = canvas.height * (.16 + ((index * 29 + now / 35) % 100) / 330);
-      items.push({ x, y, width: 1.2 * s, height: (12 + index % 4 * 9) * s, color: neonPalette[track.environment.airColor], glow: .4, intensity: .3 + pulse * .25, shape: "bolt" });
-    }
-    return items;
+    const scene = createLaneRunnerScene({
+      sceneId: activeSceneId(),
+      width: canvas.width,
+      height: canvas.height,
+      timeMs: now,
+    });
+    return [...(scene.primitives ?? [])];
   };
 
   // ---------------------------------------------------------------------------
@@ -621,12 +646,17 @@ try {
       pickup.actor.color = neonPalette[spec.pickupColor];
       shapeInstances.push(actorInTopDownScene(pickup.actor, pickup.x, pickup.y, 16));
     }
-    renderer.render({ primitives, shapes: shapeInstances }, now / 1000);
+    const projected = projectHelicopterScene(primitives, shapeInstances, cameraSettings, {
+      width: canvas.width,
+      height: canvas.height,
+      playerY: playerY(),
+    });
+    renderer.render(projected, now / 1000);
   };
 
   const frame = (now: number) => {
     update(now);
-    draw(now);
+    draw(combatNow);
     requestAnimationFrame(frame);
   };
   requestAnimationFrame(frame);
@@ -637,6 +667,11 @@ try {
 
 declare global {
   interface Window {
+    JustTheGamesPlease?: {
+      urlOptions?: {
+        isEnabled(name: string): boolean;
+      };
+    };
     gameAudio?: {
       play(id: string): void;
       playRotated(id: string, alternatives: number): void;

@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
   <title>Neon Swarm · Tracks</title>
   <meta name="theme-color" content="#05071c">
+  <script src="lib/url-options.js"></script>
   <script src="lib/analytics.js"></script>
   <link rel="stylesheet" href="lib/top-bar/top-bar.css">
   <link rel="stylesheet" href="lib/controller/controller.css">
@@ -23,11 +24,23 @@
         <div class="game-topbar__utilities" data-game-topbar-utilities></div>
       </div>
     </header>
+    <section id="camera-lab" class="camera-lab" aria-label="Temporary camera controls" hidden>
+      <label>Height <input id="camera-height" type="range" min="90" max="620" step="5"></label>
+      <label>Look <input id="camera-look" type="range" min="18" max="72" step="1"></label>
+      <label>Back <input id="camera-back" type="range" min="20" max="360" step="5"></label>
+      <label>Zoom <input id="camera-zoom" type="range" min="0.55" max="1.8" step="0.01"></label>
+      <label>Horizon <input id="camera-horizon" type="range" min="0.18" max="0.72" step="0.01"></label>
+      <button id="camera-output" type="button">Output</button>
+      <output id="camera-output-text" for="camera-height camera-look camera-back camera-zoom camera-horizon"></output>
+    </section>
+    <section id="scene-lab" class="scene-lab" aria-label="Temporary scene controls" hidden>
+      <label>Scene <select id="scene-select"></select></label>
+    </section>
     <section id="track-select" class="track-select">
       <span class="eyebrow">SELECT TRACK</span>
       <h2>Choose your run</h2>
       <div id="track-list"></div>
-      <p id="developer-tools" class="developer-tools" hidden><a href="NeonSwarm/tests/index.html?dev=1">Open Test Center</a></p>
+      <p id="developer-tools" class="developer-tools" hidden><a href="NeonSwarm/tests/index.html#dev-1">Open Test Center</a></p>
     </section>
     <section id="result" class="result" hidden><h2 id="result-title"></h2><p id="result-detail"></p><button id="back-to-tracks">Tracks</button></section>
     <div id="joystick" aria-hidden="true"><span class="stick-ring"></span><span class="stick-knob"></span></div>

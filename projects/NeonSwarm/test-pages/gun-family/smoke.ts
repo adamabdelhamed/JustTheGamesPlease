@@ -1,6 +1,7 @@
-import { createTestPage, NeonPrimitiveRenderer, neonPalette, type NeonPrimitive } from "@just-the-games-please/neon-factory";
+import { createLaneRunnerScene, createTestPage, NeonPrimitiveRenderer, neonPalette, type NeonPrimitive } from "@just-the-games-please/neon-factory";
 import { gunFamily, orbFamily, type GunLevel, type GunMember } from "../../CombatDefinition";
 import { evaluateGunAgainstOrb, type GunSmokeResult } from "../../src/combat/gunEvaluator";
+import { defaultHelicopterCameraSettings, projectHelicopterScene } from "../../src/viewport";
 
 const status = document.querySelector<HTMLOutputElement>("#test-status")!;
 const resultsElement = document.querySelector<HTMLOListElement>("#results")!;
@@ -324,7 +325,9 @@ function updateSim(dt: number) {
 }
 
 function drawSim() {
-  const primitives: NeonPrimitive[] = [];
+  const primitives: NeonPrimitive[] = [
+    ...(createLaneRunnerScene({ sceneId: "neonHall", width: canvas.width, height: canvas.height, timeMs: simTimeMs }).primitives ?? []),
+  ];
 
   // Player
   primitives.push({
@@ -424,7 +427,12 @@ function drawSim() {
     }
   }
 
-  renderer.render(primitives, simTimeMs / 1000);
+  const projected = projectHelicopterScene(primitives, [], defaultHelicopterCameraSettings, {
+    width: canvas.width,
+    height: canvas.height,
+    playerY,
+  });
+  renderer.render(projected.primitives, simTimeMs / 1000);
 }
 
 closeSimBtn.addEventListener("click", () => {

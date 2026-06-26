@@ -1,5 +1,6 @@
-import { createTestPage, NeonPrimitiveRenderer, neonPalette, type NeonPrimitive } from "@just-the-games-please/neon-factory";
+import { createLaneRunnerScene, createTestPage, NeonPrimitiveRenderer, neonPalette, type NeonPrimitive } from "@just-the-games-please/neon-factory";
 import { AutoAimControlState, selectAutoAimOffset } from "../../src/autoAim";
+import { defaultHelicopterCameraSettings, projectHelicopterScene } from "../../src/viewport";
 
 const status = document.querySelector<HTMLOutputElement>("#test-status")!;
 const results = document.querySelector<HTMLOListElement>("#results")!;
@@ -266,7 +267,9 @@ function updateSim(dt: number) {
 }
 
 function drawSim() {
-  const primitives: NeonPrimitive[] = [];
+  const primitives: NeonPrimitive[] = [
+    ...(createLaneRunnerScene({ sceneId: "neonHall", width: canvas.width, height: canvas.height, timeMs: simTimeMs }).primitives ?? []),
+  ];
 
   // Squad at (squadX, 650)
   primitives.push({
@@ -326,7 +329,12 @@ function drawSim() {
     });
   }
 
-  renderer.render(primitives, simTimeMs / 1000);
+  const projected = projectHelicopterScene(primitives, [], defaultHelicopterCameraSettings, {
+    width: canvas.width,
+    height: canvas.height,
+    playerY: 650,
+  });
+  renderer.render(projected.primitives, simTimeMs / 1000);
 }
 
 closeSimBtn.addEventListener("click", () => {

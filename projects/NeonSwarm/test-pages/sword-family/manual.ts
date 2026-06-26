@@ -1,4 +1,5 @@
 import {
+  createLaneRunnerScene,
   NeonShapeActor, NeonShapeDisposal, NeonTopDownSceneRenderer,
   neonPalette,
   type NeonPrimitive, type NeonTopDownShape,
@@ -10,7 +11,7 @@ import {
 import { bindSquadInput } from "../../src/input";
 import { SquadModel } from "../../src/squad";
 import { AutoAimControlState, selectAutoAimOffset } from "../../src/autoAim";
-import { applyPortraitStage } from "../../src/viewport";
+import { defaultHelicopterCameraSettings, applyPortraitStage, projectHelicopterScene } from "../../src/viewport";
 import { actorInTopDownScene, shapeLabel, swarmShapes } from "../../src/shapeVisuals";
 import { SwordState, tickSword } from "../../src/combat/swordEvaluator";
 import { queryNearbyThreats } from "../../src/combat/nearbyThreatQuery";
@@ -215,7 +216,9 @@ try {
 
   const draw = (now: number): void => {
     const s = scale();
-    const primitives: NeonPrimitive[] = [];
+    const primitives: NeonPrimitive[] = [
+      ...(createLaneRunnerScene({ sceneId: "neonHall", width: canvas.width, height: canvas.height, timeMs: now }).primitives ?? []),
+    ];
     const px = squad.x;
     const py = playerY();
 
@@ -240,7 +243,11 @@ try {
     }
     shapes.push(actorInTopDownScene(playerActor, squad.x, py, 14));
     for (const e of enemies) shapes.push(actorInTopDownScene(e.actor, e.x, e.y, 18, { rotationY: Math.sin(now / 700 + e.id) * .18 }));
-    renderer.render({ primitives, shapes }, now / 1000);
+    renderer.render(projectHelicopterScene(primitives, shapes, defaultHelicopterCameraSettings, {
+      width: canvas.width,
+      height: canvas.height,
+      playerY: playerY(),
+    }), now / 1000);
   };
 
   const frame = (now: number): void => { update(now); draw(now); requestAnimationFrame(frame); };

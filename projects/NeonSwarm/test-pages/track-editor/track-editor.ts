@@ -4,7 +4,7 @@ type Side = "left" | "right";
 type PaletteItem = { id: string; label: string; symbol: string };
 type CellValue = PaletteItem & { speed: number };
 
-const developer = new URLSearchParams(location.search).get("dev") === "1";
+const developer = window.JustTheGamesPlease?.urlOptions?.isEnabled("dev") ?? false;
 document.querySelector<HTMLElement>("#editor")!.hidden = !developer;
 document.querySelector<HTMLElement>("#dev-required")!.hidden = developer;
 
@@ -175,13 +175,7 @@ export const ${exportName} = {
     logicalHeight: 800,
   },
   environment: {
-    floorColor: "deepBlue",
-    crackColor: "cyan",
-    airColor: "violet",
-    horizonColor: "pink",
-    pulseRate: 1.35,
-    crackDensity: 14,
-    airStreakCount: 11,
+    sceneId: "neonHall",
   },
   definition: {
     layout: \`
@@ -210,3 +204,13 @@ document.querySelector<HTMLButtonElement>("#export-track")!.addEventListener("cl
   window.setTimeout(() => URL.revokeObjectURL(url), 1000);
   document.querySelector<HTMLElement>("#export-status")!.textContent = `Generated ${exported.fileName}. Add it to CombatDefinition/tracks and register it in tracks/index.ts.`;
 });
+
+declare global {
+  interface Window {
+    JustTheGamesPlease?: {
+      urlOptions?: {
+        isEnabled(name: string): boolean;
+      };
+    };
+  }
+}

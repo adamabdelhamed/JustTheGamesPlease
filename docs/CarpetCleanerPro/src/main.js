@@ -4,6 +4,7 @@ import { createWebGpuRuntime } from './rendering/webGpuRuntime.js';
 import { createDiagnosticsPanel } from './ui/diagnostics.js';
 
 const message = document.querySelector('#capability');
+const urlOptions = window.JustTheGamesPlease?.urlOptions;
 const diagnostics = createDiagnosticsPanel();
 let runtime;
 
@@ -14,7 +15,7 @@ try {
     diagnostics,
     adapterInfo: support.info
   });
-  if (new URLSearchParams(location.search).get('dev') === '1') window.__carpetCleanerRuntime = runtime;
+  if (urlOptions?.isEnabled('dev')) window.__carpetCleanerRuntime = runtime;
   message.textContent = 'WebGPU runtime ready.';
   document.documentElement.classList.add('runtime-ready');
   wireDeveloperControls(runtime, diagnostics);

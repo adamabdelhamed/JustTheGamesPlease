@@ -14,13 +14,7 @@ export const generatedTrack: TrackMember = {
     logicalHeight: 800,
   },
   environment: {
-    floorColor: "deepBlue",
-    crackColor: "cyan",
-    airColor: "violet",
-    horizonColor: "pink",
-    pulseRate: 1.05,
-    crackDensity: 9,
-    airStreakCount: 7,
+    sceneId: "neonHall",
   },
   definition: {
     layout: `
@@ -61,7 +55,7 @@ export const generatedTrack: TrackMember = {
     },
     balance: {
       enemyHp: 1.0,
-      enemySpeed: 0.9,
+      enemySpeed: 1.5,
     },
   },
 } satisfies TrackMember;

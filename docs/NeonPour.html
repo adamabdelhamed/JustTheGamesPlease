@@ -8,6 +8,7 @@
 <link rel="apple-touch-icon" sizes="180x180" href="icons/pour-180.png">
 <link rel="manifest" href="manifests/pour.webmanifest">
 <meta name="theme-color" content="#05071c"><meta name="mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="Neon Pour">
+<script src="lib/url-options.js"></script>
 <script src="lib/analytics.js"></script>
 <script src="lib/recording/recording.js"></script>
 <style>
@@ -398,8 +399,8 @@ button:disabled { opacity:.45; cursor:default; }
 <script>
 gameAudio.playSharedMusic(['Music']);
 gameAudio.preload(['TubeSelect','TubeDeselect','Pour','InvalidPour','Undo','PuzzleComplete']);
-const query = new URLSearchParams(location.search);
-const rendererMode = query.get("renderer") === "1";
+const urlOptions = window.JustTheGamesPlease.urlOptions;
+const rendererMode = urlOptions.isEnabled("renderer");
 const CAPACITY = 4;
 const COLORS = ["#20d7ff", "#ff3d8a", "#8cff2f", "#ffd43b", "#8b5cff", "#ff7a1a", "#ff3030", "#2f6bff"];
 const SETTINGS = {

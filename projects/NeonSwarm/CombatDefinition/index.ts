@@ -1,3 +1,4 @@
+export { combatTuning, type CombatTuning } from "./CombatTuning";
 export {
   gunFamily,
   GunFamilyDefinition,
