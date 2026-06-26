@@ -12,6 +12,7 @@ const rotationX=q<HTMLInputElement>("#rotation-x"),rotationY=q<HTMLInputElement>
 const labelText=q<HTMLInputElement>("#label-text"),labelPosition=q<HTMLSelectElement>("#label-position"),labelOffset=q<HTMLInputElement>("#label-offset"),labelFont=q<HTMLSelectElement>("#label-font"),labelSize=q<HTMLInputElement>("#label-size");
 const velocityX=q<HTMLInputElement>("#velocity-x"),velocityY=q<HTMLInputElement>("#velocity-y"),impactMagnitude=q<HTMLInputElement>("#impact-magnitude"),impactVector=q<HTMLElement>("#impact-vector");
 const disposal=q<HTMLSelectElement>("#disposal"),explodeMagnitude=q<HTMLInputElement>("#explode-magnitude"),notes=q<HTMLTextAreaElement>("#notes"),auto=q<HTMLInputElement>("#auto"),title=q<HTMLElement>("#title"),readout=q<HTMLElement>("#readout");
+const entranceDuration=q<HTMLInputElement>("#entrance-duration"),entranceMagnitude=q<HTMLInputElement>("#entrance-magnitude");
 select.innerHTML=neonShapeCatalog.map((shape,i)=>`<option value="${i}">${shape.family.toUpperCase()} · ${shape.name}</option>`).join("");
 const requested=new URLSearchParams(location.search).get("shape"),requestedIndex=neonShapeCatalog.findIndex(shape=>shape.id===requested);if(requestedIndex>=0)select.value=String(requestedIndex);
 const storage=loadShapeTuningStorage();
@@ -35,6 +36,7 @@ canvas.addEventListener("pointerdown",event=>{if(event.shiftKey){dragging=true;p
 canvas.addEventListener("pointermove",event=>{if(dragging){rotationY.value=String(clampDegrees(+rotationY.value+(event.clientX-px)*.45));rotationX.value=String(clampDegrees(+rotationX.value+(event.clientY-py)*.45));px=event.clientX;py=event.clientY;auto.checked=false}});
 canvas.addEventListener("pointerup",()=>dragging=false);
 q("#impact").addEventListener("click",()=>actor.impact({direction:impactDirection,magnitude:+impactMagnitude.value/100}));
+q("#entrance").addEventListener("click",()=>actor.enter(+entranceDuration.value/100,+entranceMagnitude.value/100));
 q("#stop-movement").addEventListener("click",()=>{velocityX.value="0";velocityY.value="0";actor.setVelocity(0,0)});
 q("#dispose").addEventListener("click",()=>{actor.explodeMagnitude=+explodeMagnitude.value/100;actor.dispose(disposal.value as NeonShapeDisposal);setTimeout(()=>{actor=new NeonShapeActor({shape:currentShape(),scale:+zoom.value/100,explodeMagnitude:+explodeMagnitude.value/100})},1100)});
 const controllerWindow=window as unknown as {gameController?:{createJoystick(options:object):{onChange(fn:(input:{x:number;y:number})=>void):unknown}}};
@@ -44,8 +46,8 @@ try{const renderer=await NeonTopDownSceneRenderer.create(canvas,900,700);let fra
 const render=(now:number)=>{const dt=Math.min(.04,(now-last)/1000);last=now;rotationX.value=String(clampDegrees(+rotationX.value+inputY*dt*126));rotationY.value=String(clampDegrees(+rotationY.value+inputX*dt*126));actor.shape={...currentShape(),depth:+depth.value/100};actor.scale=+zoom.value/100;actor.setVelocity(+velocityX.value/100,+velocityY.value/100).update(dt);
 let ax=radians(+rotationX.value),ay=radians(+rotationY.value),az=radians(+rotationZ.value);if(auto.checked){const wave=Math.sin(now/700)*.24;if(actor.shape.rock==="pitch")ax+=wave;if(actor.shape.rock==="roll")az+=wave;if(actor.shape.rock==="yaw"||actor.shape.rock==="orbit")ay+=wave}
 actor.rotationX=ax;actor.rotationY=ay;actor.rotationZ=az;actor.label=labelText.value?{text:labelText.value,position:labelPosition.value as NeonShapeLabelPosition,offset:+labelOffset.value,fontFamily:labelFont.value,fontSize:+labelSize.value}:undefined;
-const currentRotationLabel=rotationLabel();rotationReadout.value=currentRotationLabel;
-title.textContent=actor.shape.name;readout.textContent=`${actor.shape.family.toUpperCase()} · ${actor.shape.rock} · rotation ${currentRotationLabel} · position ${actor.x.toFixed(2)}, ${actor.y.toFixed(2)}`;
+actor.entranceDuration=+entranceDuration.value/100;actor.entranceMagnitude=+entranceMagnitude.value/100;const currentRotationLabel=rotationLabel();rotationReadout.value=currentRotationLabel;
+title.textContent=actor.shape.name;readout.textContent=`${actor.shape.family.toUpperCase()} · ${actor.shape.rock} · rotation ${currentRotationLabel} · entrance ${actor.entranceDuration.toFixed(2)}s · position ${actor.x.toFixed(2)}, ${actor.y.toFixed(2)}`;
 renderer.render({shapes:[{...actor.renderInstance({lineThickness:+thickness.value/100,energyIntensity:+intensity.value/100,energyCoverage:+coverage.value/100,energySpeed:+speed.value/100,energyBleed:+bleed.value/100}),x:450+actor.x*280,y:350-actor.y*280,size:actor.scale*280}]},now/1000);frame=requestAnimationFrame(render)};frame=requestAnimationFrame(render);
 addEventListener("pagehide",()=>{cancelAnimationFrame(frame);renderer.destroy()},{once:true});test.ready();test.assert("WebGPU shape renderer initialized",true);test.assert("Behavior driver is exposed",true);
 }catch(cause){const message=cause instanceof Error?cause.message:String(cause);error.hidden=false;error.textContent=message;test.assert("WebGPU shape renderer initialized",false,message)}

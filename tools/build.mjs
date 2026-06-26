@@ -38,6 +38,7 @@ await Promise.all([
 ]);
 
 await mkdir(resolve(docs, "lib/neonfactory-tests/shapes"), { recursive: true });
+await mkdir(resolve(docs, "lib/neonfactory-tests/clouds"), { recursive: true });
 await mkdir(resolve(docs, "lib/neonfactory-tests/projectiles"), { recursive: true });
 await Promise.all([
   build({entryPoints:[resolve(root,"projects/NeonFactory/test-pages/projectiles/projectiles.ts")],outfile:resolve(docs,"lib/neonfactory-tests/projectiles/projectiles.js"),bundle:true,format:"esm",platform:"browser",target:"es2022",sourcemap:"inline"}),
@@ -62,6 +63,19 @@ await Promise.all([
   cp(resolve(root, "projects/NeonFactory/test-pages/shapes/gallery.html"), resolve(docs, "lib/neonfactory-tests/shapes/gallery.html")),
   cp(resolve(root, "projects/NeonFactory/test-pages/shapes/inspector.html"), resolve(docs, "lib/neonfactory-tests/shapes/inspector.html")),
   cp(resolve(root, "projects/NeonFactory/test-pages/shapes/shapes.css"), resolve(docs, "lib/neonfactory-tests/shapes/shapes.css")),
+  build({
+    entryPoints: [resolve(root, "projects/NeonFactory/test-pages/clouds/gallery.ts")],
+    outfile: resolve(docs, "lib/neonfactory-tests/clouds/gallery.js"),
+    bundle: true, format: "esm", platform: "browser", target: "es2022", sourcemap: "inline",
+  }),
+  build({
+    entryPoints: [resolve(root, "projects/NeonFactory/test-pages/clouds/inspector.ts")],
+    outfile: resolve(docs, "lib/neonfactory-tests/clouds/inspector.js"),
+    bundle: true, format: "esm", platform: "browser", target: "es2022", sourcemap: "inline",
+  }),
+  cp(resolve(root, "projects/NeonFactory/test-pages/clouds/gallery.html"), resolve(docs, "lib/neonfactory-tests/clouds/gallery.html")),
+  cp(resolve(root, "projects/NeonFactory/test-pages/clouds/inspector.html"), resolve(docs, "lib/neonfactory-tests/clouds/inspector.html")),
+  cp(resolve(root, "projects/NeonFactory/test-pages/clouds/clouds.css"), resolve(docs, "lib/neonfactory-tests/clouds/clouds.css")),
 ]);
 
 await build({
@@ -81,6 +95,7 @@ await mkdir(resolve(docs, "NeonSwarm/tests/gun-family/manual/audio"), { recursiv
 await mkdir(resolve(docs, "NeonSwarm/tests/shield-family"), { recursive: true });
 await mkdir(resolve(docs, "NeonSwarm/tests/sword-family"), { recursive: true });
 await mkdir(resolve(docs, "NeonSwarm/tests/multiplier-family"), { recursive: true });
+await mkdir(resolve(docs, "NeonSwarm/tests/enemy-exit"), { recursive: true });
 await mkdir(resolve(docs, "NeonSwarm/tests/auto-aim"), { recursive: true });
 await mkdir(resolve(docs, "NeonSwarm/tests/track-editor"), { recursive: true });
 await mkdir(resolve(docs, "NeonSwarm/tests/track-generator"), { recursive: true });
@@ -105,6 +120,8 @@ await Promise.all([
   cp(resolve(root, "projects/NeonSwarm/test-pages/sword-family/manual.css"), resolve(docs, "NeonSwarm/tests/sword-family/manual.css")),
   cp(resolve(root, "projects/NeonSwarm/test-pages/sword-family/smoke.html"), resolve(docs, "NeonSwarm/tests/sword-family/smoke.html")),
   cp(resolve(root, "projects/NeonSwarm/test-pages/multiplier-family/smoke.html"), resolve(docs, "NeonSwarm/tests/multiplier-family/smoke.html")),
+  cp(resolve(root, "projects/NeonSwarm/test-pages/enemy-exit/manual.html"), resolve(docs, "NeonSwarm/tests/enemy-exit/manual.html")),
+  cp(resolve(root, "projects/NeonSwarm/test-pages/enemy-exit/manual.css"), resolve(docs, "NeonSwarm/tests/enemy-exit/manual.css")),
   cp(resolve(root, "projects/NeonSwarm/test-pages/auto-aim/smoke.html"), resolve(docs, "NeonSwarm/tests/auto-aim/smoke.html")),
   cp(resolve(root, "projects/NeonSwarm/test-pages/track-editor/index.html"), resolve(docs, "NeonSwarm/tests/track-editor/index.html")),
   cp(resolve(root, "projects/NeonSwarm/test-pages/track-editor/track-editor.css"), resolve(docs, "NeonSwarm/tests/track-editor/track-editor.css")),
@@ -146,6 +163,11 @@ await Promise.all([
   build({
     entryPoints: [resolve(root, "projects/NeonSwarm/test-pages/multiplier-family/smoke.ts")],
     outfile: resolve(docs, "NeonSwarm/tests/multiplier-family/smoke.js"),
+    bundle: true, format: "esm", platform: "browser", target: "es2022", sourcemap: "inline",
+  }),
+  build({
+    entryPoints: [resolve(root, "projects/NeonSwarm/test-pages/enemy-exit/manual.ts")],
+    outfile: resolve(docs, "NeonSwarm/tests/enemy-exit/manual.js"),
     bundle: true, format: "esm", platform: "browser", target: "es2022", sourcemap: "inline",
   }),
   build({

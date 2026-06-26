@@ -329,7 +329,7 @@ function drawSim() {
     });
   }
 
-  const projected = projectHelicopterScene(primitives, [], defaultHelicopterCameraSettings, {
+    const projected = projectHelicopterScene(primitives, [], [], defaultHelicopterCameraSettings, {
     width: canvas.width,
     height: canvas.height,
     playerY: 650,

@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>Neon Swarm · Track Editor</title>
+  <title>Neon Swarm - Track Editor</title>
   <link rel="stylesheet" href="../index.css">
   <link rel="stylesheet" href="track-editor.css">
   <script src="../../../lib/url-options.js"></script>
@@ -12,43 +12,64 @@
   <main id="editor" hidden>
     <header>
       <div>
-        <span class="eyebrow">NEON SWARM · DEVELOPER</span>
+        <span class="eyebrow">NEON SWARM - DEVELOPER</span>
         <h1>Track Editor</h1>
-        <p>Select a cell, then choose what belongs there. Rows at the bottom are encountered first.</p>
+        <p>Select a cell, choose a tool, then place it. Rows at the bottom are encountered first.</p>
       </div>
       <a class="back" href="../index.html#dev-1">Back to Test Center</a>
     </header>
 
     <div class="editor-layout">
       <aside class="tool-panel">
-        <section>
-          <h2>Track details</h2>
+        <details open>
+          <summary>Track details</summary>
+          <label>Existing track <select id="track-source"></select></label>
           <label>Export name <input id="export-name" value="newTrack"></label>
           <label>Display name <input id="display-name" value="New Track"></label>
           <label>Description <textarea id="description">A hand-authored Neon Swarm track.</textarea></label>
+          <label>Scene <select id="scene-select"></select></label>
           <label>Enemy HP <input id="enemy-hp" type="number" min="0.1" step="0.1" value="1"></label>
           <label>Enemy speed <input id="enemy-speed" type="number" min="0.1" step="0.1" value="1"></label>
-        </section>
+        </details>
 
-        <section>
-          <h2>Place entity</h2>
+        <details open>
+          <summary>Place entity</summary>
           <div id="palette" class="palette" role="listbox" aria-label="Track entities"></div>
           <label>Local speed <input id="entity-speed" type="number" min="0.1" step="0.1" value="1"></label>
           <p class="selection" id="selection">Selected: nearest row, left lane, column 1</p>
-          <button id="clear-grid" type="button" class="secondary">Clear all cells</button>
-        </section>
+          <div class="button-row">
+            <button id="place-cell" type="button">Place selected</button>
+            <button id="erase-cell" type="button" class="secondary">Erase selected</button>
+          </div>
+        </details>
 
-        <section>
-          <h2>Export</h2>
+        <details open>
+          <summary>Rows</summary>
+          <div class="button-row">
+            <button id="insert-row-far" type="button">Insert above</button>
+            <button id="insert-row-near" type="button">Insert below</button>
+          </div>
+          <button id="delete-row" type="button" class="secondary">Delete selected row</button>
+          <button id="clear-grid" type="button" class="secondary">Clear all cells</button>
+        </details>
+
+        <details open>
+          <summary>Export</summary>
           <button id="export-track" type="button">Export TypeScript</button>
           <p id="export-status" class="selection" role="status"></p>
-        </section>
+        </details>
       </aside>
 
-      <section class="grid-panel" aria-label="Track layout grid">
-        <div class="lane-headings"><span>FAR</span><b>LEFT LANE</b><i></i><b>RIGHT LANE</b></div>
-        <div id="track-grid" class="track-grid"></div>
-        <div class="near-label">NEAR PLAYER</div>
+      <section class="work-panel">
+        <div class="grid-panel" aria-label="Track layout grid">
+          <div class="grid-content" id="grid-content">
+            <canvas id="grid-canvas"></canvas>
+            <div id="grid-render-error" class="grid-render-error" hidden></div>
+            <div class="lane-headings"><span>FAR</span><b>LEFT LANE</b><i></i><b>RIGHT LANE</b></div>
+            <div id="track-grid" class="track-grid"></div>
+            <div class="near-label">NEAR PLAYER</div>
+          </div>
+        </div>
       </section>
     </div>
   </main>

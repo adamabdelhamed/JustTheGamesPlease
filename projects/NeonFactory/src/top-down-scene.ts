@@ -1,5 +1,6 @@
 import { NeonPrimitiveRenderer, type NeonPrimitive } from "./primitive-renderer";
 import { NeonGeometricShapeRenderer, type NeonShapeInstance } from "./geometric-shape-renderer";
+import { NeonCloudBurstRenderer, type NeonTopDownCloudBurst } from "./cloud-burst";
 
 export interface NeonTopDownShape extends Omit<NeonShapeInstance, "x" | "y" | "scale"> {
   x: number;
@@ -9,6 +10,7 @@ export interface NeonTopDownShape extends Omit<NeonShapeInstance, "x" | "y" | "s
 
 export interface NeonTopDownScene {
   primitives?: readonly NeonPrimitive[];
+  clouds?: readonly NeonTopDownCloudBurst[];
   shapes?: readonly NeonTopDownShape[];
 }
 
@@ -16,6 +18,7 @@ export class NeonTopDownSceneRenderer {
   readonly canvas: HTMLCanvasElement;
   readonly device: GPUDevice;
   #primitives: NeonPrimitiveRenderer;
+  #clouds: NeonCloudBurstRenderer;
   #shapes: NeonGeometricShapeRenderer;
   #width: number;
   #height: number;
@@ -24,6 +27,7 @@ export class NeonTopDownSceneRenderer {
   private constructor(canvas: HTMLCanvasElement, device: GPUDevice, context: GPUCanvasContext, format: GPUTextureFormat, width: number, height: number) {
     this.canvas = canvas; this.device = device; this.#context = context; this.#width = width; this.#height = height;
     this.#primitives = new NeonPrimitiveRenderer(canvas, device, context, format).setLogicalSize(width, height);
+    this.#clouds = new NeonCloudBurstRenderer(canvas, device, context, format).setLogicalSize(width, height);
     this.#shapes = new NeonGeometricShapeRenderer(canvas, device, context, format).setLogicalSize(width, height);
   }
 
@@ -42,17 +46,21 @@ export class NeonTopDownSceneRenderer {
   render(scene: NeonTopDownScene, timeSeconds = performance.now() / 1000): void {
     const target = this.#context.getCurrentTexture().createView();
     this.#primitives.render([...(scene.primitives ?? [])], timeSeconds, false, target);
+    const clouds = scene.clouds ?? [];
     const aspect = this.#width / this.#height;
-    this.#shapes.render((scene.shapes ?? []).map(shape => ({
+    const shapes = scene.shapes ?? [];
+    if (shapes.length) this.#shapes.render(shapes.map(shape => ({
       ...shape,
       x: (shape.x / this.#width - .5) * aspect * 2.5,
       y: (.5 - shape.y / this.#height) * 2.5,
       scale: shape.size / this.#height * 2.5,
     })), true, target);
+    if (clouds.length) this.#clouds.render(clouds.map(cloud => this.#clouds.mapTopDownCloud(cloud, this.#width, this.#height)), timeSeconds, true);
   }
 
   destroy(): void {
     this.#shapes.destroy(false);
+    this.#clouds.destroy(false);
     this.device.destroy();
   }
 }

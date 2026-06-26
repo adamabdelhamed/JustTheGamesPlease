@@ -8,6 +8,16 @@ This is the first game to use the new projects pattern. We will have to update t
 
 This project should use the NeonFactory for all visuals so that it sets the precedent of using a consistent neon design language across all games.
 
+NeonFactory is the source of rendering primitives and reusable visual systems. Game visuals should not fork local one-off renderers or duplicate shader/control logic when a NeonFactory primitive, shape, cloud, effect, or renderer can be extended instead. New visual objects, bursts, trails, particles, shields, pickups, enemies, and environmental effects should be designed to work in the unified NeonFactory rendering environment: they should layer correctly with each other, share one canvas/device where practical, preserve render order intentionally, and support the same camera/projection path as gameplay objects.
+
+When a game needs a new visual capability, prefer adding a reusable NeonFactory abstraction first, then consume it from the game. Keep game-specific tuning and identity in the game layer, but keep reusable rendering mechanics in NeonFactory.
+
+## Organization and scalability
+
+This repo is expected to grow many features, items, weapons, enemy types, effects, and scenes. Keep systems organized by durable domain concepts rather than by the first page or feature that needed them. Avoid copying tuning, rendering setup, lifecycle logic, or test harness code between the game and test pages. If a behavior must look or behave the same in gameplay and in a lab page, put the shared logic in a module that both import.
+
+Feature work should leave behind a scalable place for the next similar feature. For example, enemy death visuals should be keyed by enemy type, weapon visuals by weapon family/member, shield behavior by shield definition, and so on. Avoid adding hardcoded branches in the main game loop when a typed profile, catalog, or family-specific helper would make future additions predictable.
+
 ## Systems
 
 ### Combat
@@ -23,3 +33,5 @@ The properties and expectations for the different families are documented in the
 ### Testability
 
 Neon Swarm will use the NeonFactory's testability primatives to make test pages for game objects like the lane runner tracks. We'll also have test pages (or whatever mechanism makes sense) for each weapon, shield, etc. Each family can also define its own drivers and assertions for a smoke test, a CD test, and a Full Test (optional). Smoke test could be something like the 'Gun' family loading a single player, putting him in a lane with a single weak enemy approaching, and expecting that the projectile from the gun kills the enemy before the enemy kills him. Whenever you implement a new object it should have test pages defined. Keep in mind, test pages will have 2 shapes. One is for manual playing around and should have controls like "spawn specific type of enemies". The other is for automation (either manually triggered by loading the page or auto triggered by a suite).
+
+Test pages must exercise the same modules and profiles used by the main game. A manual lab may expose extra controls, but it should not reimplement the behavior it is demonstrating. Automated pages should use the same gameplay helpers wherever possible so passing tests prove that the real game path works.

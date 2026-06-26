@@ -28,6 +28,8 @@ export interface NeonShapeInstance {
   energySpeed?: number;
   energyBleed?: number;
   opacity?: number;
+  entranceProgress?: number;
+  entranceMagnitude?: number;
   explodeProgress?: number;
   explodeMagnitude?: number;
   label?: NeonShapeLabel;
@@ -123,9 +125,20 @@ function mesh(instance: NeonShapeInstance): Vertex[] {
   const color = hex(instance.color ?? shape.color);
   const scale = instance.scale ?? 1;
   const rx = instance.rotationX ?? 0, ry = instance.rotationY ?? 0, rz = instance.rotationZ ?? 0;
-  const move = (point: NeonPoint, z: number): V3 => {
+  const entranceProgress = instance.entranceProgress ?? 1;
+  const entranceEase = entranceProgress * entranceProgress * (3 - 2 * entranceProgress);
+  const entranceOffset = (point: NeonPoint, z: number, index: number): V3 => {
+    if (entranceProgress >= 1) return [0, 0, 0];
+    const seed = Math.sin(index * 91.17 + point[0] * 37.2 + point[1] * 53.7 + z * 29.1) * 43758.5453;
+    const random = seed - Math.floor(seed);
+    const angle = random * Math.PI * 2;
+    const radius = (instance.entranceMagnitude ?? instance.explodeMagnitude ?? .55) * (1 - entranceEase) * (.35 + random * .75);
+    return [Math.cos(angle) * radius, Math.sin(angle) * radius, (random - .5) * radius * .55];
+  };
+  const move = (point: NeonPoint, z: number, index = 0): V3 => {
     const p = rotate([point[0] * scale, -point[1] * scale, z * scale], rx, ry, rz);
-    return [p[0] + (instance.x ?? 0), p[1] + (instance.y ?? 0), p[2] + (instance.z ?? 0)];
+    const e = entranceOffset(point, z, index);
+    return [p[0] + (instance.x ?? 0) + e[0], p[1] + (instance.y ?? 0) + e[1], p[2] + (instance.z ?? 0) + e[2]];
   };
   const output: Vertex[] = [];
   const add = (a: V3, b: V3, c: V3, normal?: V3) => {
@@ -134,10 +147,10 @@ function mesh(instance: NeonShapeInstance): Vertex[] {
       instance.energyIntensity ?? 1, instance.energyCoverage ?? .32,
       instance.energySpeed ?? 1, instance.energyBleed ?? .35,
     ];
-    [a,b,c].forEach(p => output.push({ p, n, color, glow: (instance.glow ?? 1) * (instance.opacity ?? 1), effect }));
+    [a,b,c].forEach(p => output.push({ p, n, color, glow: (instance.glow ?? 1) * (instance.opacity ?? 1) * entranceEase, effect }));
   };
-  const front = shape.points.map(point => move(point, depth / 2));
-  const back = shape.points.map(point => move(point, -depth / 2));
+  const front = shape.points.map((point, index) => move(point, depth / 2, index));
+  const back = shape.points.map((point, index) => move(point, -depth / 2, index + shape.points.length));
   for (let i = 1; i < front.length - 1; i++) add(front[0], front[i], front[i + 1]);
   for (let i = 1; i < back.length - 1; i++) add(back[0], back[i + 1], back[i]);
   shape.points.forEach((_, i) => {
@@ -154,12 +167,14 @@ function edgeMesh(instance: NeonShapeInstance): Vertex[] {
   const color = hex(instance.color ?? shape.color);
   const scale = instance.scale ?? 1;
   const rx = instance.rotationX ?? 0, ry = instance.rotationY ?? 0, rz = instance.rotationZ ?? 0;
+  const entranceProgress = instance.entranceProgress ?? 1;
+  const entranceEase = entranceProgress * entranceProgress * (3 - 2 * entranceProgress);
   const move = (point: NeonPoint, z: number): V3 => {
     const p = rotate([point[0] * scale, -point[1] * scale, z * scale], rx, ry, rz);
     return [p[0] + (instance.x ?? 0), p[1] + (instance.y ?? 0), p[2] + (instance.z ?? 0)];
   };
   const explode = (a: V3, b: V3, index: number): [V3, V3] => {
-    const progress = instance.explodeProgress ?? 0;
+    const progress = Math.max(instance.explodeProgress ?? 0, 1 - entranceEase);
     if (!progress) return [a, b];
     const mx = (a[0] + b[0]) / 2 - (instance.x ?? 0), my = (a[1] + b[1]) / 2 - (instance.y ?? 0);
     const length = Math.hypot(mx, my) || 1;
@@ -189,7 +204,7 @@ function edgeMesh(instance: NeonShapeInstance): Vertex[] {
     const b0: V3 = [b[0] - ox, b[1] - oy, b[2]], b1: V3 = [b[0] + ox, b[1] + oy, b[2]];
     const start = distance * 2.4, end = (distance + length) * 2.4;
     const push = (p: V3, along: number, across: number) =>
-      output.push({ p, n: [along, across, phase], color, glow: (instance.glow ?? 1) * opacity * (instance.opacity ?? 1) * (1 + Math.sin((instance.explodeProgress ?? 0) * Math.PI) * (instance.explodeMagnitude ?? .55) * 2.2) * (1 - (instance.explodeProgress ?? 0) * .7), effect });
+      output.push({ p, n: [along, across, phase], color, glow: (instance.glow ?? 1) * opacity * (instance.opacity ?? 1) * entranceEase * (1 + Math.sin((instance.explodeProgress ?? 0) * Math.PI) * (instance.explodeMagnitude ?? .55) * 2.2) * (1 - (instance.explodeProgress ?? 0) * .7), effect });
     push(a0,start,-1); push(a1,start,1); push(b0,end,-1);
     push(b0,end,-1); push(a1,start,1); push(b1,end,1);
     distance += length;

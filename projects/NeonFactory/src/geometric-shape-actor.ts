@@ -28,6 +28,8 @@ export interface NeonShapeActorOptions {
   color?: string;
   disposal?: NeonShapeDisposal;
   explodeMagnitude?: number;
+  entranceDuration?: number;
+  entranceMagnitude?: number;
 }
 
 export class NeonShapeActor {
@@ -41,11 +43,14 @@ export class NeonShapeActor {
   color?: string;
   disposal: NeonShapeDisposal;
   explodeMagnitude: number;
+  entranceDuration: number;
+  entranceMagnitude: number;
   rotationX = 0;
   rotationY = 0;
   rotationZ = 0;
   disposed = false;
   #disposalProgress = 0;
+  #entranceProgress = 1;
   #impactVelocity: NeonShapeVector = { x: 0, y: 0 };
   #impactRotation: NeonShapeVector = { x: 0, y: 0 };
 
@@ -60,6 +65,8 @@ export class NeonShapeActor {
     this.color = options.color;
     this.disposal = options.disposal ?? NeonShapeDisposal.FadeOut;
     this.explodeMagnitude = options.explodeMagnitude ?? .55;
+    this.entranceDuration = options.entranceDuration ?? .45;
+    this.entranceMagnitude = options.entranceMagnitude ?? .55;
   }
 
   moveTo(x: number, y: number, z = this.z): this {
@@ -89,9 +96,17 @@ export class NeonShapeActor {
     return this;
   }
 
+  enter(duration = this.entranceDuration, magnitude = this.entranceMagnitude): this {
+    this.entranceDuration = Math.max(.001, duration);
+    this.entranceMagnitude = magnitude;
+    this.#entranceProgress = 0;
+    return this;
+  }
+
   regenerate(): this {
     this.disposed = false;
     this.#disposalProgress = 0;
+    this.#entranceProgress = 1;
     return this;
   }
 
@@ -108,6 +123,7 @@ export class NeonShapeActor {
       this.#disposalProgress = Math.min(1, this.#disposalProgress + deltaSeconds / duration);
       if (this.#disposalProgress >= 1) this.disposed = true;
     }
+    if (this.#entranceProgress < 1) this.#entranceProgress = Math.min(1, this.#entranceProgress + deltaSeconds / this.entranceDuration);
     return this;
   }
 
@@ -117,6 +133,8 @@ export class NeonShapeActor {
       shape: this.shape, x: this.x, y: this.y, z: this.z, scale: this.scale,
       rotationX: this.rotationX, rotationY: this.rotationY, rotationZ: this.rotationZ,
       label: this.label, color: this.color, opacity: this.disposed ? 0 : fade,
+      entranceProgress: this.#entranceProgress,
+      entranceMagnitude: this.entranceMagnitude,
       explodeProgress: this.disposal === NeonShapeDisposal.Explode ? this.#disposalProgress : 0,
       explodeMagnitude: this.explodeMagnitude,
       ...overrides,

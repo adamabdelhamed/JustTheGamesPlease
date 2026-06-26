@@ -37,6 +37,14 @@ export {
   type NeonPrimitiveShape,
 } from "./primitive-renderer";
 export {
+  deriveNeonCloudCoreColor,
+  NeonCloudBurstActor,
+  NeonCloudBurstRenderer,
+  type NeonCloudBurstSettings,
+  type NeonCloudDissipationAction,
+  type NeonTopDownCloudBurst,
+} from "./cloud-burst";
+export {
   createTestPage,
   type TestAssertion,
   type TestPageSnapshot,

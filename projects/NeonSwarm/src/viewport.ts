@@ -1,4 +1,4 @@
-import type { NeonPrimitive, NeonTopDownShape } from "@just-the-games-please/neon-factory";
+import type { NeonPrimitive, NeonTopDownCloudBurst, NeonTopDownShape } from "@just-the-games-please/neon-factory";
 
 export interface PortraitViewportPolicy {
   aspectWidth: number;
@@ -15,6 +15,7 @@ export interface HelicopterCameraSettings {
 
 export interface ProjectedScene {
   primitives: NeonPrimitive[];
+  clouds?: NeonTopDownCloudBurst[];
   shapes: NeonTopDownShape[];
 }
 
@@ -44,6 +45,7 @@ export const defaultHelicopterCameraSettings: HelicopterCameraSettings = {
 export function projectHelicopterScene(
   primitives: readonly NeonPrimitive[],
   shapes: readonly NeonTopDownShape[],
+  clouds: readonly NeonTopDownCloudBurst[],
   settings: HelicopterCameraSettings,
   viewport: HelicopterViewport,
 ): ProjectedScene {
@@ -104,7 +106,17 @@ export function projectHelicopterScene(
     })
     .sort((a, b) => ((b.z ?? 0) - (a.z ?? 0)));
 
-  return { primitives: projectedPrimitives, shapes: projectedShapes };
+  const projectedClouds = clouds.map(cloud => {
+    const point = projectPoint(cloud.x, cloud.y);
+    return {
+      ...cloud,
+      x: point.x,
+      y: point.y,
+      size: cloud.size * point.scale,
+    };
+  });
+
+  return { primitives: projectedPrimitives, clouds: projectedClouds, shapes: projectedShapes };
 }
 
 export function projectHelicopterPoint(

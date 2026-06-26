@@ -11,12 +11,14 @@ import { SwordState, tickSword } from "./combat/swordEvaluator";
 import { queryNearbyThreats } from "./combat/nearbyThreatQuery";
 import { shieldPickupVisual, shieldVisuals, swordPickupVisual, swordVisuals } from "./familyVisuals";
 import { GunSimulation } from "./combat/gunSimulation";
+import { createEnemyExitEffect, enemyExitCloud, updateEnemyExitEffects, type ActiveEnemyExitEffect, type EnemyVisualType } from "./enemyExitVisuals";
+import { enemyEntranceProfiles } from "./enemyEntranceVisuals";
 
 // ---------------------------------------------------------------------------
 // Interfaces
 // ---------------------------------------------------------------------------
 
-interface Enemy { id: number; lane: 0 | 1; x: number; y: number; health: number; speedMultiplier: number; rowId: number; actor: NeonShapeActor; dying: boolean }
+interface Enemy { id: number; enemyType: EnemyVisualType; lane: 0 | 1; x: number; y: number; health: number; speedMultiplier: number; rowId: number; actor: NeonShapeActor; dying: boolean; exitEffectSpawned?: boolean }
 interface GunPickup { lane: 0 | 1; x: number; y: number; gunId: GunId; level: number; speedMultiplier: number; actor: NeonShapeActor }
 interface ShieldPickup { lane: 0 | 1; x: number; y: number; shieldId: ShieldId; speedMultiplier: number }
 interface SwordPickup { lane: 0 | 1; x: number; y: number; swordId: SwordId; speedMultiplier: number }
@@ -139,6 +141,7 @@ try {
   let shieldPickups: ShieldPickup[] = [];
   let swordPickups: SwordPickup[] = [];
   let multipliers: MultiplierPickup[] = [];
+  let enemyExitEffects: ActiveEnemyExitEffect[] = [];
   const squad = new SquadModel();
   const aimControl = new AutoAimControlState();
   let victory: NeonVictoryExperience | null = null;
@@ -175,6 +178,17 @@ try {
   } as const;
 
   const scale = () => 1;
+  const enemyExitColor = (enemy: Enemy): string => enemy.actor.color ?? enemy.actor.shape.color;
+  const spawnEnemyExitEffect = (enemy: Enemy): void => {
+    if (enemy.exitEffectSpawned) return;
+    enemy.exitEffectSpawned = true;
+    enemyExitEffects.push(createEnemyExitEffect({
+      enemyType: enemy.enemyType,
+      x: enemy.x,
+      y: enemy.y,
+      color: enemyExitColor(enemy),
+    }));
+  };
   const laneX = (lane: number) => canvas.width * (lane === 0 ? .32 : .68);
   const entityX = (entity: ParsedTrackEntity) => laneX(entity.side === "left" ? 0 : 1) + (entity.laneIndex - 2) * 15 * scale();
   const playerY = () => canvas.height * .82;
@@ -207,6 +221,7 @@ try {
     shieldPickups = [];
     swordPickups = [];
     multipliers = [];
+    enemyExitEffects = [];
     victory = null;
     failureReason = "";
     activeByFamily.shield = null;
@@ -237,6 +252,7 @@ try {
     shieldPickups = [];
     swordPickups = [];
     multipliers = [];
+    enemyExitEffects = [];
     squad.count = 1;
     playerActors.length = 0;
     playerActors.push(new NeonShapeActor({ shape: swarmShapes.player }));
@@ -335,6 +351,7 @@ try {
       item.actor.update(delta);
       if (item.actor.disposed) explodingPlayers.splice(explodingPlayers.indexOf(item), 1);
     }
+    updateEnemyExitEffects(enemyExitEffects, delta);
     if (!activeTrack) return;
     const elapsed = combatElapsed;
 
@@ -351,15 +368,19 @@ try {
       const entity = trackEntities[nextTrackEntity++];
       const lane = entity.side === "left" ? 0 : 1;
       if (entity.id === "enemy.basic") {
+        const enemyType: EnemyVisualType = "basicOrb";
+        const entrance = enemyEntranceProfiles[enemyType];
+        const actor = new NeonShapeActor({ shape: swarmShapes.enemy, entranceDuration: entrance.durationSeconds, entranceMagnitude: entrance.scatterMagnitude }).enter(entrance.durationSeconds, entrance.scatterMagnitude);
         enemies.push({
           id: ++entityIdCounter,
+          enemyType,
           lane,
           x: entityX(entity),
           y: enemySpawnY(entity),
           health: orbFamily.members.basicOrb.health * activeTrack.definition.balance.enemyHp,
           speedMultiplier: entity.speedMultiplier,
           rowId: entity.rowIndex,
-          actor: new NeonShapeActor({ shape: swarmShapes.enemy }),
+          actor,
           dying: false,
         });
         playLibrarySfx("EnemySpawn");
@@ -406,6 +427,7 @@ try {
       gameEnemy.actor.impact({ direction: { x: 0, y: 1 }, magnitude: (shot.damage + shot.knockback * .06) / orbFamily.members.basicOrb.impactResistance });
       if (gameEnemy.health <= 0) {
         gameEnemy.dying = true;
+        spawnEnemyExitEffect(gameEnemy);
         gameEnemy.actor.explodeMagnitude = orbFamily.members.basicOrb.explosionMagnitude;
         gameEnemy.actor.dispose(NeonShapeDisposal.Explode);
         playLibrarySfx("EnemyDestroyed");
@@ -467,6 +489,7 @@ try {
           enemy.health -= shieldResult.contactDamageAmount * delta;
           if (enemy.health <= 0) {
             enemy.dying = true;
+            spawnEnemyExitEffect(enemy);
             enemy.actor.explodeMagnitude = orbFamily.members.basicOrb.explosionMagnitude;
             enemy.actor.dispose(NeonShapeDisposal.Explode);
             playLibrarySfx("EnemyDestroyed");
@@ -504,6 +527,7 @@ try {
           playLibrarySfx("SwordHit");
           if (enemy.health <= 0) {
             enemy.dying = true;
+            spawnEnemyExitEffect(enemy);
             enemy.actor.explodeMagnitude = orbFamily.members.basicOrb.explosionMagnitude;
             enemy.actor.dispose(NeonShapeDisposal.Explode);
             playLibrarySfx("EnemyDestroyed");
@@ -534,6 +558,7 @@ try {
         if (shieldContact.absorbed) {
           if (shieldContact.enemyDestroyed) {
             enemy.dying = true;
+            spawnEnemyExitEffect(enemy);
             enemy.actor.explodeMagnitude = orbFamily.members.basicOrb.explosionMagnitude;
             enemy.actor.dispose(NeonShapeDisposal.Explode);
             playLibrarySfx("EnemyDestroyed");
@@ -659,6 +684,7 @@ try {
     if (victory) primitives.push(...victory.primitives(now));
 
     const shapeInstances: NeonTopDownShape[] = [];
+    const cloudInstances = enemyExitEffects.map(enemyExitCloud);
     if (activeByFamily.shield) {
       const liveShield = activeByFamily.shield;
       const liveDef = shieldFamily.members[liveShield.shieldId];
@@ -720,7 +746,7 @@ try {
       pickup.actor.color = neonPalette[spec.pickupColor];
       shapeInstances.push(actorInTopDownScene(pickup.actor, pickup.x, pickup.y, 16, billboardOrientation(cameraSettings, helicopterViewport, pickup.x, pickup.y, now)));
     }
-    const projected = projectHelicopterScene(primitives, shapeInstances, cameraSettings, {
+    const projected = projectHelicopterScene(primitives, shapeInstances, cloudInstances, cameraSettings, {
       ...helicopterViewport,
     });
     renderer.render(projected, now / 1000);

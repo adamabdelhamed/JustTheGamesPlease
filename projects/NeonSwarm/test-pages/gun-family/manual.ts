@@ -406,7 +406,7 @@ try {
       pickup.actor.color = neonPalette[multiplierFamily.members.squadPlusOne.pickupColor];
       shapes.push(actorInTopDownScene(pickup.actor, laneX(pickup.lane), pickup.y, 16 * zoom, billboardOrientation(defaultHelicopterCameraSettings, helicopterViewport, laneX(pickup.lane), pickup.y, now)));
     }
-    renderer.render(projectHelicopterScene(primitives, shapes, defaultHelicopterCameraSettings, helicopterViewport), now / 1000);
+  renderer.render(projectHelicopterScene(primitives, shapes, [], defaultHelicopterCameraSettings, helicopterViewport), now / 1000);
   };
 
   const frame = (now: number): void => {

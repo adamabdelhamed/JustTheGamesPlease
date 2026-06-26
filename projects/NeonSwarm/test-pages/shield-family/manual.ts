@@ -263,7 +263,7 @@ try {
     const helicopterViewport = helicopterViewportFor(canvas.width, canvas.height, playerY());
     shapes.push(actorInTopDownScene(playerActor, squad.x, playerY(), 14, playerOrientation(defaultHelicopterCameraSettings, helicopterViewport, squad.x, playerY(), now)));
     for (const e of enemies) shapes.push(actorInTopDownScene(e.actor, e.x, e.y, 18, enemyOrientation(defaultHelicopterCameraSettings, helicopterViewport, e.x, e.y, now, e.rowId)));
-    renderer.render(projectHelicopterScene(primitives, shapes, defaultHelicopterCameraSettings, helicopterViewport), now / 1000);
+  renderer.render(projectHelicopterScene(primitives, shapes, [], defaultHelicopterCameraSettings, helicopterViewport), now / 1000);
   };
 
   const frame = (now: number): void => { update(now); draw(now); requestAnimationFrame(frame); };

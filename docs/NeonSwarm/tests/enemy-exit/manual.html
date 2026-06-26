@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Neon Swarm - Enemy Exit Lab</title>
+  <link rel="stylesheet" href="manual.css">
+</head>
+<body>
+  <main>
+    <header>
+      <div>
+        <span>NEON SWARM - ENEMY VISUALS</span>
+        <h1>Enemy Exit Lab</h1>
+        <p>Shared death visuals by enemy type. This page uses the same profile helpers as the game.</p>
+      </div>
+      <output id="test-status">BOOTING</output>
+    </header>
+    <section class="layout">
+      <canvas id="stage"></canvas>
+      <aside>
+        <label>Enemy type
+          <select id="enemy-type">
+            <option value="basicOrb">Basic orb</option>
+          </select>
+        </label>
+        <label>Enemy color
+          <input id="color" type="color" value="#ff0033">
+        </label>
+        <button id="run">Run</button>
+        <button id="copy">Copy Profile JSON</button>
+        <label>Profile JSON
+          <textarea id="json" readonly></textarea>
+        </label>
+        <p id="readout"></p>
+      </aside>
+    </section>
+    <div id="error" hidden></div>
+  </main>
+  <script type="module" src="manual.js"></script>
+</body>
+</html>
