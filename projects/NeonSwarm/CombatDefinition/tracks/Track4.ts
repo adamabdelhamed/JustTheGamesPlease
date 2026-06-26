@@ -112,7 +112,7 @@ EEE.. | ..E..
 .E.E. | .E.E.
 ..E.. | .....
 ..... | ..E..
-EEE.. | .E.E.
+..E.. | .E.E.
 ..... | .....
 ..J.. | .....
 ..... | .....
@@ -129,30 +129,32 @@ EEE.. | ..E..
 ..... | .....
 ..E.. | ..E..
 .E.E. | .....
-..... | .E.E.
+..H.. | .E.E.
 ..E.. | ..E..
 ..... | .....
 .E.E. | .E.E.
 ..E.. | ..E..
-..... | .....
+..... | ..P..
 ..E.. | .E.E.
 ..... | .....
-..P.. | .....
+..L.. | .....
 `,
     legend: {
       ".": { id: "empty" },
-      "P": { id: "player.start" },
       "E": { id: "enemy.basic" },
-      "2": { id: "pickup.unitMultiplier.2x", speed: 0.8 },
       "G": { id: "pickup.weapon.gun.pulsePistol", speed: 0.75 },
+      "2": { id: "pickup.unitMultiplier.2x", speed: 0.8 },
+      "S": { id: "pickup.weapon.shield.lightGuard", speed: 0.8 },
+      "a": { id: "pickup.weapon.sword.arcBlade", speed: 0.85 },
       "I": { id: "pickup.weapon.gun.burstCarbine", speed: 0.85 },
+      "b": { id: "pickup.weapon.sword.cleaver", speed: 0.9 },
       "J": { id: "pickup.weapon.gun.heavyCannon", speed: 0.9 },
       "K": { id: "pickup.weapon.gun.splitterRifle", speed: 0.95 },
-      "S": { id: "pickup.weapon.shield.lightGuard", speed: 0.8 },
       "X": { id: "pickup.weapon.shield.hexGuard", speed: 0.95 },
-      "a": { id: "pickup.weapon.sword.arcBlade", speed: 0.85 },
-      "b": { id: "pickup.weapon.sword.cleaver", speed: 0.9 },
       "c": { id: "pickup.weapon.sword.needleRapier", speed: 0.95 },
+      "H": { id: "pickup.weapon.gun.needlerSmg" },
+      "P": { id: "pickup.weapon.sword.cleaver" },
+      "L": { id: "player.start" },
     },
     balance: {
       enemyHp: 1.0,

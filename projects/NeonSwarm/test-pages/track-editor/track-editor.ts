@@ -76,6 +76,9 @@ let selected: Selection | null = { row: cells.length - 1, side: 0, column: 0 };
 let selectedItem = empty;
 let toolRevision = 0;
 let selectionToolRevision = toolRevision;
+let exportVariableName = "newTrack";
+let exportDurationSeconds = defaultRowCount;
+let loadedLegendOrder: string[] | null = null;
 
 const grid = document.querySelector<HTMLElement>("#track-grid")!;
 const gridPanel = document.querySelector<HTMLElement>(".grid-panel")!;
@@ -185,12 +188,14 @@ function placeSelected(item = selectedItem): void {
     speed: Number.isFinite(speed) && speed > 0 ? speed : 1,
   };
   renderCell(selected);
+  loadedLegendOrder = null;
 }
 
 function eraseSelected(): void {
   if (!selected) return;
   cells[selected.row][selected.side][selected.column] = blankCell();
   renderCell(selected);
+  loadedLegendOrder = null;
 }
 
 function renderPalette(): void {
@@ -224,6 +229,8 @@ function insertRow(offset: 0 | 1): void {
   const index = selected ? selected.row + offset : rowCount();
   cells.splice(index, 0, blankRow());
   selected = { row: index, side: selected?.side ?? 0, column: selected?.column ?? 0 };
+  exportDurationSeconds = rowCount();
+  loadedLegendOrder = null;
   renderGrid();
 }
 
@@ -231,11 +238,14 @@ function deleteSelectedRow(): void {
   if (!selected || rowCount() <= 1) return;
   cells.splice(selected.row, 1);
   selected.row = Math.min(selected.row, rowCount() - 1);
+  exportDurationSeconds = rowCount();
+  loadedLegendOrder = null;
   renderGrid();
 }
 
 function clearGrid(): void {
   cells = cells.map(() => blankRow());
+  loadedLegendOrder = null;
   renderGrid();
 }
 
@@ -244,10 +254,13 @@ function sceneId(): LaneRunnerSceneId {
 }
 
 function loadTrack(track: TrackMember, exportName: string): void {
-  input<HTMLInputElement>("#export-name").value = exportName;
+  exportVariableName = "generatedTrack";
+  exportDurationSeconds = track.durationSeconds;
+  loadedLegendOrder = Object.keys(track.definition.legend);
+  input<HTMLInputElement>("#export-name").value = exportVariableName;
   input<HTMLInputElement>("#display-name").value = track.label;
   input<HTMLTextAreaElement>("#description").value = track.description;
-  input<HTMLInputElement>("#enemy-hp").value = String(track.definition.balance.enemyHp);
+  input<HTMLInputElement>("#enemy-hp").value = Number.isInteger(track.definition.balance.enemyHp) ? track.definition.balance.enemyHp.toFixed(1) : String(track.definition.balance.enemyHp);
   input<HTMLInputElement>("#enemy-speed").value = String(track.definition.balance.enemySpeed);
   sceneSelect.value = track.environment.sceneId;
 
@@ -279,6 +292,9 @@ function renderTrackSources(): void {
     const id = trackSource.value as keyof typeof trackFamily.members | "";
     if (!id) {
       cells = Array.from({ length: defaultRowCount }, blankRow);
+      exportVariableName = "newTrack";
+      exportDurationSeconds = defaultRowCount;
+      loadedLegendOrder = null;
       input<HTMLInputElement>("#export-name").value = "newTrack";
       input<HTMLInputElement>("#display-name").value = "New Track";
       input<HTMLTextAreaElement>("#description").value = "A hand-authored Neon Swarm track.";
@@ -307,34 +323,44 @@ const safeIdentifier = (value: string): string => {
 };
 
 function exportSource(): { fileName: string; source: string } {
-  const exportName = safeIdentifier(input<HTMLInputElement>("#export-name").value || "newTrack");
+  const exportName = safeIdentifier(input<HTMLInputElement>("#export-name").value || exportVariableName || "newTrack");
   const symbols = ".PEGHIJKLMNOQRSTUVWXYZABCDEFGHIJKLMNOQRSTUVWXYZ23456789".split("");
   const entries = new Map<string, { symbol: string; value: CellValue }>();
+  const usedSymbols = new Set<string>();
   entries.set("empty@1", { symbol: ".", value: blankCell() });
+  usedSymbols.add(".");
   const symbolFor = (value: CellValue): string => {
     const key = `${value.id}@${value.speed}`;
     const existing = entries.get(key);
     if (existing) return existing.symbol;
-    const symbol = symbols.find(candidate => ![...entries.values()].some(entry => entry.symbol === candidate));
+    const preferred = value.symbol.length === 1 && !/\s|\|/.test(value.symbol) && !usedSymbols.has(value.symbol) ? value.symbol : undefined;
+    const symbol = preferred ?? symbols.find(candidate => !usedSymbols.has(candidate));
     if (!symbol) throw new Error("This track uses more distinct entity/speed combinations than the one-character layout can represent.");
+    usedSymbols.add(symbol);
     entries.set(key, { symbol, value });
     return symbol;
   };
   const layout = cells.map(row => `${row[0].map(symbolFor).join("")} | ${row[1].map(symbolFor).join("")}`).join("\n");
-  const legend = [...entries.values()].map(({ symbol, value }) =>
+  const orderedEntries = [...entries.values()].sort((a, b) => {
+    if (!loadedLegendOrder) return 0;
+    const aIndex = loadedLegendOrder.indexOf(a.symbol);
+    const bIndex = loadedLegendOrder.indexOf(b.symbol);
+    return (aIndex < 0 ? Number.MAX_SAFE_INTEGER : aIndex) - (bIndex < 0 ? Number.MAX_SAFE_INTEGER : bIndex);
+  });
+  const legend = orderedEntries.map(({ symbol, value }) =>
     `      ${quoted(symbol)}: { id: ${quoted(value.id)}${value.speed === 1 ? "" : `, speed: ${value.speed}`} },`,
   ).join("\n");
-  const hp = Number(input<HTMLInputElement>("#enemy-hp").value) || 1;
-  const speed = Number(input<HTMLInputElement>("#enemy-speed").value) || 1;
+  const hp = input<HTMLInputElement>("#enemy-hp").value || "1";
+  const speed = input<HTMLInputElement>("#enemy-speed").value || "1";
 
   return {
     fileName: `${exportName}.ts`,
     source: `import type { TrackMember } from "../TrackDefinition";
 
-export const ${exportName} = {
+export const ${exportName}: TrackMember = {
   label: ${quoted(input<HTMLInputElement>("#display-name").value)},
   description: ${quoted(input<HTMLTextAreaElement>("#description").value)},
-  durationSeconds: ${rowCount() + 1},
+  durationSeconds: ${exportDurationSeconds},
   startingGun: "pulsePistol",
   startingGunLevel: 1,
   viewport: {
