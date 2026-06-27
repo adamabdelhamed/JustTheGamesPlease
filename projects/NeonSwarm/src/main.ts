@@ -1,12 +1,14 @@
-import { getLaneRunnerSceneName, getNeonShape, type NeonGeometricShapeDefinition } from "@just-the-games-please/neon-factory";
 import { trackFamily, type TrackFamilyId, type TrackId } from "../CombatDefinition";
 import { bindSquadInput } from "./input";
 import { NeonSwarmSimulation } from "./simulation/NeonSwarmSimulation";
+import { TrackMenuRenderer } from "./trackMenuRenderer";
 import { applyPortraitStage, defaultHelicopterCameraSettings, laneRunnerViewport, type HelicopterCameraSettings } from "./viewport";
 
 const canvas = document.querySelector<HTMLCanvasElement>("#game-canvas")!;
+const trackMenuCanvas = document.querySelector<HTMLCanvasElement>("#track-menu-canvas")!;
 const trackSelect = document.querySelector<HTMLElement>("#track-select")!;
 const trackList = document.querySelector<HTMLElement>("#track-list")!;
+const trackMenuLabels = document.querySelector<HTMLElement>("#track-menu-labels")!;
 const status = document.querySelector<HTMLElement>("#status")!;
 const runStatus = document.querySelector<HTMLElement>("#run-status")!;
 const result = document.querySelector<HTMLElement>("#result")!;
@@ -27,10 +29,6 @@ const urlOptions = window.JustTheGamesPlease?.urlOptions;
 const developerMode = urlOptions?.isEnabled("dev") ?? false;
 const cameraControlsMode = urlOptions?.isEnabled("cameracontrols") ?? false;
 const defaultTrackSceneId = Object.values(trackFamily.families)[0].environment.sceneId;
-const trackShapeIdsByFamily: Record<TrackFamilyId, readonly string[]> = {
-  neonNebulae: ["hunter-eye", "bruiser-prism", "elite-star"],
-  aurora: ["trick-vortex", "elite-wings", "tank-reactor"],
-};
 let pendingTrackId: TrackId | null = null;
 let musicStarted = false;
 
@@ -106,46 +104,14 @@ try {
     const candidate = decodeURIComponent(location.hash.slice(prefix.length));
     return candidate in trackFamily.members ? candidate as TrackId : null;
   };
-  const shapeMarkup = (shape: NeonGeometricShapeDefinition, index: number, count: number): string => {
-    const scale = 22 - index * 2;
-    const x = 45 + (index - (count - 1) / 2) * 21;
-    const y = 18 + Math.sin(index) * 2;
-    const points = shape.points.map(([px, py]) => `${(x + px * scale * .42).toFixed(1)},${(y + py * scale * .42).toFixed(1)}`).join(" ");
-    const hole = shape.holes?.[0]?.map(([px, py]) => `${(x + px * scale * .24).toFixed(1)},${(y + py * scale * .24).toFixed(1)}`).join(" ");
-    const colorClass = index % 3;
-    return `<g class="track-glyph__shape track-glyph__shape--${colorClass}"><polygon points="${points}"></polygon>${hole ? `<polygon class="track-glyph__hole" points="${hole}"></polygon>` : ""}</g>`;
-  };
-  const trackGlyphMarkup = (familyId: TrackFamilyId, trackIndex: number): string => {
-    const shapeIds = trackShapeIdsByFamily[familyId].slice(0, trackIndex + 1);
-    const shapes = shapeIds.map(id => getNeonShape(id)).filter((shape): shape is NeonGeometricShapeDefinition => shape !== undefined);
-    return `
-      <svg class="track-glyph" viewBox="0 0 90 38" aria-hidden="true">
-        <line x1="18" y1="33" x2="72" y2="33"></line>
-        ${shapes.map((shape, index) => shapeMarkup(shape, index, shapes.length)).join("")}
-      </svg>`;
-  };
-  const renderTrackFamilies = (): void => {
-    trackList.innerHTML = Object.entries(trackFamily.families).map(([familyId, family]) => `
-      <section class="track-family" aria-label="${family.label}">
-        <div class="track-family__header">
-          <div>
-            <span class="track-family__scene">${getLaneRunnerSceneName(family.environment.sceneId)}</span>
-            <h3>${family.label}</h3>
-          </div>
-        </div>
-        <div class="track-family__row">
-          ${family.trackIds.map((trackId, trackIndex) => {
-            const track = trackFamily.members[trackId];
-            return `
-              <a class="track-card" href="${trackRoute(trackId)}" data-track="${trackId}">
-                ${trackGlyphMarkup(familyId as TrackFamilyId, trackIndex)}
-                <strong>${track.label}</strong>
-                <b>${track.durationSeconds}s</b>
-              </a>`;
-          }).join("")}
-        </div>
-      </section>`).join("");
-  };
+  const trackMenu = await TrackMenuRenderer.create({
+    canvas: trackMenuCanvas,
+    buttonLayer: trackList,
+    labelLayer: trackMenuLabels,
+    trackFamily,
+    route: trackRoute,
+  });
+  trackMenu.start();
 
   const resetToTracks = (): void => {
     sim.reset();
@@ -193,7 +159,6 @@ try {
     else resetToTracks();
   };
 
-  renderTrackFamilies();
   document.querySelector<HTMLButtonElement>("#back-to-tracks")!.addEventListener("click", navigateToTracks);
   confirmTrackStart.addEventListener("click", () => {
     if (!pendingTrackId) return;

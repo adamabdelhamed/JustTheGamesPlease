@@ -33,8 +33,15 @@
       <output id="camera-output-text" for="camera-height camera-look camera-back camera-zoom camera-horizon"></output>
     </section>
     <section id="track-select" class="track-select">
-      <span class="eyebrow">SELECT TRACK</span>
-      <div id="track-list"></div>
+      <div class="track-menu-scroll">
+        <canvas id="track-menu-canvas"></canvas>
+        <div class="track-menu-copy" aria-hidden="true">
+          <div class="track-menu-logo"><span>NEON</span><b>SWARM</b></div>
+          <p>Choose your path</p>
+        </div>
+        <div id="track-menu-labels" class="track-menu-labels"></div>
+        <div id="track-list" class="track-menu-hits" aria-label="Track families"></div>
+      </div>
       <p id="developer-tools" class="developer-tools" hidden><a href="NeonSwarm/tests/index.html#dev-1">Open Test Center</a></p>
     </section>
     <section id="start-dialog" class="start-dialog" role="dialog" aria-modal="true" aria-labelledby="start-dialog-title" hidden>
