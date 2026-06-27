@@ -295,7 +295,7 @@ export class NeonPrimitiveRenderer {
     const pass = encoder.beginRenderPass({
       colorAttachments: [{
         view: targetView ?? this.#context.getCurrentTexture().createView(),
-        clearValue: { r: 0.006, g: 0.009, b: 0.025, a: 1 },
+        clearValue: { r: 0.006, g: 0.009, b: 0.025, a: 0 },
         loadOp: preserveColor ? "load" : "clear",
         storeOp: "store",
       }],

@@ -158,13 +158,6 @@ export const generatedTrack: TrackMember = {
   durationSeconds: 25, // Set matching the number of lines in your layout (excluding blank lines)
   startingGun: "${startGun}",
   startingGunLevel: ${startGunLevel},
-  viewport: {
-    orientation: "portrait",
-    aspectWidth: 9,
-    aspectHeight: 16,
-    logicalWidth: 450,
-    logicalHeight: 800,
-  },
   environment: {
     sceneId: "neonHall",
   },

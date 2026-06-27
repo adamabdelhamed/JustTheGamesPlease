@@ -1,14 +1,15 @@
-import { createLaneRunnerScene, NeonShapeActor, NeonShapeDisposal, NeonTopDownSceneRenderer, neonPalette, type NeonPrimitive, type NeonTopDownShape } from "@just-the-games-please/neon-factory";
+import { NeonShapeActor, NeonShapeDisposal, NeonTopDownSceneRenderer, neonPalette, type NeonPrimitive, type NeonTopDownShape } from "@just-the-games-please/neon-factory";
 import { gunFamily, multiplierFamily, orbFamily, type GunLevel, type GunMember, type OrbId } from "../../CombatDefinition";
 import { bindSquadInput } from "../../src/input";
 import { SquadModel } from "../../src/squad";
 import { AutoAimControlState, selectAutoAimOffset } from "../../src/autoAim";
-import { defaultHelicopterCameraSettings, applyPortraitStage, projectHelicopterScene } from "../../src/viewport";
+import { defaultHelicopterCameraSettings, applyPortraitStage, laneRunnerCameraFocusX, laneRunnerViewport, projectHelicopterScene } from "../../src/viewport";
 import { actorInTopDownScene, shapeLabel, swarmShapes } from "../../src/shapeVisuals";
 import { billboardOrientation, enemyOrientation, helicopterViewportFor, playerOrientation } from "../../src/renderOrientation";
 import { GunSimulation } from "../../src/combat/gunSimulation";
 import { createEnemyActor, projectedEnemyHealthBarPrimitives, resolveEnemyDamage } from "../../src/enemyCatalog";
 import { enemyExitCloud, updateEnemyExitEffects, type ActiveEnemyExitEffect } from "../../src/enemyExitVisuals";
+import { applyLaneRunnerSceneBackground, laneRunnerScenePrimitives } from "../../src/sceneEnvironment";
 
 interface Enemy {
   id: number;
@@ -46,13 +47,14 @@ const formationSize = document.querySelector<HTMLInputElement>("#formation-size"
 const formationRows = document.querySelector<HTMLSelectElement>("#formation-rows")!;
 const shapeZoom = document.querySelector<HTMLInputElement>("#shape-zoom")!;
 const gameElement = document.querySelector<HTMLElement>("#game")!;
-applyPortraitStage(gameElement, { aspectWidth: 9, aspectHeight: 16 });
+applyPortraitStage(gameElement, laneRunnerViewport);
+applyLaneRunnerSceneBackground(gameElement, "neonHall");
 const audioId = (id: string): string => `../../../../audio/${id}`;
 const playSfx = (id: string): void => window.gameAudio?.play(audioId(id));
 const playRotatedSfx = (id: string, alternatives: number): void => window.gameAudio?.playRotated(audioId(id), alternatives);
 
 try {
-  const renderer = await NeonTopDownSceneRenderer.create(canvas, 450, 800);
+  const renderer = await NeonTopDownSceneRenderer.create(canvas, laneRunnerViewport.logicalWidth, laneRunnerViewport.logicalHeight);
   const guns: Record<string, GunMember> = gunFamily.members;
   const enemies: Enemy[] = [];
   const gunSimulation = new GunSimulation();
@@ -280,7 +282,7 @@ try {
   const draw = (now: number): void => {
     const s = scale();
     const primitives: NeonPrimitive[] = [
-      ...(createLaneRunnerScene({ sceneId: "neonHall", width: canvas.width, height: canvas.height, timeMs: now }).primitives ?? []),
+      ...laneRunnerScenePrimitives("neonHall", canvas.width, canvas.height, now),
     ];
     for (const point of squad.points(playerY() + recoil, s)) void point;
     primitives.push(...gunSimulation.projectilePrimitives());
@@ -409,7 +411,7 @@ try {
     
     const zoom = +shapeZoom.value / 100;
     const shapes: NeonTopDownShape[] = [];
-    const helicopterViewport = helicopterViewportFor(canvas.width, canvas.height, playerY());
+    const helicopterViewport = helicopterViewportFor(canvas.width, canvas.height, playerY(), laneRunnerCameraFocusX(canvas.width, squad.x));
     for (const [index, point] of squad.points(playerY() + recoil, s).entries()) {
       shapes.push(actorInTopDownScene(new NeonShapeActor({ shape: swarmShapes.player }), point.x, point.y, 14 * zoom, playerOrientation(defaultHelicopterCameraSettings, helicopterViewport, point.x, point.y, now, index)));
     }

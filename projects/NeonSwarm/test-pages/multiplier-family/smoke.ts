@@ -1,7 +1,7 @@
 import { createTestPage, NeonPrimitiveRenderer, neonPalette, type NeonPrimitive } from "@just-the-games-please/neon-factory";
 import { multiplierFamily } from "../../CombatDefinition";
 import { SquadModel } from "../../src/squad";
-import { defaultHelicopterCameraSettings, projectHelicopterScene } from "../../src/viewport";
+import { defaultHelicopterCameraSettings, laneRunnerCameraFocusX, projectHelicopterScene } from "../../src/viewport";
 
 const status = document.querySelector<HTMLOutputElement>("#test-status")!;
 const results = document.querySelector<HTMLOListElement>("#results")!;
@@ -355,10 +355,11 @@ function drawSim() {
     });
   }
 
-    const projected = projectHelicopterScene(primitives, [], [], defaultHelicopterCameraSettings, {
+  const projected = projectHelicopterScene(primitives, [], [], defaultHelicopterCameraSettings, {
     width: canvas.width,
     height: canvas.height,
     playerY,
+    focusX: laneRunnerCameraFocusX(canvas.width, squad.x),
   });
   renderer.render(projected.primitives, simTimeMs / 1000);
 }

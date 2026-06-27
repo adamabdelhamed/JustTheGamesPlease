@@ -5,6 +5,20 @@ export interface PortraitViewportPolicy {
   aspectHeight: number;
 }
 
+export interface LaneRunnerViewportPolicy extends PortraitViewportPolicy {
+  readonly orientation: "portrait";
+  readonly logicalWidth: number;
+  readonly logicalHeight: number;
+}
+
+export const laneRunnerViewport: LaneRunnerViewportPolicy = {
+  orientation: "portrait",
+  aspectWidth: 9,
+  aspectHeight: 16,
+  logicalWidth: 450,
+  logicalHeight: 800,
+};
+
 export interface HelicopterCameraSettings {
   height: number;
   lookAngleDegrees: number;
@@ -23,6 +37,12 @@ export interface HelicopterViewport {
   width: number;
   height: number;
   playerY: number;
+  focusX?: number;
+}
+
+export function laneRunnerCameraFocusX(width: number, targetX: number): number {
+  const centerX = width / 2;
+  return centerX + (targetX - centerX) * .55;
 }
 
 export function applyPortraitStage(stage: HTMLElement, policy: PortraitViewportPolicy): void {
@@ -35,11 +55,11 @@ export function stageNormalizedX(stage: HTMLElement, clientX: number): number {
 }
 
 export const defaultHelicopterCameraSettings: HelicopterCameraSettings = {
-  height: 170,
-  lookAngleDegrees: 20,
-  followDistance: 255,
-  zoom: .73,
-  horizon: .54,
+  height: 65,
+  lookAngleDegrees: 27,
+  followDistance: 20,
+  zoom: .2,
+  horizon: .51,
 };
 
 export function projectHelicopterScene(
@@ -130,6 +150,7 @@ export function projectHelicopterPoint(
 
 function projectHelicopterPointFactory(settings: HelicopterCameraSettings, viewport: HelicopterViewport) {
   const centerX = viewport.width / 2;
+  const focusX = viewport.focusX ?? centerX;
   const pitch = settings.lookAngleDegrees * Math.PI / 180;
   const cos = Math.cos(pitch);
   const sin = Math.sin(pitch);
@@ -138,7 +159,7 @@ function projectHelicopterPointFactory(settings: HelicopterCameraSettings, viewp
   const minDepth = 20;
 
   return (x: number, y: number): { x: number; y: number; scale: number; depth: number } => {
-    const worldX = x - centerX;
+    const worldX = x - focusX;
     const worldZ = viewport.playerY - y + settings.followDistance;
     const relativeY = -settings.height;
     const cameraY = relativeY * cos + worldZ * sin;

@@ -90,6 +90,7 @@ await build({
 
 await mkdir(resolve(docs, "NeonSwarm"), { recursive: true });
 await mkdir(resolve(docs, "NeonSwarm/audio"), { recursive: true });
+await mkdir(resolve(docs, "NeonSwarm/scenes"), { recursive: true });
 await mkdir(resolve(docs, "NeonSwarm/tests/gun-family"), { recursive: true });
 await mkdir(resolve(docs, "NeonSwarm/tests/gun-family/manual/audio"), { recursive: true });
 await mkdir(resolve(docs, "NeonSwarm/tests/shield-family"), { recursive: true });
@@ -106,6 +107,7 @@ await Promise.all([
   cp(resolve(docs, "NeonPour/audio/PuzzleComplete.mp3"), resolve(docs, "NeonSwarm/tests/gun-family/manual/audio/PuzzleComplete.mp3")),
   cp(resolve(root, "projects/NeonSwarm/public/index.html"), resolve(docs, "NeonSwarm.html")),
   cp(resolve(root, "projects/NeonSwarm/public/game.css"), resolve(docs, "NeonSwarm/game.css")),
+  cp(resolve(root, "projects/NeonSwarm/public/scenes"), resolve(docs, "NeonSwarm/scenes"), { recursive: true }),
   cp(resolve(root, "projects/NeonSwarm/test-pages/index.html"), resolve(docs, "NeonSwarm/tests/index.html")),
   cp(resolve(root, "projects/NeonSwarm/test-pages/index.css"), resolve(docs, "NeonSwarm/tests/index.css")),
   cp(resolve(root, "projects/NeonSwarm/test-pages/gun-family/manual.html"), resolve(docs, "NeonSwarm/tests/gun-family/manual.html")),

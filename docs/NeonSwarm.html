@@ -25,16 +25,13 @@
       </div>
     </header>
     <section id="camera-lab" class="camera-lab" aria-label="Temporary camera controls" hidden>
-      <label>Height <input id="camera-height" type="range" min="90" max="620" step="5"></label>
-      <label>Look <input id="camera-look" type="range" min="18" max="72" step="1"></label>
-      <label>Back <input id="camera-back" type="range" min="20" max="360" step="5"></label>
-      <label>Zoom <input id="camera-zoom" type="range" min="0.55" max="1.8" step="0.01"></label>
-      <label>Horizon <input id="camera-horizon" type="range" min="0.18" max="0.72" step="0.01"></label>
+      <label>Height <input id="camera-height" type="range" min="0" max="1000" step="5"></label>
+      <label>Look <input id="camera-look" type="range" min="-10" max="85" step="1"></label>
+      <label>Back <input id="camera-back" type="range" min="0" max="800" step="5"></label>
+      <label>Zoom <input id="camera-zoom" type="range" min="0.05" max="3" step="0.01"></label>
+      <label>Horizon <input id="camera-horizon" type="range" min="0.05" max="0.95" step="0.01"></label>
       <button id="camera-output" type="button">Output</button>
       <output id="camera-output-text" for="camera-height camera-look camera-back camera-zoom camera-horizon"></output>
-    </section>
-    <section id="scene-lab" class="scene-lab" aria-label="Temporary scene controls" hidden>
-      <label>Scene <select id="scene-select"></select></label>
     </section>
     <section id="track-select" class="track-select">
       <span class="eyebrow">SELECT TRACK</span>

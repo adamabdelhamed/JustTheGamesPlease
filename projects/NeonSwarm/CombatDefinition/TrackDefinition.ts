@@ -24,13 +24,6 @@ export interface TrackMember {
   durationSeconds: number;
   startingGun: GunId;
   startingGunLevel: 1 | 2 | 3;
-  viewport: {
-    orientation: "portrait";
-    aspectWidth: number;
-    aspectHeight: number;
-    logicalWidth: number;
-    logicalHeight: number;
-  };
   environment: {
     sceneId: LaneRunnerSceneId;
   };

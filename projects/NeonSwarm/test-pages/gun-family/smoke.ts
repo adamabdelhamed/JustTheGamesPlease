@@ -1,7 +1,8 @@
-import { createLaneRunnerScene, createTestPage, NeonPrimitiveRenderer, neonPalette, type NeonPrimitive } from "@just-the-games-please/neon-factory";
+import { createTestPage, NeonPrimitiveRenderer, neonPalette, type NeonPrimitive } from "@just-the-games-please/neon-factory";
 import { gunFamily, orbFamily, type GunLevel, type GunMember } from "../../CombatDefinition";
 import { evaluateGunAgainstOrb, type GunSmokeResult } from "../../src/combat/gunEvaluator";
-import { defaultHelicopterCameraSettings, projectHelicopterScene } from "../../src/viewport";
+import { defaultHelicopterCameraSettings, laneRunnerCameraFocusX, laneRunnerViewport, projectHelicopterScene } from "../../src/viewport";
+import { applyLaneRunnerSceneBackground, laneRunnerScenePrimitives } from "../../src/sceneEnvironment";
 
 const status = document.querySelector<HTMLOutputElement>("#test-status")!;
 const resultsElement = document.querySelector<HTMLOListElement>("#results")!;
@@ -52,6 +53,7 @@ const simStatusText = document.getElementById("sim-status")!;
 const simTitle = document.getElementById("sim-title")!;
 const simDetails = document.getElementById("sim-details")!;
 const canvas = document.getElementById("game-canvas") as HTMLCanvasElement;
+applyLaneRunnerSceneBackground(document.getElementById("canvas-container")!, "neonHall");
 
 let renderer: any = null;
 let animationFrameId: number | null = null;
@@ -106,7 +108,7 @@ async function startSimulation(gunId: string) {
   if (!renderer) {
     try {
       renderer = await NeonPrimitiveRenderer.create(canvas);
-      renderer.setLogicalSize(450, 800);
+      renderer.setLogicalSize(laneRunnerViewport.logicalWidth, laneRunnerViewport.logicalHeight);
     } catch (e) {
       console.error("Failed to initialize renderer", e);
       return;
@@ -326,7 +328,7 @@ function updateSim(dt: number) {
 
 function drawSim() {
   const primitives: NeonPrimitive[] = [
-    ...(createLaneRunnerScene({ sceneId: "neonHall", width: canvas.width, height: canvas.height, timeMs: simTimeMs }).primitives ?? []),
+    ...laneRunnerScenePrimitives("neonHall", canvas.width, canvas.height, simTimeMs),
   ];
 
   // Player
@@ -427,10 +429,11 @@ function drawSim() {
     }
   }
 
-    const projected = projectHelicopterScene(primitives, [], [], defaultHelicopterCameraSettings, {
+  const projected = projectHelicopterScene(primitives, [], [], defaultHelicopterCameraSettings, {
     width: canvas.width,
     height: canvas.height,
     playerY,
+    focusX: laneRunnerCameraFocusX(canvas.width, playerX),
   });
   renderer.render(projected.primitives, simTimeMs / 1000);
 }

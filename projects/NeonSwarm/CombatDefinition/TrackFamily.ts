@@ -17,8 +17,6 @@ export class TrackFamilyDefinition extends FamilyDefinition<Record<string, Track
   validate(): void {
     for (const [id, track] of Object.entries(this.members)) {
       this.require(track.durationSeconds > 0, `${id} duration must be positive.`);
-      this.require(track.viewport.orientation === "portrait" && track.viewport.aspectHeight > track.viewport.aspectWidth, `${id} must use its declared portrait viewport.`);
-      this.require(track.viewport.logicalWidth > 0 && track.viewport.logicalHeight > 0, `${id} logical viewport must be positive.`);
       parseTrackDefinition(track.definition);
       this.require(isLaneRunnerSceneId(track.environment.sceneId), `${id} has an unknown scene id.`);
     }

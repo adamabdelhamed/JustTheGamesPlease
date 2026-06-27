@@ -45,8 +45,8 @@ export function actorOrientation(role: ActorVisualRole, context: ActorOrientatio
   }
 }
 
-export function helicopterViewportFor(width: number, height: number, playerY: number): HelicopterViewport {
-  return { width, height, playerY };
+export function helicopterViewportFor(width: number, height: number, playerY: number, focusX?: number): HelicopterViewport {
+  return { width, height, playerY, focusX };
 }
 
 export function playerOrientation(

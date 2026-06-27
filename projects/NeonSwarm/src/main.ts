@@ -1,9 +1,9 @@
-import { NeonShapeActor, NeonShapeDisposal, NeonTopDownSceneRenderer, NeonVictoryExperience, createLaneRunnerScene, getLaneRunnerSceneName, isLaneRunnerSceneId, laneRunnerSceneIds, neonPalette, type LaneRunnerSceneId, type NeonPrimitive, type NeonTopDownShape } from "@just-the-games-please/neon-factory";
+import { NeonShapeActor, NeonShapeDisposal, NeonTopDownSceneRenderer, NeonVictoryExperience, neonPalette, type LaneRunnerSceneId, type NeonPrimitive, type NeonTopDownShape } from "@just-the-games-please/neon-factory";
 import { combatTuning, gunFamily, multiplierFamily, orbFamily, parseTrackDefinition, shieldFamily, swordFamily, trackFamily, type GunId, type MultiplierId, type OrbId, type ParsedTrackEntity, type ShieldId, type SwordId, type TrackMember, type SwordTargetingMode } from "../CombatDefinition";
 import { bindSquadInput } from "./input";
 import { SquadModel } from "./squad";
 import { AutoAimControlState, selectAutoAimOffset } from "./autoAim";
-import { applyPortraitStage, defaultHelicopterCameraSettings, projectHelicopterScene, worldYForProjectedY, type HelicopterCameraSettings } from "./viewport";
+import { applyPortraitStage, defaultHelicopterCameraSettings, laneRunnerCameraFocusX, laneRunnerViewport, projectHelicopterScene, worldYForProjectedY, type HelicopterCameraSettings } from "./viewport";
 import { actorInTopDownScene, shapeLabel, swarmShapes } from "./shapeVisuals";
 import { billboardOrientation, enemyOrientation, helicopterViewportFor, playerOrientation } from "./renderOrientation";
 import { ShieldState, resolveShieldContact, tickShield } from "./combat/shieldEvaluator";
@@ -13,6 +13,7 @@ import { shieldPickupVisual, shieldVisuals, swordPickupVisual, swordVisuals } fr
 import { GunSimulation } from "./combat/gunSimulation";
 import { enemyExitCloud, updateEnemyExitEffects, type ActiveEnemyExitEffect, type EnemyVisualType } from "./enemyExitVisuals";
 import { createEnemyActor, defeatEnemy, enemyDefinitionFromTrackId, projectedEnemyHealthBarPrimitives, resolveEnemyDamage } from "./enemyCatalog";
+import { applyLaneRunnerSceneBackground, laneRunnerScenePrimitives } from "./sceneEnvironment";
 
 // ---------------------------------------------------------------------------
 // Interfaces
@@ -40,36 +41,34 @@ const error = document.querySelector<HTMLElement>("#error")!;
 const developerTools = document.querySelector<HTMLElement>("#developer-tools")!;
 const gameElement = document.querySelector<HTMLElement>("#game")!;
 const cameraLab = document.querySelector<HTMLElement>("#camera-lab")!;
-const sceneLab = document.querySelector<HTMLElement>("#scene-lab")!;
-const sceneSelect = document.querySelector<HTMLSelectElement>("#scene-select")!;
 const cameraOutputText = document.querySelector<HTMLOutputElement>("#camera-output-text")!;
 const urlOptions = window.JustTheGamesPlease?.urlOptions;
 const developerMode = urlOptions?.isEnabled("dev") ?? false;
+const cameraControlsMode = developerMode || (urlOptions?.isEnabled("cameracontrols") ?? false);
 developerTools.hidden = !developerMode;
-cameraLab.hidden = !(developerMode && (urlOptions?.isEnabled("cameracontrols") ?? false));
-sceneLab.hidden = !developerMode;
+cameraLab.hidden = !cameraControlsMode;
 const defaultTrack = Object.values(trackFamily.members)[0];
-applyPortraitStage(gameElement, defaultTrack.viewport);
+applyPortraitStage(gameElement, laneRunnerViewport);
 
-let sceneOverride: LaneRunnerSceneId | null = null;
-if (developerMode) {
-  const sceneFromUrl = (urlOptions as { get?(name: string): string | null } | undefined)?.get?.("scene");
-  if (sceneFromUrl && isLaneRunnerSceneId(sceneFromUrl)) sceneOverride = sceneFromUrl;
-}
+let trackSceneId: LaneRunnerSceneId = defaultTrack.environment.sceneId;
+const activeSceneId = (): LaneRunnerSceneId => trackSceneId;
 
-sceneSelect.innerHTML = laneRunnerSceneIds.map(sceneId => `<option value="${sceneId}">${getLaneRunnerSceneName(sceneId)}</option>`).join("");
-sceneSelect.value = sceneOverride ?? defaultTrack.environment.sceneId;
-sceneSelect.addEventListener("change", () => {
-  sceneOverride = isLaneRunnerSceneId(sceneSelect.value) ? sceneSelect.value : null;
-});
+const setSceneBackground = (sceneId: LaneRunnerSceneId): void => {
+  applyLaneRunnerSceneBackground(gameElement, sceneId);
+};
 
 const cameraSettings: HelicopterCameraSettings = { ...defaultHelicopterCameraSettings };
+const cameraSettingsOutput = (): string =>
+  `camera: height=${cameraSettings.height.toFixed(0)}, lookAngleDegrees=${cameraSettings.lookAngleDegrees.toFixed(0)}, followDistance=${cameraSettings.followDistance.toFixed(0)}, zoom=${cameraSettings.zoom.toFixed(2)}, horizon=${cameraSettings.horizon.toFixed(2)}`;
+const syncCameraOutput = (): void => {
+  cameraOutputText.value = cameraSettingsOutput();
+};
 const bindCameraSlider = (id: string, key: keyof HelicopterCameraSettings): HTMLInputElement => {
   const input = document.querySelector<HTMLInputElement>(id)!;
   input.value = String(cameraSettings[key]);
   input.addEventListener("input", () => {
     cameraSettings[key] = Number(input.value);
-    cameraOutputText.value = "";
+    syncCameraOutput();
   });
   return input;
 };
@@ -78,8 +77,9 @@ bindCameraSlider("#camera-look", "lookAngleDegrees");
 bindCameraSlider("#camera-back", "followDistance");
 bindCameraSlider("#camera-zoom", "zoom");
 bindCameraSlider("#camera-horizon", "horizon");
+syncCameraOutput();
 document.querySelector<HTMLButtonElement>("#camera-output")!.addEventListener("click", async () => {
-  const output = `camera: height=${cameraSettings.height.toFixed(0)}, lookAngleDegrees=${cameraSettings.lookAngleDegrees.toFixed(0)}, followDistance=${cameraSettings.followDistance.toFixed(0)}, zoom=${cameraSettings.zoom.toFixed(2)}, horizon=${cameraSettings.horizon.toFixed(2)}`;
+  const output = cameraSettingsOutput();
   cameraOutputText.value = output;
   if (navigator.clipboard) await navigator.clipboard.writeText(output).catch(() => undefined);
 });
@@ -124,7 +124,7 @@ const playPickup = (id: "PickupGun" | "PickupShield" | "PickupSword" | "PickupMu
 };
 
 try {
-  const viewport = defaultTrack.viewport;
+  const viewport = laneRunnerViewport;
   const renderer = await NeonTopDownSceneRenderer.create(canvas, viewport.logicalWidth, viewport.logicalHeight);
   let activeTrack: TrackMember | null = null;
   let lastFrame = performance.now();
@@ -188,7 +188,7 @@ try {
   const laneX = (lane: number) => canvas.width * (lane === 0 ? .32 : .68);
   const entityX = (entity: ParsedTrackEntity) => laneX(entity.side === "left" ? 0 : 1) + (entity.laneIndex - 2 + (entity.columnSpan - 1) / 2) * 15 * scale();
   const playerY = () => canvas.height * .82;
-  const activeSceneId = (): LaneRunnerSceneId => sceneOverride ?? activeTrack?.environment.sceneId ?? defaultTrack.environment.sceneId;
+  setSceneBackground(activeSceneId());
   const entityBaseY = (entity: ParsedTrackEntity): number => entity.id === "pickup.unitMultiplier.2x" ? 125 : entity.id.startsWith("pickup.") ? 120 : 110;
   const entitySpeed = (entity: ParsedTrackEntity): number =>
     (enemyDefinitionFromTrackId(entity.id)?.definition.speed ?? 72) * entity.speedMultiplier * scale();
@@ -228,7 +228,8 @@ try {
 
   const startTrack = (track: TrackMember): void => {
     activeTrack = track;
-    if (!sceneOverride) sceneSelect.value = track.environment.sceneId;
+    trackSceneId = track.environment.sceneId;
+    setSceneBackground(activeSceneId());
     lastFrame = performance.now();
     combatElapsed = 0;
     combatNow = 0;
@@ -651,13 +652,7 @@ try {
   // ---------------------------------------------------------------------------
 
   const environment = (track: TrackMember, now: number): NeonPrimitive[] => {
-    const scene = createLaneRunnerScene({
-      sceneId: activeSceneId(),
-      width: canvas.width,
-      height: canvas.height,
-      timeMs: now,
-    });
-    return [...(scene.primitives ?? [])];
+    return laneRunnerScenePrimitives(activeSceneId(), canvas.width, canvas.height, now);
   };
 
   // ---------------------------------------------------------------------------
@@ -726,7 +721,7 @@ try {
       }));
     }
     const playerSize = 14;
-    const helicopterViewport = helicopterViewportFor(canvas.width, canvas.height, playerY());
+    const helicopterViewport = helicopterViewportFor(canvas.width, canvas.height, playerY(), laneRunnerCameraFocusX(canvas.width, squad.x));
     for (const [index, point] of squad.points(playerY(), s).entries()) {
       const actor = playerActors[index] ?? new NeonShapeActor({ shape: swarmShapes.player });
       shapeInstances.push(actorInTopDownScene(actor, point.x, point.y, playerSize, playerOrientation(cameraSettings, helicopterViewport, point.x, point.y, now, index)));

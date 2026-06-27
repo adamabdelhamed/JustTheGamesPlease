@@ -26,6 +26,24 @@ const hallMutedViolet = "#453079";
 const hallAccentPink = "#a7357e";
 const hallEnergySpeed = 0.0017;
 
+export interface LaneRunnerScenePalette {
+  floor: string;
+  boundary: string;
+  lane: string;
+  centerLane: string;
+  accent: string;
+  laneHighlight: string;
+}
+
+const standardLaneRunnerPalette: LaneRunnerScenePalette = {
+  floor: hallFloorColor,
+  boundary: hallDeepBlue,
+  lane: hallMutedBlue,
+  centerLane: hallMutedViolet,
+  accent: hallAccentPink,
+  laneHighlight: hallMutedCyan,
+};
+
 export function getLaneRunnerSceneName(sceneId: LaneRunnerSceneId): string {
   return sceneNames[sceneId];
 }
@@ -44,11 +62,9 @@ export function createLaneRunnerScene(options: LaneRunnerSceneOptions): NeonTopD
 function createNeonHall(options: LaneRunnerSceneOptions): NeonTopDownScene {
   const { width, height, timeMs } = options;
   const primitives: NeonPrimitive[] = [];
-  const geometry = hallGeometry(width, height);
+  const geometry = laneRunnerPerspective(width, height);
 
-  addHallBase(primitives, width, height, timeMs);
-  addHallRails(primitives, geometry);
-  addHallCrossbars(primitives, geometry, timeMs);
+  addStandardLaneRunnerPerspective(primitives, geometry, standardLaneRunnerPalette, timeMs);
   addHallLaneSignals(primitives, geometry, timeMs);
   addHallFloorGlyphs(primitives, geometry, timeMs);
   addHallHorizonDetails(primitives, geometry, timeMs);
@@ -58,7 +74,7 @@ function createNeonHall(options: LaneRunnerSceneOptions): NeonTopDownScene {
   return { primitives };
 }
 
-function hallGeometry(width: number, height: number) {
+function laneRunnerPerspective(width: number, height: number) {
   const vp = { x: width * .5, y: -height };
   const bottomY = height * .985;
   const bottomHalf = width * hallBottomWidth * .5;
@@ -73,31 +89,42 @@ function hallGeometry(width: number, height: number) {
   };
 }
 
-function addHallBase(items: NeonPrimitive[], width: number, height: number, timeMs: number): void {
-  const pulse = .55 + Math.sin(timeMs * hallEnergySpeed) * .2;
-  items.push({ x: width / 2, y: height * .42, width: width * hallBottomWidth, height: height * 1.08, color: hallFloorColor, secondaryColor: "#02050d", glow: .05, intensity: .23, shape: "bolt" });
-  items.push({ x: width / 2, y: -height * .9, width: width * .34, height: 1.4, color: hallDeepBlue, secondaryColor: hallMutedCyan, glow: .3, intensity: .18 + pulse * .07, shape: "bolt" });
-  items.push({ x: width / 2, y: -height * .78, width: width * .18, height: 1.2, color: hallAccentPink, secondaryColor: hallMutedViolet, glow: .24, intensity: .08, shape: "bolt" });
+function addStandardLaneRunnerPerspective(
+  items: NeonPrimitive[],
+  geometry: ReturnType<typeof laneRunnerPerspective>,
+  palette: LaneRunnerScenePalette,
+  timeMs: number,
+): void {
+  addLaneRunnerFloor(items, geometry.width, geometry.height, palette, timeMs);
+  addLaneRunnerRails(items, geometry, palette);
+  addLaneRunnerDepthLines(items, geometry, palette, timeMs);
 }
 
-function addHallRails(items: NeonPrimitive[], geometry: ReturnType<typeof hallGeometry>): void {
+function addLaneRunnerFloor(items: NeonPrimitive[], width: number, height: number, palette: LaneRunnerScenePalette, timeMs: number): void {
+  const pulse = .55 + Math.sin(timeMs * hallEnergySpeed) * .2;
+  items.push({ x: width / 2, y: height * .42, width: width * hallBottomWidth, height: height * 1.08, color: palette.floor, secondaryColor: "#02050d", glow: .05, intensity: .23, shape: "bolt" });
+  items.push({ x: width / 2, y: -height * .9, width: width * .34, height: 1.4, color: palette.boundary, secondaryColor: palette.laneHighlight, glow: .3, intensity: .18 + pulse * .07, shape: "bolt" });
+  items.push({ x: width / 2, y: -height * .78, width: width * .18, height: 1.2, color: palette.accent, secondaryColor: palette.centerLane, glow: .24, intensity: .08, shape: "bolt" });
+}
+
+function addLaneRunnerRails(items: NeonPrimitive[], geometry: ReturnType<typeof laneRunnerPerspective>, palette: LaneRunnerScenePalette): void {
   const { leftBottom, rightBottom, leftHorizon, rightHorizon } = geometry;
   for (const [bottom, horizon] of [[leftBottom, leftHorizon], [rightBottom, rightHorizon]] as const) {
-    addGlowingLine(items, bottom, horizon, hallDeepBlue, .48, 6.5);
-    addGlowingLine(items, bottom, horizon, hallMutedCyan, .56, 1.3);
+    addGlowingLine(items, bottom, horizon, palette.boundary, .48, 6.5);
+    addGlowingLine(items, bottom, horizon, palette.laneHighlight, .56, 1.3);
   }
 
   for (let lane = 1; lane <= 3; lane++) {
     const u = lane / 4;
     const start = lerpPoint(leftBottom, rightBottom, u);
     const end = lerpPoint(leftHorizon, rightHorizon, u);
-    const color = lane === 2 ? hallMutedViolet : hallMutedBlue;
+    const color = lane === 2 ? palette.centerLane : palette.lane;
     addGlowingLine(items, start, end, color, lane === 2 ? .28 : .2, 3.4);
-    addGlowingLine(items, start, end, hallMutedCyan, lane === 2 ? .26 : .18, .9);
+    addGlowingLine(items, start, end, palette.laneHighlight, lane === 2 ? .26 : .18, .9);
   }
 }
 
-function addHallCrossbars(items: NeonPrimitive[], geometry: ReturnType<typeof hallGeometry>, timeMs: number): void {
+function addLaneRunnerDepthLines(items: NeonPrimitive[], geometry: ReturnType<typeof laneRunnerPerspective>, palette: LaneRunnerScenePalette, timeMs: number): void {
   const { leftBottom, rightBottom, leftHorizon, rightHorizon } = geometry;
   for (let row = 0; row < 15; row++) {
     const t = Math.pow(row / 14, 1.82);
@@ -105,13 +132,13 @@ function addHallCrossbars(items: NeonPrimitive[], geometry: ReturnType<typeof ha
     const right = lerpPoint(rightHorizon, rightBottom, t);
     const rowPulse = .58 + Math.sin(timeMs / 480 + row * .78) * .42;
     const surge = Math.max(0, Math.sin(timeMs / 820 - row * .72));
-    const color = row % 4 === 0 ? hallMutedCyan : row % 4 === 1 ? hallMutedBlue : row % 4 === 2 ? hallMutedViolet : hallAccentPink;
+    const color = row % 4 === 0 ? palette.laneHighlight : row % 4 === 1 ? palette.lane : row % 4 === 2 ? palette.centerLane : palette.accent;
     addGlowingLine(items, left, right, color, (.15 + t * .23) * (.55 + rowPulse * .45) + surge * .055, 3.1 + t * 2);
     addGlowingLine(items, left, right, color, (.2 + t * .27) * (.52 + rowPulse * .48) + surge * .07, .75 + t * .6);
   }
 }
 
-function addHallLaneSignals(items: NeonPrimitive[], geometry: ReturnType<typeof hallGeometry>, timeMs: number): void {
+function addHallLaneSignals(items: NeonPrimitive[], geometry: ReturnType<typeof laneRunnerPerspective>, timeMs: number): void {
   const { leftBottom, rightBottom, leftHorizon, rightHorizon } = geometry;
   for (let pulseIndex = 0; pulseIndex < 7; pulseIndex++) {
     const travel = (timeMs / 1900 + pulseIndex / 7) % 1;
@@ -123,7 +150,7 @@ function addHallLaneSignals(items: NeonPrimitive[], geometry: ReturnType<typeof 
   }
 }
 
-function addHallFloorGlyphs(items: NeonPrimitive[], geometry: ReturnType<typeof hallGeometry>, timeMs: number): void {
+function addHallFloorGlyphs(items: NeonPrimitive[], geometry: ReturnType<typeof laneRunnerPerspective>, timeMs: number): void {
   const { leftBottom, rightBottom, leftHorizon, rightHorizon } = geometry;
   const rows = [2, 4, 6, 8, 10, 12];
   for (const row of rows) {
@@ -145,7 +172,7 @@ function addHallFloorGlyphs(items: NeonPrimitive[], geometry: ReturnType<typeof 
   }
 }
 
-function addHallHorizonDetails(items: NeonPrimitive[], geometry: ReturnType<typeof hallGeometry>, timeMs: number): void {
+function addHallHorizonDetails(items: NeonPrimitive[], geometry: ReturnType<typeof laneRunnerPerspective>, timeMs: number): void {
   const { vp, width, height, leftHorizon, rightHorizon } = geometry;
   const glowPulse = .75 + Math.sin(timeMs / 680) * .25;
   addGlowingLine(items, { x: vp.x - width * .12, y: vp.y + height * .012 }, { x: vp.x + width * .12, y: vp.y + height * .012 }, hallAccentPink, .2 + glowPulse * .08, 1.1);
@@ -171,7 +198,7 @@ function addHallHorizonDetails(items: NeonPrimitive[], geometry: ReturnType<type
   }
 }
 
-function addHallSidePanels(items: NeonPrimitive[], geometry: ReturnType<typeof hallGeometry>, timeMs: number): void {
+function addHallSidePanels(items: NeonPrimitive[], geometry: ReturnType<typeof laneRunnerPerspective>, timeMs: number): void {
   const { leftBottom, rightBottom, leftHorizon, rightHorizon, width, height } = geometry;
   for (const side of [0, 1]) {
     for (let index = 0; index < 9; index++) {
@@ -196,7 +223,7 @@ function addHallSidePanels(items: NeonPrimitive[], geometry: ReturnType<typeof h
   }
 }
 
-function addHallEnergyTraces(items: NeonPrimitive[], geometry: ReturnType<typeof hallGeometry>, timeMs: number): void {
+function addHallEnergyTraces(items: NeonPrimitive[], geometry: ReturnType<typeof laneRunnerPerspective>, timeMs: number): void {
   const { leftBottom, rightBottom, leftHorizon, rightHorizon } = geometry;
   for (let index = 0; index < 24; index++) {
     const depth = .12 + ((index * 37) % 100) / 116;

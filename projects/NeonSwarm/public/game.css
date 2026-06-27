@@ -1,12 +1,9 @@
 :root{font-family:Inter,Segoe UI,sans-serif;color:#eefcff;background:#010208;color-scheme:dark}*{box-sizing:border-box}
 html,body{margin:0;width:100%;height:100%;overflow:hidden}body{display:grid;place-items:center;background:radial-gradient(circle at 50% 50%,#101a31,#010208 70%);padding:max(0px,env(safe-area-inset-top)) max(0px,env(safe-area-inset-right)) max(0px,env(safe-area-inset-bottom)) max(0px,env(safe-area-inset-left))}
-#game{--stage-aspect:9/16;position:relative;width:min(100vw,calc(100vh * 9 / 16));height:min(100vh,calc(100vw * 16 / 9));aspect-ratio:var(--stage-aspect);overflow:hidden;background:#02040d;box-shadow:0 0 0 1px #55e7ff18,0 0 90px #000}
+#game{--stage-aspect:9/16;position:relative;width:min(100vw,calc(100vh * 9 / 16));height:min(100vh,calc(100vw * 16 / 9));aspect-ratio:var(--stage-aspect);overflow:hidden;background:#02040d;background-position:center;background-size:cover;background-repeat:no-repeat;box-shadow:0 0 0 1px #55e7ff18,0 0 90px #000}
 #game-canvas{position:absolute;inset:0;width:100%;height:100%;touch-action:none}.track-select,.result{position:absolute;z-index:8;left:50%;top:50%;width:calc(100% - 28px);transform:translate(-50%,-46%);padding:24px;border:1px solid #55e7ff38;border-radius:24px;background:#060b18e8;box-shadow:0 24px 80px #000b,0 0 55px #55e7ff12;backdrop-filter:blur(16px)}
 .camera-lab{position:absolute;z-index:9;left:10px;right:10px;top:72px;display:grid;grid-template-columns:repeat(5,minmax(0,1fr)) auto;gap:6px;align-items:end;padding:7px 8px;border:1px solid #55e7ff2e;background:#020716cc;box-shadow:0 10px 34px #0008,0 0 24px #55e7ff12;backdrop-filter:blur(12px);font-size:.64rem;color:#a9c8d8;text-transform:uppercase;letter-spacing:.05em}
-.scene-lab{position:absolute;z-index:9;right:10px;top:72px;width:168px;padding:7px 8px;border:1px solid #55e7ff2e;background:#020716cc;box-shadow:0 10px 34px #0008,0 0 24px #55e7ff12;backdrop-filter:blur(12px);font-size:.64rem;color:#a9c8d8;text-transform:uppercase;letter-spacing:.05em}
-.scene-lab label{display:grid;gap:4px}.scene-lab select{width:100%;height:26px;border:1px solid #55e7ff55;background:#061322;color:#d9fbff;font:inherit;text-transform:none;letter-spacing:0}
 .camera-lab[hidden]{display:none}
-.scene-lab[hidden]{display:none}
 .camera-lab label{display:grid;gap:3px;min-width:0}.camera-lab input{width:100%;accent-color:#55e7ff}.camera-lab button{height:26px;padding:0 10px;border:1px solid #55e7ff70;background:#061322;color:#d9fbff;font:inherit;cursor:pointer}
 .camera-lab output{grid-column:1/-1;min-height:1rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#55e7ff;text-transform:none;letter-spacing:0}
 .eyebrow{font-size:.7rem;letter-spacing:.24em;color:#55e7ff}.track-select h2,.result h2{font-size:clamp(2rem,5vw,3.8rem);margin:.25rem 0 1rem}
@@ -16,5 +13,5 @@ html,body{margin:0;width:100%;height:100%;overflow:hidden}body{display:grid;plac
 #joystick{display:none;position:absolute;left:16px;bottom:18px;width:108px;height:108px;opacity:.6;touch-action:none}.stick-ring{position:absolute;inset:0;border:1px solid #55e7ff66;border-radius:50%}.stick-knob{position:absolute;left:50%;top:50%;width:42px;height:42px;transform:translate(-50%,-50%);border-radius:50%;background:#55e7ff22;border:1px solid #55e7ff}
 #error{position:absolute;z-index:20;inset:30% 15%;display:grid;place-items:center;background:#120713;color:#ff86bb}#error[hidden],.result[hidden],.track-select[hidden]{display:none}
 @media(pointer:coarse){#joystick{display:block}}
-@media(max-height:620px){[data-game-topbar]{transform:scale(.82);transform-origin:top left;width:122%}.camera-lab,.scene-lab{top:58px}.track-select{padding:18px}.track-select h2{font-size:2rem}}
-@media(max-width:520px){.camera-lab{grid-template-columns:repeat(2,minmax(0,1fr)) auto;top:64px}.scene-lab{top:64px;width:142px}.camera-lab output{font-size:.58rem}}
+@media(max-height:620px){[data-game-topbar]{transform:scale(.82);transform-origin:top left;width:122%}.camera-lab{top:58px}.track-select{padding:18px}.track-select h2{font-size:2rem}}
+@media(max-width:520px){.camera-lab{grid-template-columns:repeat(2,minmax(0,1fr)) auto;top:64px}.camera-lab output{font-size:.58rem}}

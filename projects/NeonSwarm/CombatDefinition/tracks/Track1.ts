@@ -6,13 +6,6 @@ export const generatedTrack: TrackMember = {
   durationSeconds: 25,
   startingGun: "pulsePistol",
   startingGunLevel: 1,
-  viewport: {
-    orientation: "portrait",
-    aspectWidth: 9,
-    aspectHeight: 16,
-    logicalWidth: 450,
-    logicalHeight: 800,
-  },
   environment: {
     sceneId: "neonHall",
   },

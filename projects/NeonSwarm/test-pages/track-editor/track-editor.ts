@@ -23,6 +23,7 @@ import { billboardOrientation, enemyOrientation, helicopterViewportFor, playerOr
 import { actorInTopDownScene, swarmShapes } from "../../src/shapeVisuals";
 import { defaultHelicopterCameraSettings } from "../../src/viewport";
 import { enemyDefinitionFromTrackId, enemyTrackId } from "../../src/enemyCatalog";
+import { applyLaneRunnerSceneBackground } from "../../src/sceneEnvironment";
 
 type PaletteFamily = "System" | "Enemies" | "Guns" | "Shields" | "Swords" | "Items";
 type PaletteItem = { id: string; label: string; symbol: string; family: PaletteFamily };
@@ -292,6 +293,10 @@ function sceneId(): LaneRunnerSceneId {
   return isLaneRunnerSceneId(sceneSelect.value) ? sceneSelect.value : "neonHall";
 }
 
+function syncSceneBackground(): void {
+  applyLaneRunnerSceneBackground(gridPanel, sceneId());
+}
+
 function loadTrack(track: TrackMember, exportName: string): void {
   exportVariableName = "generatedTrack";
   exportDurationSeconds = track.durationSeconds;
@@ -302,6 +307,7 @@ function loadTrack(track: TrackMember, exportName: string): void {
   input<HTMLInputElement>("#enemy-hp").value = Number.isInteger(track.definition.balance.enemyHp) ? track.definition.balance.enemyHp.toFixed(1) : String(track.definition.balance.enemyHp);
   input<HTMLInputElement>("#enemy-speed").value = String(track.definition.balance.enemySpeed);
   sceneSelect.value = track.environment.sceneId;
+  syncSceneBackground();
 
   const parsedRows = track.definition.layout
     .split(/\r?\n/)
@@ -350,6 +356,7 @@ function renderTrackSources(): void {
       input<HTMLInputElement>("#enemy-hp").value = "1";
       input<HTMLInputElement>("#enemy-speed").value = "1";
       sceneSelect.value = "neonHall";
+      syncSceneBackground();
       selected = { row: rowCount() - 1, side: 0, column: 0 };
       renderGrid();
       return;
@@ -363,6 +370,8 @@ function renderSceneOptions(): void {
     .map(id => `<option value="${id}">${getLaneRunnerSceneName(id)}</option>`)
     .join("");
   sceneSelect.value = "neonHall";
+  sceneSelect.addEventListener("change", syncSceneBackground);
+  syncSceneBackground();
 }
 
 const quoted = (value: string): string => JSON.stringify(value);
@@ -413,13 +422,6 @@ export const ${exportName}: TrackMember = {
   durationSeconds: ${exportDurationSeconds},
   startingGun: "pulsePistol",
   startingGunLevel: 1,
-  viewport: {
-    orientation: "portrait",
-    aspectWidth: 9,
-    aspectHeight: 16,
-    logicalWidth: 450,
-    logicalHeight: 800,
-  },
   environment: {
     sceneId: ${quoted(sceneId())},
   },

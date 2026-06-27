@@ -1,6 +1,7 @@
-import { createLaneRunnerScene, createTestPage, NeonPrimitiveRenderer, neonPalette, type NeonPrimitive } from "@just-the-games-please/neon-factory";
+import { createTestPage, NeonPrimitiveRenderer, neonPalette, type NeonPrimitive } from "@just-the-games-please/neon-factory";
 import { AutoAimControlState, selectAutoAimOffset } from "../../src/autoAim";
-import { defaultHelicopterCameraSettings, projectHelicopterScene } from "../../src/viewport";
+import { defaultHelicopterCameraSettings, laneRunnerCameraFocusX, laneRunnerViewport, projectHelicopterScene } from "../../src/viewport";
+import { applyLaneRunnerSceneBackground, laneRunnerScenePrimitives } from "../../src/sceneEnvironment";
 
 const status = document.querySelector<HTMLOutputElement>("#test-status")!;
 const results = document.querySelector<HTMLOListElement>("#results")!;
@@ -62,6 +63,7 @@ const simStatusText = document.getElementById("sim-status")!;
 const simTitle = document.getElementById("sim-title")!;
 const simDetails = document.getElementById("sim-details")!;
 const canvas = document.getElementById("game-canvas") as HTMLCanvasElement;
+applyLaneRunnerSceneBackground(document.getElementById("canvas-container")!, "neonHall");
 
 let renderer: any = null;
 let animationFrameId: number | null = null;
@@ -87,7 +89,7 @@ async function startSimulation(index: number) {
   if (!renderer) {
     try {
       renderer = await NeonPrimitiveRenderer.create(canvas);
-      renderer.setLogicalSize(450, 800);
+      renderer.setLogicalSize(laneRunnerViewport.logicalWidth, laneRunnerViewport.logicalHeight);
     } catch (e) {
       console.error("Failed to initialize renderer", e);
       return;
@@ -268,7 +270,7 @@ function updateSim(dt: number) {
 
 function drawSim() {
   const primitives: NeonPrimitive[] = [
-    ...(createLaneRunnerScene({ sceneId: "neonHall", width: canvas.width, height: canvas.height, timeMs: simTimeMs }).primitives ?? []),
+    ...laneRunnerScenePrimitives("neonHall", canvas.width, canvas.height, simTimeMs),
   ];
 
   // Squad at (squadX, 650)
@@ -329,10 +331,11 @@ function drawSim() {
     });
   }
 
-    const projected = projectHelicopterScene(primitives, [], [], defaultHelicopterCameraSettings, {
+  const projected = projectHelicopterScene(primitives, [], [], defaultHelicopterCameraSettings, {
     width: canvas.width,
     height: canvas.height,
     playerY: 650,
+    focusX: laneRunnerCameraFocusX(canvas.width, squadX),
   });
   renderer.render(projected.primitives, simTimeMs / 1000);
 }
