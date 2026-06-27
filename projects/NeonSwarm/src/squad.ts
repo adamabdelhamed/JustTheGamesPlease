@@ -36,11 +36,6 @@ export class SquadModel {
     this.targetX = laneCenter(lane) + this.aimOffset;
   }
 
-  setAim(normalized: number, laneWidth: number, laneCenter: (lane: 0 | 1) => number): void {
-    this.aimOffset = Math.max(-1, Math.min(1, normalized)) * laneWidth * .28;
-    this.targetX = laneCenter(this.lane) + this.aimOffset;
-  }
-
   autoAim(targetOffset: number, laneWidth: number, laneCenter: (lane: 0 | 1) => number): void {
     // High lerp factor (0.85) so auto-aim snaps almost instantaneously each frame.
     this.aimOffset += (Math.max(-laneWidth * .28, Math.min(laneWidth * .28, targetOffset)) - this.aimOffset) * .85;

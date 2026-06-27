@@ -76,11 +76,9 @@ try {
   swordSelect.addEventListener("change", equip);
   enemySelect.addEventListener("change", updateReadout);
 
-  bindSquadInput(gameElement, "#joystick", {
+  bindSquadInput(gameElement, {
     lane: () => sim.snapshot().squad.lane,
     setLane: lane => sim.setSquadLane(lane),
-    setAim: value => sim.setSquadAim(value),
-    releaseAim: () => sim.releaseAim(),
   });
 
   equip();

@@ -25,7 +25,7 @@ import {
   type SwordTargetingMode,
   type TrackMember,
 } from "../../CombatDefinition";
-import { AutoAimControlState, selectAutoAimOffset } from "../autoAim";
+import { selectAutoAimOffset } from "../autoAim";
 import { GunSimulation } from "../combat/gunSimulation";
 import { queryNearbyThreats } from "../combat/nearbyThreatQuery";
 import { resolveShieldContact, ShieldState, tickShield } from "../combat/shieldEvaluator";
@@ -181,7 +181,6 @@ export class NeonSwarmSimulation {
   readonly stageElement: HTMLElement;
   readonly cameraSettings: HelicopterCameraSettings;
   readonly squad = new SquadModel();
-  readonly aimControl = new AutoAimControlState();
 
   private renderer: NeonTopDownSceneRenderer;
   private sound?: NeonSwarmSound;
@@ -336,18 +335,6 @@ export class NeonSwarmSimulation {
     if (lane !== this.squad.lane) this.play("LaneSwitch");
     this.squad.setLane(lane, value => this.laneX(value), this.combatNow);
     this.playerLane = lane;
-    this.aimControl.laneSelected();
-  }
-
-  setSquadAim(value: number, options: { requireActiveTrack?: boolean } = {}): void {
-    if (options.requireActiveTrack && !this.activeTrack) return;
-    this.squad.setAim(value, this.canvas.width * .22, lane => this.laneX(lane));
-    this.aimControl.aimChanged();
-  }
-
-  releaseAim(): void {
-    this.aimControl.aimReleased();
-    this.play("AimRelease");
   }
 
   equipGun(gunId: GunId, level = 1): void {
@@ -485,15 +472,12 @@ export class NeonSwarmSimulation {
       this.onRunStatus?.(`${gunStatus}${shieldDef ? ` · ${shieldDef.label}` : ""}${swordDef ? ` · ${swordDef.label}` : ""} · ${Math.max(0, this.activeTrack.durationSeconds - this.combatElapsed).toFixed(1)}s`);
     }
 
-    if (!this.aimControl.manual) {
-      const laneEnemies = this.enemies.filter(enemy => enemy.lane === this.squad.lane && !enemy.dying);
-      const colOffsets = this.squad.frontRowColumnOffsets(this.scale());
-      const offset = selectAutoAimOffset(laneEnemies, this.laneX(this.squad.lane), colOffsets, this.squad.aimOffset);
-      this.squad.autoAim(offset, this.canvas.width * .22, lane => this.laneX(lane));
-    }
+    const laneEnemies = this.enemies.filter(enemy => enemy.lane === this.squad.lane && !enemy.dying);
+    const colOffsets = this.squad.frontRowColumnOffsets(this.scale());
+    const offset = selectAutoAimOffset(laneEnemies, this.laneX(this.squad.lane), colOffsets, this.squad.aimOffset);
+    this.squad.autoAim(offset, this.canvas.width * .22, lane => this.laneX(lane));
     this.squad.update(delta);
     this.stageElement.dataset.squadLane = String(this.squad.lane);
-    this.stageElement.dataset.squadAim = this.squad.aimOffset.toFixed(2);
     this.syncPlayerActors();
 
     if (this.activeByFamily.gun) {

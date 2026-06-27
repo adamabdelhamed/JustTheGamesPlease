@@ -1,5 +1,5 @@
 import { createTestPage } from "@just-the-games-please/neon-factory";
-import { AutoAimControlState, selectAutoAimOffset } from "../../src/autoAim";
+import { selectAutoAimOffset } from "../../src/autoAim";
 import { NeonSwarmSimulation } from "../../src/simulation/NeonSwarmSimulation";
 
 const status = document.querySelector<HTMLOutputElement>("#test-status")!;
@@ -14,14 +14,8 @@ const run = () => {
   const firstTarget = firstOffset < 0 ? remaining[0] : firstOffset > 0 ? remaining[1] : null;
   const afterFirstKill = firstTarget ? allTargets.filter(target => target !== firstTarget) : allTargets;
   const secondOffset = selectAutoAimOffset(afterFirstKill, laneCenter, [0]);
-  const control = new AutoAimControlState();
-  control.laneSelected();
-  const autoAimAfterLaneTap = !control.manual;
-  control.aimChanged();
-  const manualDuringJoystickAim = control.manual;
-  control.aimReleased();
-  const autoAimAfterJoystickRelease = !control.manual;
-  return { firstOffset, firstTarget, secondOffset, autoAimAfterLaneTap, manualDuringJoystickAim, autoAimAfterJoystickRelease };
+  const noTargetsOffset = selectAutoAimOffset([], laneCenter, [0], secondOffset);
+  return { firstOffset, firstTarget, secondOffset, noTargetsOffset };
 };
 
 const test = createTestPage("neon-swarm-auto-aim-smoke", { suite: "smoke", run }, status);
@@ -32,8 +26,7 @@ const assertions = [
   ["First shift selects one remaining enemy", outcome.firstTarget !== null],
   ["After first kill auto aim shifts to the other survivor", outcome.firstTarget !== null && outcome.secondOffset !== 0 && Math.sign(outcome.secondOffset) !== Math.sign(outcome.firstOffset)],
   ["Closer row wins over a farther centered row", outcome.firstOffset !== 0],
-  ["Lane tap does not permanently disable auto aim", outcome.autoAimAfterLaneTap],
-  ["Joystick aim suppresses auto aim only until release", outcome.manualDuringJoystickAim && outcome.autoAimAfterJoystickRelease],
+  ["No targets returns to lane center", outcome.noTargetsOffset === 0],
 ] as const;
 
 results.innerHTML = assertions.map(([name, passed], index) => `
@@ -87,12 +80,6 @@ function resetSimulation(): void {
     sim.spawnEnemy({ enemyId: "basicOrb", lane, x: center + 30, y: 320, health: 1, playSound: false });
   }
   if (activeScenarioIdx === 3) sim.spawnEnemy({ enemyId: "basicOrb", lane, x: center, y: 200, health: 1, playSound: false });
-  if (activeScenarioIdx === 4) sim.spawnEnemy({ enemyId: "basicOrb", lane, x: center - 30, y: 320, health: 1, playSound: false });
-  if (activeScenarioIdx === 5) {
-    sim.spawnEnemy({ enemyId: "basicOrb", lane, x: center + 30, y: 320, health: 1, playSound: false });
-    sim.setSquadAim(-1);
-    window.setTimeout(() => sim?.releaseAim(), 1200);
-  }
   isPaused = false;
   pauseBtn.textContent = "Pause";
   simStatusText.textContent = "PASSED";

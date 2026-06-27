@@ -8,8 +8,7 @@
   <script src="lib/url-options.js"></script>
   <script src="lib/analytics.js"></script>
   <link rel="stylesheet" href="lib/top-bar/top-bar.css">
-  <link rel="stylesheet" href="lib/controller/controller.css">
-  <link rel="stylesheet" href="NeonSwarm/game.css?v=track-families-6">
+  <link rel="stylesheet" href="NeonSwarm/game.css?v=lane-input-1">
 </head>
 <body>
   <main id="game">
@@ -17,7 +16,7 @@
     <header data-game-topbar data-contained>
       <div class="game-topbar__identity">
         <h1>NEON <b>SWARM</b></h1>
-        <p class="game-topbar__instructions" id="status">Choose a track. Tap either side to switch lanes; use the joystick to fine aim.</p>
+        <p class="game-topbar__instructions" id="status">Choose a track. Tap left or right to switch lanes.</p>
       </div>
       <div class="game-topbar__right">
         <div class="game-topbar__controls"><span id="run-status"></span></div>
@@ -39,7 +38,6 @@
       <p id="developer-tools" class="developer-tools" hidden><a href="NeonSwarm/tests/index.html#dev-1">Open Test Center</a></p>
     </section>
     <section id="result" class="result" hidden><h2 id="result-title"></h2><p id="result-detail"></p><button id="back-to-tracks">Tracks</button></section>
-    <div id="joystick" aria-hidden="true"><span class="stick-ring"></span><span class="stick-knob"></span></div>
     <section id="error" role="alert" hidden></section>
   </main>
   <script src="lib/top-bar/top-bar.js"></script>
@@ -64,7 +62,6 @@
     ]);
     gameAudio.playSharedMusic(['Music']);
   </script>
-  <script src="lib/controller/controller.js"></script>
-  <script type="module" src="NeonSwarm/game.js?v=track-families-6"></script>
+  <script type="module" src="NeonSwarm/game.js?v=lane-input-1"></script>
 </body>
 </html>

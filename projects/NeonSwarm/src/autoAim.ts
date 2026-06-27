@@ -4,22 +4,6 @@ export interface AutoAimTarget {
   rowId?: number;
 }
 
-export class AutoAimControlState {
-  manual = false;
-
-  laneSelected(): void {
-    // Lane changes are navigation, not persistent manual aiming.
-  }
-
-  aimChanged(): void {
-    this.manual = true;
-  }
-
-  aimReleased(): void {
-    this.manual = false;
-  }
-}
-
 /**
  * Returns the squad-center aim offset (relative to laneCenter) that best aligns
  * one of the squad's front-row columns to the nearest enemy.

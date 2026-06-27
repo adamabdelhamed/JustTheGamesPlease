@@ -143,7 +143,7 @@ try {
     gameElement.dataset.page = "game";
     trackSelect.hidden = true;
     result.hidden = true;
-    status.textContent = "Tap a side to switch lanes. Small joystick motion aims; full motion crosses lanes.";
+    status.textContent = "Tap left or right to switch lanes.";
     sim.startTrack(trackFamily.members[trackId]);
   };
 
@@ -159,11 +159,9 @@ try {
   if (!location.hash) history.replaceState(null, "", "#tracks");
   handleRoute();
 
-  bindSquadInput(gameElement, "#joystick", {
+  bindSquadInput(gameElement, {
     lane: () => sim.snapshot().squad.lane,
     setLane: lane => sim.setSquadLane(lane, { requireActiveTrack: true }),
-    setAim: value => sim.setSquadAim(value, { requireActiveTrack: true }),
-    releaseAim: () => sim.releaseAim(),
   });
 
   sim.startLoop();
