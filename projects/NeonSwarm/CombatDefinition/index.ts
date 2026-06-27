@@ -24,6 +24,7 @@ export { FamilyDefinition } from "./FamilyDefinition";
 export {
   trackFamily,
   TrackFamilyDefinition,
+  type TrackFamilyId,
   type TrackId,
 } from "./TrackFamily";
 export {
@@ -31,10 +32,11 @@ export {
   type ParsedTrackEntity,
   type TrackBalance,
   type TrackDefinition,
+  type TrackFamilyMember,
   type TrackLegendEntry,
   type TrackMember,
 } from "./TrackDefinition";
-export { generatedTrack, generatedTrack2, tracks } from "./tracks";
+export { auroraTrack1, auroraTrack2, auroraTrack3, neonNebulaeTrack1, neonNebulaeTrack2, neonNebulaeTrack3, trackFamilies, tracks } from "./tracks";
 export {
   multiplierFamily,
   MultiplierFamilyDefinition,

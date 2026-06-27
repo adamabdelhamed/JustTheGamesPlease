@@ -2,7 +2,7 @@ import { neonPalette } from "./tokens";
 import type { NeonPrimitive } from "./primitive-renderer";
 import type { NeonTopDownScene } from "./top-down-scene";
 
-export const laneRunnerSceneIds = ["neonHall"] as const;
+export const laneRunnerSceneIds = ["neonHall", "aurora"] as const;
 
 export type LaneRunnerSceneId = typeof laneRunnerSceneIds[number];
 
@@ -15,6 +15,7 @@ export interface LaneRunnerSceneOptions {
 
 const sceneNames: Record<LaneRunnerSceneId, string> = {
   neonHall: "Neon Hall",
+  aurora: "Aurora",
 };
 
 const hallBottomWidth = 0.92;
@@ -44,6 +45,15 @@ const standardLaneRunnerPalette: LaneRunnerScenePalette = {
   laneHighlight: hallMutedCyan,
 };
 
+const auroraLaneRunnerPalette: LaneRunnerScenePalette = {
+  floor: "#03110f",
+  boundary: "#178c92",
+  lane: "#17d7b3",
+  centerLane: "#8f56ff",
+  accent: "#ff4fc7",
+  laneHighlight: "#b9ff6a",
+};
+
 export function getLaneRunnerSceneName(sceneId: LaneRunnerSceneId): string {
   return sceneNames[sceneId];
 }
@@ -54,6 +64,8 @@ export function isLaneRunnerSceneId(value: string): value is LaneRunnerSceneId {
 
 export function createLaneRunnerScene(options: LaneRunnerSceneOptions): NeonTopDownScene {
   switch (options.sceneId) {
+    case "aurora":
+      return createAurora(options);
     case "neonHall":
       return createNeonHall(options);
   }
@@ -70,6 +82,19 @@ function createNeonHall(options: LaneRunnerSceneOptions): NeonTopDownScene {
   addHallHorizonDetails(primitives, geometry, timeMs);
   addHallSidePanels(primitives, geometry, timeMs);
   addHallEnergyTraces(primitives, geometry, timeMs);
+
+  return { primitives };
+}
+
+function createAurora(options: LaneRunnerSceneOptions): NeonTopDownScene {
+  const { width, height, timeMs } = options;
+  const primitives: NeonPrimitive[] = [];
+  const geometry = laneRunnerPerspective(width, height);
+
+  addStandardLaneRunnerPerspective(primitives, geometry, auroraLaneRunnerPalette, timeMs);
+  addAuroraLaneSignals(primitives, geometry, timeMs);
+  addAuroraGroundFlares(primitives, geometry, timeMs);
+  addAuroraHorizonVeils(primitives, geometry, timeMs);
 
   return { primitives };
 }
@@ -243,6 +268,63 @@ function addHallEnergyTraces(items: NeonPrimitive[], geometry: ReturnType<typeof
       glow: .32,
       intensity: (.07 + (index % 4) * .018) * shimmer,
       shape: "bolt",
+    });
+  }
+}
+
+function addAuroraLaneSignals(items: NeonPrimitive[], geometry: ReturnType<typeof laneRunnerPerspective>, timeMs: number): void {
+  const { leftBottom, rightBottom, leftHorizon, rightHorizon } = geometry;
+  for (let pulseIndex = 0; pulseIndex < 9; pulseIndex++) {
+    const travel = (timeMs / 1550 + pulseIndex / 9) % 1;
+    const t = Math.pow(travel, 1.48);
+    const left = lerpPoint(leftHorizon, leftBottom, t);
+    const right = lerpPoint(rightHorizon, rightBottom, t);
+    const opacity = .32 * (1 - travel);
+    addGlowingLine(items, left, right, pulseIndex % 2 === 0 ? "#b9ff6a" : "#17d7b3", opacity, 1 + t * 1.7);
+  }
+}
+
+function addAuroraGroundFlares(items: NeonPrimitive[], geometry: ReturnType<typeof laneRunnerPerspective>, timeMs: number): void {
+  const { leftBottom, rightBottom, leftHorizon, rightHorizon, width, height } = geometry;
+  for (let index = 0; index < 18; index++) {
+    const depth = .08 + ((index * 29) % 100) / 112;
+    const t = Math.min(1, Math.pow(depth, 1.62));
+    const laneSide = index % 2 === 0 ? .22 : .78;
+    const left = lerpPoint(leftHorizon, leftBottom, t);
+    const right = lerpPoint(rightHorizon, rightBottom, t);
+    const point = lerpPoint(left, right, laneSide + Math.sin(index * 1.1 + timeMs / 1800) * .04);
+    const shimmer = .55 + Math.sin(timeMs / 430 + index * 1.3) * .35;
+    items.push({
+      x: point.x,
+      y: point.y,
+      width: width * (.009 + t * .012),
+      height: height * (.018 + t * .035),
+      color: index % 3 === 0 ? "#b9ff6a" : index % 3 === 1 ? "#17d7b3" : "#8f56ff",
+      secondaryColor: "#ff4fc7",
+      glow: .38,
+      intensity: (.08 + t * .06) * shimmer,
+      shape: index % 4 === 0 ? "diamond" : "bolt",
+      rotation: Math.sin(timeMs / 1200 + index) * .18,
+    });
+  }
+}
+
+function addAuroraHorizonVeils(items: NeonPrimitive[], geometry: ReturnType<typeof laneRunnerPerspective>, timeMs: number): void {
+  const { vp, width, height } = geometry;
+  for (let index = 0; index < 7; index++) {
+    const u = (index - 3) / 6;
+    const wave = Math.sin(timeMs / 1100 + index * .9);
+    items.push({
+      x: vp.x + u * width * .36,
+      y: vp.y + height * (.075 + index * .006),
+      width: width * (.035 + index * .004),
+      height: height * (.12 + Math.abs(wave) * .03),
+      color: index % 2 === 0 ? "#17d7b3" : "#8f56ff",
+      secondaryColor: index % 3 === 0 ? "#b9ff6a" : "#ff4fc7",
+      glow: .34,
+      intensity: .045 + Math.abs(wave) * .025,
+      shape: "line",
+      rotation: u * .28 + wave * .08,
     });
   }
 }

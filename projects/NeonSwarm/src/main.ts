@@ -1,4 +1,5 @@
-import { trackFamily } from "../CombatDefinition";
+import { getLaneRunnerSceneName, getNeonShape, type NeonGeometricShapeDefinition } from "@just-the-games-please/neon-factory";
+import { trackFamily, type TrackFamilyId, type TrackId } from "../CombatDefinition";
 import { bindSquadInput } from "./input";
 import { NeonSwarmSimulation } from "./simulation/NeonSwarmSimulation";
 import { applyPortraitStage, defaultHelicopterCameraSettings, laneRunnerViewport, type HelicopterCameraSettings } from "./viewport";
@@ -19,6 +20,11 @@ const cameraOutputText = document.querySelector<HTMLOutputElement>("#camera-outp
 const urlOptions = window.JustTheGamesPlease?.urlOptions;
 const developerMode = urlOptions?.isEnabled("dev") ?? false;
 const cameraControlsMode = developerMode || (urlOptions?.isEnabled("cameracontrols") ?? false);
+const defaultTrackSceneId = Object.values(trackFamily.families)[0].environment.sceneId;
+const trackShapeIdsByFamily: Record<TrackFamilyId, readonly string[]> = {
+  neonNebulae: ["hunter-eye", "bruiser-prism", "elite-star"],
+  aurora: ["trick-vortex", "elite-wings", "tank-reactor"],
+};
 
 developerTools.hidden = !developerMode;
 cameraLab.hidden = !cameraControlsMode;
@@ -57,7 +63,7 @@ try {
     stageElement: gameElement,
     cameraSettings,
     sound: window.gameAudio,
-    sceneId: Object.values(trackFamily.members)[0].environment.sceneId,
+    sceneId: defaultTrackSceneId,
     onRunStatus: value => {
       runStatus.textContent = value;
     },
@@ -68,29 +74,90 @@ try {
     },
   });
 
+  const trackRoute = (trackId: TrackId): string => `#track/${encodeURIComponent(trackId)}`;
+  const navigateToTracks = (): void => {
+    if (location.hash === "#tracks") {
+      resetToTracks();
+      return;
+    }
+    location.hash = "tracks";
+  };
+  const trackIdFromRoute = (): TrackId | null => {
+    const prefix = "#track/";
+    if (!location.hash.startsWith(prefix)) return null;
+    const candidate = decodeURIComponent(location.hash.slice(prefix.length));
+    return candidate in trackFamily.members ? candidate as TrackId : null;
+  };
+  const shapeMarkup = (shape: NeonGeometricShapeDefinition, index: number, count: number): string => {
+    const scale = 22 - index * 2;
+    const x = 45 + (index - (count - 1) / 2) * 21;
+    const y = 18 + Math.sin(index) * 2;
+    const points = shape.points.map(([px, py]) => `${(x + px * scale * .42).toFixed(1)},${(y + py * scale * .42).toFixed(1)}`).join(" ");
+    const hole = shape.holes?.[0]?.map(([px, py]) => `${(x + px * scale * .24).toFixed(1)},${(y + py * scale * .24).toFixed(1)}`).join(" ");
+    const colorClass = index % 3;
+    return `<g class="track-glyph__shape track-glyph__shape--${colorClass}"><polygon points="${points}"></polygon>${hole ? `<polygon class="track-glyph__hole" points="${hole}"></polygon>` : ""}</g>`;
+  };
+  const trackGlyphMarkup = (familyId: TrackFamilyId, trackIndex: number): string => {
+    const shapeIds = trackShapeIdsByFamily[familyId].slice(0, trackIndex + 1);
+    const shapes = shapeIds.map(id => getNeonShape(id)).filter((shape): shape is NeonGeometricShapeDefinition => shape !== undefined);
+    return `
+      <svg class="track-glyph" viewBox="0 0 90 38" aria-hidden="true">
+        <line x1="18" y1="33" x2="72" y2="33"></line>
+        ${shapes.map((shape, index) => shapeMarkup(shape, index, shapes.length)).join("")}
+      </svg>`;
+  };
+  const renderTrackFamilies = (): void => {
+    trackList.innerHTML = Object.entries(trackFamily.families).map(([familyId, family]) => `
+      <section class="track-family" aria-label="${family.label}">
+        <div class="track-family__header">
+          <div>
+            <span class="track-family__scene">${getLaneRunnerSceneName(family.environment.sceneId)}</span>
+            <h3>${family.label}</h3>
+          </div>
+        </div>
+        <div class="track-family__row">
+          ${family.trackIds.map((trackId, trackIndex) => {
+            const track = trackFamily.members[trackId];
+            return `
+              <a class="track-card" href="${trackRoute(trackId)}" data-track="${trackId}">
+                ${trackGlyphMarkup(familyId as TrackFamilyId, trackIndex)}
+                <strong>${track.label}</strong>
+                <b>${track.durationSeconds}s</b>
+              </a>`;
+          }).join("")}
+        </div>
+      </section>`).join("");
+  };
+
   const resetToTracks = (): void => {
     sim.reset();
+    gameElement.dataset.page = "tracks";
+    gameElement.style.removeProperty("background-image");
     result.hidden = true;
     trackSelect.hidden = false;
-    status.textContent = "Choose a track. Tap either side to switch lanes; use the joystick to fine aim.";
+    status.textContent = "Choose a track family, then pick a run.";
     runStatus.textContent = "";
   };
 
-  const startTrack = (trackId: keyof typeof trackFamily.members): void => {
+  const startTrack = (trackId: TrackId): void => {
+    gameElement.dataset.page = "game";
     trackSelect.hidden = true;
     result.hidden = true;
     status.textContent = "Tap a side to switch lanes. Small joystick motion aims; full motion crosses lanes.";
     sim.startTrack(trackFamily.members[trackId]);
   };
 
-  trackList.innerHTML = Object.entries(trackFamily.members).map(([id, track]) => `
-    <button class="track-card" data-track="${id}">
-      <strong>${track.label}</strong><span>${track.description}</span><b>${track.durationSeconds}s -></b>
-    </button>`).join("");
-  trackList.querySelectorAll<HTMLButtonElement>("[data-track]").forEach(button => {
-    button.addEventListener("click", () => startTrack(button.dataset.track as keyof typeof trackFamily.members));
-  });
-  document.querySelector<HTMLButtonElement>("#back-to-tracks")!.addEventListener("click", resetToTracks);
+  const handleRoute = (): void => {
+    const trackId = trackIdFromRoute();
+    if (trackId) startTrack(trackId);
+    else resetToTracks();
+  };
+
+  renderTrackFamilies();
+  document.querySelector<HTMLButtonElement>("#back-to-tracks")!.addEventListener("click", navigateToTracks);
+  window.addEventListener("hashchange", handleRoute);
+  if (!location.hash) history.replaceState(null, "", "#tracks");
+  handleRoute();
 
   bindSquadInput(gameElement, "#joystick", {
     lane: () => sim.snapshot().squad.lane,

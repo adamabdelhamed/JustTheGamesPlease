@@ -30,6 +30,15 @@ export interface TrackMember {
   definition: TrackDefinition;
 }
 
+export interface TrackFamilyMember<TrackId extends string = string> {
+  label: string;
+  description: string;
+  environment: {
+    sceneId: LaneRunnerSceneId;
+  };
+  trackIds: readonly TrackId[];
+}
+
 export interface ParsedTrackEntity {
   id: string;
   symbol: string;
