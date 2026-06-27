@@ -18,7 +18,6 @@ export class TrackFamilyDefinition extends FamilyDefinition<Record<string, Track
 
   validate(): void {
     for (const [id, track] of Object.entries(this.members)) {
-      this.require(track.durationSeconds > 0, `${id} duration must be positive.`);
       this.require(track.startingGun in gunFamily.members, `${id} has an unknown starting gun.`);
       parseTrackDefinition(track.definition);
       this.require(isLaneRunnerSceneId(track.environment.sceneId), `${id} has an unknown scene id.`);

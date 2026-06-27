@@ -21,7 +21,6 @@ export interface TrackDefinition {
 export interface TrackMember {
   label: string;
   description: string;
-  durationSeconds: number;
   startingGun: GunId;
   startingGunLevel: 1 | 2 | 3;
   environment: {
@@ -58,6 +57,16 @@ const enemyIdFromTrackId = (id: string): OrbId | null => {
   return candidate in orbFamily.members ? candidate as OrbId : null;
 };
 
+function parseTrackRows(track: TrackDefinition): Array<{ text: string; sourceIndex: number }> {
+  const rows = track.layout
+    .split(/\r?\n/)
+    .map((text, sourceIndex) => ({ text: text.trim(), sourceIndex: sourceIndex + 1 }))
+    .filter(row => row.text.length > 0);
+
+  if (rows.length === 0) throw new Error("Track layout must contain at least one row.");
+  return rows;
+}
+
 export function parseTrackDefinition(track: TrackDefinition): ParsedTrackEntity[] {
   if (track.balance.enemyHp <= 0) throw new Error("Track balance enemyHp must be greater than zero.");
   if (track.balance.enemySpeed <= 0) throw new Error("Track balance enemySpeed must be greater than zero.");
@@ -71,13 +80,7 @@ export function parseTrackDefinition(track: TrackDefinition): ParsedTrackEntity[
     }
   }
 
-  const rows = track.layout
-    .split(/\r?\n/)
-    .map((text, sourceIndex) => ({ text: text.trim(), sourceIndex: sourceIndex + 1 }))
-    .filter(row => row.text.length > 0);
-
-  if (rows.length === 0) throw new Error("Track layout must contain at least one row.");
-
+  const rows = parseTrackRows(track);
   let leftWidth: number | undefined;
   let rightWidth: number | undefined;
   const entities: ParsedTrackEntity[] = [];

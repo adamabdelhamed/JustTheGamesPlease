@@ -1,5 +1,4 @@
 import {
-  getLaneRunnerSceneName,
   getNeonShape,
   NeonTopDownSceneRenderer,
   type NeonPrimitive,
@@ -22,9 +21,7 @@ interface TrackButtonBounds {
 interface TrackFamilyVisual {
   familyId: TrackFamilyId;
   label: string;
-  sceneLabel: string;
   accent: string;
-  shapeId: string;
   y: number;
   unlocked: boolean;
   tracks: TrackVisual[];
@@ -33,7 +30,6 @@ interface TrackFamilyVisual {
 interface TrackVisual {
   trackId: TrackId;
   label: string;
-  durationSeconds: number;
   index: number;
   x: number;
   y: number;
@@ -41,7 +37,6 @@ interface TrackVisual {
 }
 
 const accents = ["#ff3bd5", "#20eaff", "#9b42ff", "#4b86ff", "#ffb23a", "#70ffd0"] as const;
-const familyShapeIds = ["triad-pod", "bruiser-hex", "hex-fighter", "orbit-drone", "trick-diamond", "elite-star"] as const;
 const trackShapeIds = ["hunter-eye", "bruiser-prism", "elite-star", "trick-vortex", "tank-reactor", "spike-lance"] as const;
 
 const requiredShape = (id: string) => {
@@ -156,15 +151,12 @@ export class TrackMenuRenderer {
         return {
           familyId,
           label: family.label,
-          sceneLabel: getLaneRunnerSceneName(family.environment.sceneId),
           accent,
-          shapeId: familyShapeIds[familyIndex % familyShapeIds.length],
           y,
           unlocked: true,
           tracks: family.trackIds.map((trackId, trackIndex) => ({
             trackId,
             label: this.#trackFamily.members[trackId].label,
-            durationSeconds: this.#trackFamily.members[trackId].durationSeconds,
             index: trackIndex,
             x: tune.trackRowX + trackIndex * (tune.trackNodeSize + tune.trackNodeGap),
             y: y + tune.trackRowY,
@@ -225,7 +217,7 @@ export class TrackMenuRenderer {
       const familyLabel = document.createElement("section");
       familyLabel.className = "track-menu-family-label";
       familyLabel.setAttribute("aria-hidden", "true");
-      familyLabel.innerHTML = `<span>${family.sceneLabel}</span><h2>${family.label}</h2>`;
+      familyLabel.innerHTML = `<h2>${family.label}</h2>`;
       Object.assign(familyLabel.style, {
         left: this.#logicalToCss(tune.titleX),
         top: `${(family.y + tune.titleY) / this.#contentHeight * 100}%`,
@@ -236,11 +228,11 @@ export class TrackMenuRenderer {
         const trackLabel = document.createElement("div");
         trackLabel.className = "track-menu-track-label";
         trackLabel.setAttribute("aria-hidden", "true");
-        trackLabel.innerHTML = `<strong>${track.label}</strong><b>${track.durationSeconds}s</b>`;
+        trackLabel.innerHTML = `<strong>${track.label}</strong>`;
         Object.assign(trackLabel.style, {
-          left: this.#logicalToCss(track.x - 33),
+          left: this.#logicalToCss(track.x - 43),
           top: `${(track.y + 35) / this.#contentHeight * 100}%`,
-          width: this.#logicalToCss(66),
+          width: this.#logicalToCss(86),
         });
         labels.push(trackLabel);
       });
@@ -272,8 +264,6 @@ export class TrackMenuRenderer {
         shape: "circle",
       });
     }
-    primitives.push({ x: -78, y: 126, width: 118, height: 118, color: "#20eaff", secondaryColor: "#29133f", glow: .9, intensity: .42, texture: .18, rimIntensity: 1.1, shadowStrength: .42, shape: "orb" });
-    primitives.push({ x: 430, y: 150, width: 46, height: 46, color: "#4b86ff", secondaryColor: "#ff3bd5", glow: 1.2, intensity: .72, arcStart: -2.75, arcEnd: 2.75, shape: "arc" });
     const gridY = Math.min(this.#contentHeight - 110, 330 + Math.sin(time * .27) * 6);
     for (let x = -30; x <= tune.logicalWidth + 30; x += 42) {
       primitives.push(lineBetween(x, gridY, x + 48, this.#contentHeight + 40, .9, "#20eaff", .13, .4));
@@ -289,12 +279,14 @@ export class TrackMenuRenderer {
     const width = tune.logicalWidth - tune.familyPaddingX * 2;
     const height = tune.familyHeight;
     const cut = tune.familyCornerCut;
-    const intensity = family.unlocked ? tune.idleEnergy : tune.lockedEnergy;
-    const glow = family.unlocked ? tune.idleGlow : tune.lockedGlow;
+    const familyHovered = family.tracks.some(track => track.trackId === this.#hoveredTrackId);
+    const intensity = family.unlocked ? (familyHovered ? tune.hoverEnergy : tune.idleEnergy) : tune.lockedEnergy;
+    const glow = family.unlocked ? (familyHovered ? tune.hoverGlow : tune.idleGlow) : tune.lockedGlow;
+    const cornerOverlap = tune.panelLineWidth * .42;
     const panelPoints: [number, number][] = [
-      [x + cut, y], [x + width - cut, y], [x + width, y + cut],
-      [x + width, y + height - cut], [x + width - cut, y + height],
-      [x + cut, y + height], [x, y + height - cut], [x, y + cut],
+      [x + cut - cornerOverlap, y], [x + width - cut + cornerOverlap, y], [x + width + cornerOverlap, y + cut - cornerOverlap],
+      [x + width + cornerOverlap, y + height - cut + cornerOverlap], [x + width - cut + cornerOverlap, y + height],
+      [x + cut - cornerOverlap, y + height], [x - cornerOverlap, y + height - cut + cornerOverlap], [x - cornerOverlap, y + cut - cornerOverlap],
     ];
     panelPoints.forEach((point, index) => {
       const next = panelPoints[(index + 1) % panelPoints.length];
@@ -312,23 +304,6 @@ export class TrackMenuRenderer {
     const scan = ((time * tune.scanSpeed + familyIndex * .23) % 1) * (width + 120) - 60;
     primitives.push(lineBetween(x + scan - 26, y + 8, x + scan + 16, y + height - 8, 2.8, family.accent, .42, .55));
 
-    const emblemWobble = wobble(familyIndex + 2, time);
-    shapes.push({
-      shape: requiredShape(family.shapeId),
-      x: tune.emblemX + emblemWobble.x,
-      y: y + 62 + emblemWobble.y,
-      size: tune.emblemSize * emblemWobble.scale,
-      color: family.accent,
-      rotationZ: emblemWobble.rotation,
-      lineThickness: 1.05,
-      glow: glow * 1.05,
-      energyIntensity: intensity * 1.15,
-      energyCoverage: .52,
-      energySpeed: 1.1,
-      energyBleed: .55,
-      opacity: family.unlocked ? 1 : .54,
-    });
-
     const first = family.tracks[0];
     const last = family.tracks[family.tracks.length - 1];
     if (first && last) {
@@ -339,8 +314,10 @@ export class TrackMenuRenderer {
 
   #addTrackNode(family: TrackFamilyVisual, track: TrackVisual, primitives: NeonPrimitive[], shapes: NeonTopDownShape[], time: number): void {
     const hovered = this.#hoveredTrackId === track.trackId;
-    const energy = track.unlocked ? (hovered ? tune.hoverEnergy : tune.idleEnergy) : tune.lockedEnergy;
-    const glow = track.unlocked ? (hovered ? tune.hoverGlow : tune.idleGlow) : tune.lockedGlow;
+    const trackHoverEnergy = tune.idleEnergy;
+    const trackHoverGlow = tune.idleGlow;
+    const energy = track.unlocked ? (hovered ? trackHoverEnergy : trackHoverEnergy * .4) : tune.lockedEnergy;
+    const glow = track.unlocked ? (hovered ? trackHoverGlow : trackHoverGlow * .4) : tune.lockedGlow;
     const wob = wobble(track.index + family.y * .011, time);
     primitives.push({
       x: track.x + wob.x,

@@ -129,9 +129,7 @@ ${reqText}
 
 ---
 
-## 2. TRACK DURATION & LAYOUT RULES
-- **Duration/Length**: The duration of the track is determined entirely by the number of rows in the layout.
-- **Rule of Thumb**: Each row in the layout string corresponds to approximately 1 second of playtime. Therefore, a track that should last 25 seconds must have exactly 25 lines in the layout grid.
+## 2. TRACK LAYOUT RULES
 - **Layout Format**: The layout string consists of left-lane and right-lane bands separated by a "|" character. 
   - Each side must be exactly 5 characters wide, representing the 5 columns of that lane.
   - Example: \`..... | .....\` represents an empty row across both lanes.
@@ -155,7 +153,6 @@ import type { TrackMember } from "../TrackDefinition";
 export const generatedTrack: TrackMember = {
   label: "${trackLabel}",
   description: "An AI-generated combat runner track designed for custom challenges.",
-  durationSeconds: 25, // Set matching the number of lines in your layout (excluding blank lines)
   startingGun: "${startGun}",
   startingGunLevel: ${startGunLevel},
   environment: {

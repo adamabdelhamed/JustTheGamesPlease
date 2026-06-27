@@ -111,7 +111,7 @@ button { font: inherit; }
   display: flex;
   align-items: center;
   gap: 8px;
-  font-size: clamp(42px, 15vw, 76px);
+  font-size: clamp(29px, 10.5vw, 53px);
   line-height: .88;
   letter-spacing: .08em;
   font-weight: 900;
@@ -154,19 +154,10 @@ button { font: inherit; }
 
 .track-menu-family-label {
   position: absolute;
-  width: 68%;
-  transform: translateY(-2px);
+  width: 80%;
+  transform: translate(-50%, -2px);
   text-transform: uppercase;
-}
-
-.track-menu-family-label span {
-  display: block;
-  margin-bottom: 4px;
-  color: #70ffd0;
-  font-size: .6rem;
-  font-weight: 750;
-  letter-spacing: .2em;
-  text-shadow: 0 0 10px #70ffd099;
+  text-align: center;
 }
 
 .track-menu-family-label h2 {
@@ -201,14 +192,6 @@ button { font: inherit; }
   text-overflow: ellipsis;
   white-space: nowrap;
   text-shadow: 0 0 9px #000;
-}
-
-.track-menu-track-label b {
-  color: #20eaff;
-  font-size: .52rem;
-  letter-spacing: .12em;
-  text-transform: uppercase;
-  text-shadow: 0 0 8px #20eaff99;
 }
 
 .developer-tools {
@@ -414,7 +397,7 @@ button { font: inherit; }
 
   .camera-lab { top: 58px; }
   .track-menu-copy { top: 16px; }
-  .track-menu-logo { font-size: clamp(36px, 13vw, 62px); }
+  .track-menu-logo { font-size: clamp(25px, 9vw, 43px); }
 }
 
 @media (max-width: 520px) {

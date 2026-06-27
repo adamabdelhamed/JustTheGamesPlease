@@ -138,7 +138,7 @@ try {
     runStatus.textContent = "";
     startDialogFamily.textContent = family ? family.label : "Track";
     startDialogTitle.textContent = track.label;
-    startDialogDetail.textContent = `${track.durationSeconds}s run. Tap left or right to switch lanes.`;
+    startDialogDetail.textContent = "Tap left or right to switch lanes.";
     startDialog.hidden = false;
     confirmTrackStart.focus();
   };

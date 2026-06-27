@@ -42,7 +42,6 @@ import {
   laneRunnerCameraFocusX,
   laneRunnerViewport,
   projectHelicopterScene,
-  worldYForProjectedY,
   type HelicopterCameraSettings,
 } from "../viewport";
 
@@ -174,6 +173,9 @@ const soundAlternativeCounts: Partial<Record<string, number>> = {
   Boss: 1,
   ProjectileHit: 2,
 };
+const maxTrackSpawnLeadSeconds = 18;
+const firstTrackRowArrivalSeconds = 2 * combatTuning.globalSpeedMultiplier;
+const trackRowTravelSeconds = .375 * combatTuning.globalSpeedMultiplier;
 
 export class NeonSwarmSimulation {
   readonly mode: NeonSwarmSimulationMode;
@@ -469,7 +471,7 @@ export class NeonSwarmSimulation {
     const shieldDef = this.activeByFamily.shield ? shieldFamily.members[this.activeByFamily.shield.shieldId] : null;
     const swordDef = this.activeByFamily.sword ? swordFamily.members[this.activeByFamily.sword.swordId] : null;
     if (this.activeTrack) {
-      this.onRunStatus?.(`${gunStatus}${shieldDef ? ` · ${shieldDef.label}` : ""}${swordDef ? ` · ${swordDef.label}` : ""} · ${Math.max(0, this.activeTrack.durationSeconds - this.combatElapsed).toFixed(1)}s`);
+      this.onRunStatus?.(`${gunStatus}${shieldDef ? ` · ${shieldDef.label}` : ""}${swordDef ? ` · ${swordDef.label}` : ""}`);
     }
 
     const laneEnemies = this.enemies.filter(enemy => enemy.lane === this.squad.lane && !enemy.dying);
@@ -491,7 +493,7 @@ export class NeonSwarmSimulation {
     this.updateEnemies(delta, shieldDef);
     this.updatePickups(delta);
 
-    if (this.activeTrack && this.combatElapsed >= this.activeTrack.durationSeconds && this.enemies.length === 0) this.finish(this.breaches === 0);
+    if (this.activeTrack && this.trackResolved()) this.finish(this.breaches === 0);
   }
 
   render(now = this.combatNow): void {
@@ -652,7 +654,7 @@ export class NeonSwarmSimulation {
     if (!this.activeTrack) return;
     while (
       this.nextTrackEntity < this.trackEntities.length &&
-      this.trackEntities[this.nextTrackEntity].distanceFromPlayer <= this.combatElapsed + this.spawnLeadSeconds(this.trackEntities[this.nextTrackEntity])
+      this.entityArrivalSeconds(this.trackEntities[this.nextTrackEntity]) <= this.combatElapsed + this.spawnLeadSeconds(this.trackEntities[this.nextTrackEntity])
     ) {
       const entity = this.trackEntities[this.nextTrackEntity++];
       const lane: Lane = entity.side === "left" ? 0 : 1;
@@ -677,21 +679,30 @@ export class NeonSwarmSimulation {
       } else if (entity.id.startsWith("pickup.weapon.gun.")) {
         const candidate = entity.id.slice("pickup.weapon.gun.".length);
         if (!(candidate in gunFamily.members)) throw new Error(`Track uses unknown gun id "${entity.id}".`);
-        this.spawnGunPickup({ lane, x: this.entityX(entity), y: this.pickupSpawnY(120, entity), gunId: candidate as GunId, level: 1, speedMultiplier: entity.speedMultiplier });
+        this.spawnGunPickup({ lane, x: this.entityX(entity), y: this.pickupSpawnY(entity), gunId: candidate as GunId, level: 1, speedMultiplier: entity.speedMultiplier });
       } else if (entity.id.startsWith("pickup.weapon.shield.")) {
         const candidate = entity.id.slice("pickup.weapon.shield.".length);
         if (!(candidate in shieldFamily.members)) throw new Error(`Track uses unknown shield id "${entity.id}".`);
-        this.spawnShieldPickup({ lane, x: this.entityX(entity), y: this.pickupSpawnY(120, entity), shieldId: candidate as ShieldId, speedMultiplier: entity.speedMultiplier });
+        this.spawnShieldPickup({ lane, x: this.entityX(entity), y: this.pickupSpawnY(entity), shieldId: candidate as ShieldId, speedMultiplier: entity.speedMultiplier });
       } else if (entity.id.startsWith("pickup.weapon.sword.")) {
         const candidate = entity.id.slice("pickup.weapon.sword.".length);
         if (!(candidate in swordFamily.members)) throw new Error(`Track uses unknown sword id "${entity.id}".`);
-        this.spawnSwordPickup({ lane, x: this.entityX(entity), y: this.pickupSpawnY(120, entity), swordId: candidate as SwordId, speedMultiplier: entity.speedMultiplier });
+        this.spawnSwordPickup({ lane, x: this.entityX(entity), y: this.pickupSpawnY(entity), swordId: candidate as SwordId, speedMultiplier: entity.speedMultiplier });
       } else if (entity.id === "pickup.unitMultiplier.2x") {
-        this.spawnMultiplierPickup({ lane, x: this.entityX(entity), y: this.pickupSpawnY(125, entity), speedMultiplier: entity.speedMultiplier });
+        this.spawnMultiplierPickup({ lane, x: this.entityX(entity), y: this.pickupSpawnY(entity), speedMultiplier: entity.speedMultiplier });
       } else {
         throw new Error(`Track entity id "${entity.id}" is not supported by the lane runner.`);
       }
     }
+  }
+
+  private trackResolved(): boolean {
+    return this.nextTrackEntity >= this.trackEntities.length
+      && this.enemies.length === 0
+      && this.gunPickups.length === 0
+      && this.shieldPickups.length === 0
+      && this.swordPickups.length === 0
+      && this.multipliers.length === 0;
   }
 
   private fire(): void {
@@ -952,28 +963,25 @@ export class NeonSwarmSimulation {
     return this.laneX(entity.side === "left" ? 0 : 1) + (entity.laneIndex - 2 + (entity.columnSpan - 1) / 2) * 15 * this.scale();
   }
 
-  private entityBaseY(entity: ParsedTrackEntity): number {
-    return entity.id === "pickup.unitMultiplier.2x" ? 125 : entity.id.startsWith("pickup.") ? 120 : 110;
-  }
-
   private entitySpeed(entity: ParsedTrackEntity): number {
     return (enemyDefinitionFromTrackId(entity.id)?.definition.speed ?? 72) * entity.speedMultiplier * this.scale();
   }
 
-  private visualSpawnY(): number {
-    return worldYForProjectedY(this.canvas.height * .14, this.cameraSettings, { height: this.canvas.height, playerY: this.playerY() });
-  }
-
   private enemySpawnY(entity: ParsedTrackEntity): number {
-    return this.entityBaseY(entity) * this.scale() - this.entitySpeed(entity) * this.spawnLeadSeconds(entity);
+    return this.playerY() - this.entitySpeed(entity) * this.spawnLeadSeconds(entity);
   }
 
-  private pickupSpawnY(baseY: number, entity: ParsedTrackEntity): number {
-    return baseY * this.scale() - this.entitySpeed(entity) * this.spawnLeadSeconds(entity);
+  private pickupSpawnY(entity: ParsedTrackEntity): number {
+    return this.playerY() - this.entitySpeed(entity) * this.spawnLeadSeconds(entity);
   }
 
   private spawnLeadSeconds(entity: ParsedTrackEntity): number {
-    return Math.min(entity.distanceFromPlayer, Math.max(0, (this.entityBaseY(entity) * this.scale() - this.visualSpawnY()) / this.entitySpeed(entity)));
+    const arrivalSeconds = this.entityArrivalSeconds(entity);
+    return Math.min(maxTrackSpawnLeadSeconds, arrivalSeconds);
+  }
+
+  private entityArrivalSeconds(entity: ParsedTrackEntity): number {
+    return firstTrackRowArrivalSeconds + Math.max(0, entity.distanceFromPlayer - 1) * trackRowTravelSeconds;
   }
 
   private play(id: string): void {

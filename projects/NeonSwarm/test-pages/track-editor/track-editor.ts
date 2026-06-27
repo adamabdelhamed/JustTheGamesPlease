@@ -89,7 +89,6 @@ let selectedItem = empty;
 let toolRevision = 0;
 let selectionToolRevision = toolRevision;
 let exportVariableName = "newTrack";
-let exportDurationSeconds = defaultRowCount;
 let loadedLegendOrder: string[] | null = null;
 
 const grid = document.querySelector<HTMLElement>("#track-grid")!;
@@ -269,7 +268,6 @@ function insertRow(offset: 0 | 1): void {
   const index = selected ? selected.row + offset : rowCount();
   cells.splice(index, 0, blankRow());
   selected = { row: index, side: selected?.side ?? 0, column: selected?.column ?? 0 };
-  exportDurationSeconds = rowCount();
   loadedLegendOrder = null;
   renderGrid();
 }
@@ -278,7 +276,6 @@ function deleteSelectedRow(): void {
   if (!selected || rowCount() <= 1) return;
   cells.splice(selected.row, 1);
   selected.row = Math.min(selected.row, rowCount() - 1);
-  exportDurationSeconds = rowCount();
   loadedLegendOrder = null;
   renderGrid();
 }
@@ -299,7 +296,6 @@ function syncSceneBackground(): void {
 
 function loadTrack(track: TrackMember, exportName: string): void {
   exportVariableName = "generatedTrack";
-  exportDurationSeconds = track.durationSeconds;
   loadedLegendOrder = Object.keys(track.definition.legend);
   input<HTMLInputElement>("#export-name").value = exportVariableName;
   input<HTMLInputElement>("#display-name").value = track.label;
@@ -348,7 +344,6 @@ function renderTrackSources(): void {
     if (!id) {
       cells = Array.from({ length: defaultRowCount }, blankRow);
       exportVariableName = "newTrack";
-      exportDurationSeconds = defaultRowCount;
       loadedLegendOrder = null;
       input<HTMLInputElement>("#export-name").value = "newTrack";
       input<HTMLInputElement>("#display-name").value = "New Track";
@@ -419,7 +414,6 @@ function exportSource(): { fileName: string; source: string } {
 export const ${exportName}: TrackMember = {
   label: ${quoted(input<HTMLInputElement>("#display-name").value)},
   description: ${quoted(input<HTMLTextAreaElement>("#description").value)},
-  durationSeconds: ${exportDurationSeconds},
   startingGun: "pulsePistol",
   startingGunLevel: 1,
   environment: {
