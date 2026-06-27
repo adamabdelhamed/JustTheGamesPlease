@@ -12,6 +12,12 @@ const runStatus = document.querySelector<HTMLElement>("#run-status")!;
 const result = document.querySelector<HTMLElement>("#result")!;
 const resultTitle = document.querySelector<HTMLElement>("#result-title")!;
 const resultDetail = document.querySelector<HTMLElement>("#result-detail")!;
+const startDialog = document.querySelector<HTMLElement>("#start-dialog")!;
+const startDialogFamily = document.querySelector<HTMLElement>("#start-dialog-family")!;
+const startDialogTitle = document.querySelector<HTMLElement>("#start-dialog-title")!;
+const startDialogDetail = document.querySelector<HTMLElement>("#start-dialog-detail")!;
+const confirmTrackStart = document.querySelector<HTMLButtonElement>("#confirm-track-start")!;
+const cancelTrackStart = document.querySelector<HTMLButtonElement>("#cancel-track-start")!;
 const error = document.querySelector<HTMLElement>("#error")!;
 const developerTools = document.querySelector<HTMLElement>("#developer-tools")!;
 const gameElement = document.querySelector<HTMLElement>("#game")!;
@@ -19,12 +25,14 @@ const cameraLab = document.querySelector<HTMLElement>("#camera-lab")!;
 const cameraOutputText = document.querySelector<HTMLOutputElement>("#camera-output-text")!;
 const urlOptions = window.JustTheGamesPlease?.urlOptions;
 const developerMode = urlOptions?.isEnabled("dev") ?? false;
-const cameraControlsMode = developerMode || (urlOptions?.isEnabled("cameracontrols") ?? false);
+const cameraControlsMode = urlOptions?.isEnabled("cameracontrols") ?? false;
 const defaultTrackSceneId = Object.values(trackFamily.families)[0].environment.sceneId;
 const trackShapeIdsByFamily: Record<TrackFamilyId, readonly string[]> = {
   neonNebulae: ["hunter-eye", "bruiser-prism", "elite-star"],
   aurora: ["trick-vortex", "elite-wings", "tank-reactor"],
 };
+let pendingTrackId: TrackId | null = null;
+let musicStarted = false;
 
 developerTools.hidden = !developerMode;
 cameraLab.hidden = !cameraControlsMode;
@@ -75,6 +83,16 @@ try {
   });
 
   const trackRoute = (trackId: TrackId): string => `#track/${encodeURIComponent(trackId)}`;
+  const trackFamilyForTrack = (trackId: TrackId): (typeof trackFamily.families)[TrackFamilyId] | null => {
+    const families = Object.values(trackFamily.families) as Array<(typeof trackFamily.families)[TrackFamilyId] & { trackIds: readonly TrackId[] }>;
+    return families.find(family => family.trackIds.includes(trackId)) ?? null;
+  };
+  const startAudioForGesture = (): void => {
+    if (musicStarted) return;
+    musicStarted = true;
+    const audio = window.gameAudio as (typeof window.gameAudio & { playSharedMusic?: (ids: string[]) => void });
+    audio?.playSharedMusic?.(["Music"]);
+  };
   const navigateToTracks = (): void => {
     if (location.hash === "#tracks") {
       resetToTracks();
@@ -131,15 +149,37 @@ try {
 
   const resetToTracks = (): void => {
     sim.reset();
+    pendingTrackId = null;
     gameElement.dataset.page = "tracks";
     gameElement.style.removeProperty("background-image");
     result.hidden = true;
+    startDialog.hidden = true;
     trackSelect.hidden = false;
     status.textContent = "Choose a track family, then pick a run.";
     runStatus.textContent = "";
   };
 
+  const prepareTrackStart = (trackId: TrackId): void => {
+    pendingTrackId = trackId;
+    sim.reset();
+    result.hidden = true;
+    const track = trackFamily.members[trackId];
+    const family = trackFamilyForTrack(trackId);
+    gameElement.dataset.page = "game";
+    trackSelect.hidden = true;
+    sim.setScene(track.environment.sceneId);
+    status.textContent = "Ready?";
+    runStatus.textContent = "";
+    startDialogFamily.textContent = family ? family.label : "Track";
+    startDialogTitle.textContent = track.label;
+    startDialogDetail.textContent = `${track.durationSeconds}s run. Tap left or right to switch lanes.`;
+    startDialog.hidden = false;
+    confirmTrackStart.focus();
+  };
+
   const startTrack = (trackId: TrackId): void => {
+    pendingTrackId = null;
+    startDialog.hidden = true;
     gameElement.dataset.page = "game";
     trackSelect.hidden = true;
     result.hidden = true;
@@ -149,12 +189,18 @@ try {
 
   const handleRoute = (): void => {
     const trackId = trackIdFromRoute();
-    if (trackId) startTrack(trackId);
+    if (trackId) prepareTrackStart(trackId);
     else resetToTracks();
   };
 
   renderTrackFamilies();
   document.querySelector<HTMLButtonElement>("#back-to-tracks")!.addEventListener("click", navigateToTracks);
+  confirmTrackStart.addEventListener("click", () => {
+    if (!pendingTrackId) return;
+    startAudioForGesture();
+    startTrack(pendingTrackId);
+  });
+  cancelTrackStart.addEventListener("click", navigateToTracks);
   window.addEventListener("hashchange", handleRoute);
   if (!location.hash) history.replaceState(null, "", "#tracks");
   handleRoute();
