@@ -6,6 +6,7 @@ import {
 } from "@just-the-games-please/neon-factory";
 import {
   swordFamily, orbFamily,
+  type OrbId,
   type SwordId, type SwordTargetingMode,
 } from "../../CombatDefinition";
 import { bindSquadInput } from "../../src/input";
@@ -17,13 +18,17 @@ import { enemyOrientation, helicopterViewportFor, playerOrientation } from "../.
 import { SwordState, tickSword } from "../../src/combat/swordEvaluator";
 import { queryNearbyThreats } from "../../src/combat/nearbyThreatQuery";
 import { swordPickupVisual, swordVisuals } from "../../src/familyVisuals";
+import { createEnemyActor, projectedEnemyHealthBarPrimitives, resolveEnemyDamage } from "../../src/enemyCatalog";
+import { enemyExitCloud, updateEnemyExitEffects, type ActiveEnemyExitEffect } from "../../src/enemyExitVisuals";
 
 interface Enemy {
   id: number;
   lane: 0 | 1;
+  enemyId: OrbId;
   x: number;
   y: number;
   health: number;
+  maxHealth: number;
   rowId: number;
   actor: NeonShapeActor;
   dying: boolean;
@@ -38,6 +43,7 @@ interface SwordPickup {
 const canvas = document.querySelector<HTMLCanvasElement>("#game-canvas")!;
 const error = document.querySelector<HTMLElement>("#error")!;
 const swordSelect = document.querySelector<HTMLSelectElement>("#sword-select")!;
+const enemySelect = document.querySelector<HTMLSelectElement>("#enemy-select")!;
 const weaponReadout = document.querySelector<HTMLElement>("#weapon-readout")!;
 const scoreReadout = document.querySelector<HTMLElement>("#score-readout")!;
 const specReadout = document.querySelector<HTMLElement>("#spec-readout")!;
@@ -45,7 +51,13 @@ const gameElement = document.querySelector<HTMLElement>("#game")!;
 applyPortraitStage(gameElement, { aspectWidth: 9, aspectHeight: 16 });
 const audioId = (id: string): string => `../../../../audio/${id}`;
 const playSfx = (id: string): void => window.gameAudio?.play(audioId(id));
+const playRotatedSfx = (id: string, alternatives: number): void => window.gameAudio?.playRotated(audioId(id), alternatives);
 const playEnemyDestroyed = (): void => window.gameAudio?.playRotated(audioId("EnemyDestroyed"), 2);
+const playEnemySpawnSound = (id: string | null): void => {
+  if (!id) return;
+  if (id === "Boss") playRotatedSfx("Boss", 1);
+  else playSfx(id);
+};
 const swordSwingSoundIds: Record<SwordId, string> = {
   arcBlade: "SwordSwing",
   cleaver: "SwordHeavySwing",
@@ -54,8 +66,8 @@ const swordSwingSoundIds: Record<SwordId, string> = {
 
 try {
   const renderer = await NeonTopDownSceneRenderer.create(canvas, 450, 800);
-  const orb = orbFamily.members.basicOrb;
   const enemies: Enemy[] = [];
+  const enemyExitEffects: ActiveEnemyExitEffect[] = [];
   const pickups: SwordPickup[] = [];
   const squad = new SquadModel();
   const aimControl = new AutoAimControlState();
@@ -77,6 +89,10 @@ try {
     swordSelect.add(new Option(sword.label, id));
   }
   swordSelect.value = activeSwordId;
+  for (const [id, enemy] of Object.entries(orbFamily.members)) {
+    enemySelect.add(new Option(enemy.label, id));
+  }
+  enemySelect.value = "basicOrb";
 
   const equip = (id: SwordId) => {
     activeSwordId = id;
@@ -88,6 +104,7 @@ try {
 
   const updateReadout = () => {
     const def = swordFamily.members[activeSwordId];
+    const enemy = orbFamily.members[enemySelect.value as OrbId];
     weaponReadout.textContent = def.label;
     scoreReadout.textContent = `Kills ${kills}`;
     const cdLeft = swordState.cooldownLeft.toFixed(2);
@@ -101,13 +118,22 @@ try {
       ["Targeting", def.targetingMode],
       ["Slash duration", `${def.slashDurationMs}ms`],
     ].map(([name, value]) => `<dt>${name}</dt><dd>${value}</dd>`).join("");
+    specReadout.innerHTML += [
+      ["Enemy", enemy.label],
+      ["Enemy HP", String(enemy.health)],
+      ["Enemy speed", String(enemy.speed)],
+    ].map(([name, value]) => `<dt>${name}</dt><dd>${value}</dd>`).join("");
   };
 
   squad.x = laneX(0);
   squad.targetX = laneX(0);
 
   const spawnEnemy = (lane: 0 | 1): void => {
-    enemies.push({ id: ++entitySequence, lane, x: laneX(lane), y: 105, health: orb.health, rowId: ++entitySequence, actor: new NeonShapeActor({ shape: swarmShapes.enemy }), dying: false });
+    const enemyId = enemySelect.value as OrbId;
+    const definition = orbFamily.members[enemyId];
+    const maxHealth = definition.health;
+    enemies.push({ id: ++entitySequence, lane, enemyId, x: laneX(lane), y: 105, health: maxHealth, maxHealth, rowId: ++entitySequence, actor: createEnemyActor(enemyId), dying: false });
+    playEnemySpawnSound(definition.spawnSound);
   };
 
   const spawnPickup = (lane: 0 | 1): void => {
@@ -116,6 +142,7 @@ try {
 
   const restartSimulation = (): void => {
     enemies.length = 0;
+    enemyExitEffects.length = 0;
     pickups.length = 0;
     playerAlive = true;
     restartAt = 0;
@@ -144,8 +171,10 @@ try {
   });
   document.querySelector<HTMLButtonElement>("#clear-stage")!.addEventListener("click", () => {
     enemies.length = pickups.length = 0;
+    enemyExitEffects.length = 0;
   });
   swordSelect.addEventListener("change", () => equip(swordSelect.value as SwordId));
+  enemySelect.addEventListener("change", updateReadout);
 
   bindSquadInput(gameElement, "#joystick", {
     lane: () => squad.lane,
@@ -157,6 +186,7 @@ try {
   const update = (now: number): void => {
     const delta = Math.min((now - lastFrame) / 1000, 0.05);
     lastFrame = now;
+    updateEnemyExitEffects(enemyExitEffects, delta);
     playerActor.update(delta);
     if (!playerAlive) {
       for (const e of enemies) e.actor.update(delta);
@@ -191,23 +221,30 @@ try {
       playSfx(swordSwingSoundIds[activeSwordId]);
       for (const e of [...enemies]) {
         if (e.dying || !swordResult.hitEnemyIds.includes(e.id)) continue;
-        e.health -= swordResult.damage;
-        e.actor.impact({ direction: { x: 0, y: 1 }, magnitude: swordResult.damage / orb.impactResistance });
-        if (e.health <= 0) {
-          e.dying = true; e.actor.explodeMagnitude = orb.explosionMagnitude;
-          e.actor.dispose(NeonShapeDisposal.Explode);
-          kills++; updateReadout(); playEnemyDestroyed();
+        const enemyDef = orbFamily.members[e.enemyId];
+        const result = resolveEnemyDamage({
+          enemy: e,
+          effects: enemyExitEffects,
+          damage: swordResult.damage,
+          impactMagnitude: swordResult.damage,
+          color: neonPalette[enemyDef.baseColor],
+        });
+        if (result.killed) {
+          kills++; updateReadout();
+          if (result.definition.deathSound === "EnemyDestroyed") playEnemyDestroyed();
+          else playSfx(result.definition.deathSound);
         }
       }
     }
 
     // Enemy movement
     for (const e of [...enemies]) {
+      const enemyDef = orbFamily.members[e.enemyId];
       e.actor.update(delta);
-      e.y += orb.speed * delta - e.actor.y * canvas.height / 2.5;
+      e.y += enemyDef.speed * delta - e.actor.y * canvas.height / 2.5;
       e.actor.moveTo(0, 0);
       if (e.dying && e.actor.disposed) { enemies.splice(enemies.indexOf(e), 1); continue; }
-      if (!e.dying && Math.hypot(e.x - squad.x, e.y - playerY()) <= orb.radius * 3.2) {
+      if (!e.dying && Math.hypot(e.x - squad.x, e.y - playerY()) <= enemyDef.radius * 3.2) {
         killPlayer(now);
       }
     }
@@ -252,8 +289,16 @@ try {
     }
     const helicopterViewport = helicopterViewportFor(canvas.width, canvas.height, playerY());
     shapes.push(actorInTopDownScene(playerActor, squad.x, py, 14, playerOrientation(defaultHelicopterCameraSettings, helicopterViewport, squad.x, py, now)));
-    for (const e of enemies) shapes.push(actorInTopDownScene(e.actor, e.x, e.y, 18, enemyOrientation(defaultHelicopterCameraSettings, helicopterViewport, e.x, e.y, now, e.rowId)));
-  renderer.render(projectHelicopterScene(primitives, shapes, [], defaultHelicopterCameraSettings, helicopterViewport), now / 1000);
+    const enemyHealthBars: Parameters<typeof projectedEnemyHealthBarPrimitives>[0][number][] = [];
+    for (const e of enemies) {
+      const enemyDef = orbFamily.members[e.enemyId];
+      const size = 18 * enemyDef.columnSpan;
+      enemyHealthBars.push({ enemyId: e.enemyId, x: e.x, y: e.y, health: e.health, maxHealth: e.maxHealth, size, scale: s });
+      shapes.push(actorInTopDownScene(e.actor, e.x, e.y, size, enemyOrientation(defaultHelicopterCameraSettings, helicopterViewport, e.x, e.y, now, e.rowId)));
+    }
+  const projected = projectHelicopterScene(primitives, shapes, enemyExitEffects.map(enemyExitCloud), defaultHelicopterCameraSettings, helicopterViewport);
+  projected.primitives.push(...projectedEnemyHealthBarPrimitives(enemyHealthBars, defaultHelicopterCameraSettings, helicopterViewport));
+  renderer.render(projected, now / 1000);
   };
 
   const frame = (now: number): void => { update(now); draw(now); requestAnimationFrame(frame); };

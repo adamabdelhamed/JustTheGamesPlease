@@ -17,6 +17,8 @@ export interface NeonShapeInstance {
   y?: number;
   z?: number;
   scale?: number;
+  scaleX?: number;
+  scaleY?: number;
   rotationX?: number;
   rotationY?: number;
   rotationZ?: number;
@@ -124,6 +126,8 @@ function mesh(instance: NeonShapeInstance): Vertex[] {
   const depth = shape.depth ?? .14;
   const color = hex(instance.color ?? shape.color);
   const scale = instance.scale ?? 1;
+  const scaleX = scale * (instance.scaleX ?? 1);
+  const scaleY = scale * (instance.scaleY ?? 1);
   const rx = instance.rotationX ?? 0, ry = instance.rotationY ?? 0, rz = instance.rotationZ ?? 0;
   const entranceProgress = instance.entranceProgress ?? 1;
   const entranceEase = entranceProgress * entranceProgress * (3 - 2 * entranceProgress);
@@ -136,7 +140,7 @@ function mesh(instance: NeonShapeInstance): Vertex[] {
     return [Math.cos(angle) * radius, Math.sin(angle) * radius, (random - .5) * radius * .55];
   };
   const move = (point: NeonPoint, z: number, index = 0): V3 => {
-    const p = rotate([point[0] * scale, -point[1] * scale, z * scale], rx, ry, rz);
+    const p = rotate([point[0] * scaleX, -point[1] * scaleY, z * scale], rx, ry, rz);
     const e = entranceOffset(point, z, index);
     return [p[0] + (instance.x ?? 0) + e[0], p[1] + (instance.y ?? 0) + e[1], p[2] + (instance.z ?? 0) + e[2]];
   };
@@ -166,11 +170,13 @@ function edgeMesh(instance: NeonShapeInstance): Vertex[] {
   const depth = shape.depth ?? .14;
   const color = hex(instance.color ?? shape.color);
   const scale = instance.scale ?? 1;
+  const scaleX = scale * (instance.scaleX ?? 1);
+  const scaleY = scale * (instance.scaleY ?? 1);
   const rx = instance.rotationX ?? 0, ry = instance.rotationY ?? 0, rz = instance.rotationZ ?? 0;
   const entranceProgress = instance.entranceProgress ?? 1;
   const entranceEase = entranceProgress * entranceProgress * (3 - 2 * entranceProgress);
   const move = (point: NeonPoint, z: number): V3 => {
-    const p = rotate([point[0] * scale, -point[1] * scale, z * scale], rx, ry, rz);
+    const p = rotate([point[0] * scaleX, -point[1] * scaleY, z * scale], rx, ry, rz);
     return [p[0] + (instance.x ?? 0), p[1] + (instance.y ?? 0), p[2] + (instance.z ?? 0)];
   };
   const explode = (a: V3, b: V3, index: number): [V3, V3] => {

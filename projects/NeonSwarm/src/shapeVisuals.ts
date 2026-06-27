@@ -21,7 +21,9 @@ export function actorAtPixels(actor: NeonShapeActor, canvas: HTMLCanvasElement, 
   return actor.renderInstance(overrides);
 }
 
-export const actorInTopDownScene = (actor: NeonShapeActor, x: number, y: number, size: number, overrides: Partial<NeonShapeInstance> = {}): NeonTopDownShape =>
+type TopDownShapeOverrides = Partial<NeonShapeInstance> & Partial<Pick<NeonTopDownShape, "width" | "height">>;
+
+export const actorInTopDownScene = (actor: NeonShapeActor, x: number, y: number, size: number, overrides: TopDownShapeOverrides = {}): NeonTopDownShape =>
   ({ ...actor.renderInstance(overrides), x, y, size });
 
 export const shapeLabel = (text: string, position: NeonShapeLabel["position"], fontSize: number, offset = 4): NeonShapeLabel =>

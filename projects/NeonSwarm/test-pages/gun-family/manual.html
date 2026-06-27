@@ -35,6 +35,9 @@
       <label>Level
         <select id="level-select"><option>1</option><option>2</option><option>3</option></select>
       </label>
+      <label>Enemy type
+        <select id="enemy-select"></select>
+      </label>
       <div class="button-row">
         <button type="button" data-spawn-pickup="0">Pickup left</button>
         <button type="button" data-spawn-pickup="1">Pickup right</button>
@@ -71,7 +74,21 @@
   <script src="../../../lib/top-bar/top-bar.js"></script>
   <script src="../../../lib/audio/audio.js"></script>
   <script src="../../../lib/controller/controller.js"></script>
-  <script>gameAudio.preload(['Primary','Primary_Alt1','Primary_Alt2','Primary_Alt3','Pickup','Hit','EnemyDestroyed']);</script>
+  <script>
+    gameAudio.preload([
+      '../../../../audio/Primary',
+      '../../../../audio/Primary_Alt1',
+      '../../../../audio/Primary_Alt2',
+      '../../../../audio/Primary_Alt3',
+      '../../../../audio/Pickup',
+      '../../../../audio/Hit',
+      '../../../../audio/EnemyDestroyed',
+      '../../../../audio/Boss',
+      '../../../../audio/Boss_Alt1',
+      '../../../../audio/BossDestroyed',
+      '../../../../audio/GlassShieldShatter'
+    ]);
+  </script>
   <script type="module" src="manual.js"></script>
 </body>
 </html>

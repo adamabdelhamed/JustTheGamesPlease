@@ -5,6 +5,7 @@ import {
   NeonShapeActor,
   neonPalette,
   NeonTopDownSceneRenderer,
+  getNeonShape,
   type LaneRunnerSceneId,
   type NeonTopDownShape,
 } from "@just-the-games-please/neon-factory";
@@ -21,10 +22,11 @@ import { shieldPickupVisual, swordPickupVisual } from "../../src/familyVisuals";
 import { billboardOrientation, enemyOrientation, helicopterViewportFor, playerOrientation } from "../../src/renderOrientation";
 import { actorInTopDownScene, swarmShapes } from "../../src/shapeVisuals";
 import { defaultHelicopterCameraSettings } from "../../src/viewport";
+import { enemyDefinitionFromTrackId, enemyTrackId } from "../../src/enemyCatalog";
 
 type PaletteFamily = "System" | "Enemies" | "Guns" | "Shields" | "Swords" | "Items";
 type PaletteItem = { id: string; label: string; symbol: string; family: PaletteFamily };
-type CellValue = PaletteItem & { speed: number };
+type CellValue = PaletteItem & { speed: number; occupiedBy?: { row: number; side: 0 | 1; column: number } };
 type Selection = { row: number; side: 0 | 1; column: number };
 
 const developer = window.JustTheGamesPlease?.urlOptions?.isEnabled("dev") ?? false;
@@ -39,9 +41,9 @@ const paletteItems: PaletteItem[] = [
   empty,
   playerStart,
   ...Object.entries(orbFamily.members).map(([id, enemy], index) => ({
-    id: `enemy.${id === "basicOrb" ? "basic" : id}`,
+    id: enemyTrackId(id as keyof typeof orbFamily.members),
     label: enemy.label,
-    symbol: "EABCDEFGHIJKLMNOPQRSTUVWXYZ"[index],
+    symbol: "EGWTABCDEFGHIJKLMNOPQRSTUVWXYZ"[index],
     family: "Enemies" as const,
   })),
   ...Object.entries(gunFamily.members).map(([id, gun], index) => ({
@@ -68,6 +70,15 @@ const paletteById = new Map(paletteItems.map(item => [item.id, item]));
 const paletteFamilies: PaletteFamily[] = ["System", "Enemies", "Guns", "Shields", "Swords", "Items"];
 
 const blankCell = (): CellValue => ({ ...empty, speed: 1 });
+const occupiedCell = (owner: Selection): CellValue => ({
+  ...empty,
+  id: "__occupied",
+  label: "Occupied",
+  symbol: "",
+  family: "System",
+  speed: 1,
+  occupiedBy: owner,
+});
 const blankRow = (): CellValue[][] =>
   Array.from({ length: 2 }, () => Array.from({ length: laneWidth }, blankCell));
 
@@ -128,7 +139,9 @@ function renderCell(selection: Selection): void {
   if (!button) return;
   button.textContent = value.symbol;
   button.dataset.id = value.id;
-  button.title = `${value.label}${value.speed === 1 ? "" : ` - ${value.speed}x speed`}`;
+  button.title = value.occupiedBy
+    ? `Occupied by ${cells[value.occupiedBy.row][value.occupiedBy.side][value.occupiedBy.column].label}`
+    : `${value.label}${value.speed === 1 ? "" : ` - ${value.speed}x speed`}`;
 }
 
 function renderGrid(): void {
@@ -182,20 +195,46 @@ function selectCell(candidate: Selection): void {
 
 function placeSelected(item = selectedItem): void {
   if (!selected) return;
+  clearEntityAt(selected);
+  const span = enemyDefinitionFromTrackId(item.id)?.definition.columnSpan ?? 1;
+  if (selected.column + span > laneWidth) {
+    selectionReadout.textContent = `${item.label} needs ${span} columns. Select column ${laneWidth - span + 1} or earlier.`;
+    renderGrid();
+    return;
+  }
+  for (let column = selected.column; column < selected.column + span; column++) {
+    clearEntityAt({ ...selected, column });
+  }
   const speed = Number(speedInput.value);
   cells[selected.row][selected.side][selected.column] = {
     ...item,
     speed: Number.isFinite(speed) && speed > 0 ? speed : 1,
   };
-  renderCell(selected);
+  for (let column = selected.column + 1; column < selected.column + span; column++) {
+    cells[selected.row][selected.side][column] = occupiedCell(selected);
+  }
+  renderGrid();
   loadedLegendOrder = null;
 }
 
 function eraseSelected(): void {
   if (!selected) return;
-  cells[selected.row][selected.side][selected.column] = blankCell();
-  renderCell(selected);
+  clearEntityAt(selected);
+  renderGrid();
   loadedLegendOrder = null;
+}
+
+function clearEntityAt(selection: Selection): void {
+  const cell = cells[selection.row][selection.side][selection.column];
+  const owner = cell.occupiedBy ?? selection;
+  const ownerCell = cells[owner.row][owner.side][owner.column];
+  const span = enemyDefinitionFromTrackId(ownerCell.id)?.definition.columnSpan ?? 1;
+  for (let column = owner.column; column < Math.min(laneWidth, owner.column + span); column++) {
+    const candidate = cells[owner.row][owner.side][column];
+    if (column === owner.column || candidate.occupiedBy?.row === owner.row && candidate.occupiedBy.side === owner.side && candidate.occupiedBy.column === owner.column) {
+      cells[owner.row][owner.side][column] = blankCell();
+    }
+  }
 }
 
 function renderPalette(): void {
@@ -279,6 +318,16 @@ function loadTrack(track: TrackMember, exportName: string): void {
       }),
     ) as CellValue[][];
   });
+  for (let row = 0; row < cells.length; row++) {
+    for (let side = 0 as 0 | 1; side < 2; side = (side + 1) as 0 | 1) {
+      for (let column = 0; column < laneWidth; column++) {
+        const span = enemyDefinitionFromTrackId(cells[row][side][column].id)?.definition.columnSpan ?? 1;
+        if (span <= 1) continue;
+        if (column + span > laneWidth) continue;
+        for (let offset = 1; offset < span; offset++) cells[row][side][column + offset] = occupiedCell({ row, side, column });
+      }
+    }
+  }
   selected = { row: rowCount() - 1, side: 0, column: 0 };
   renderGrid();
 }
@@ -330,6 +379,7 @@ function exportSource(): { fileName: string; source: string } {
   entries.set("empty@1", { symbol: ".", value: blankCell() });
   usedSymbols.add(".");
   const symbolFor = (value: CellValue): string => {
+    if (value.id === "__occupied") return ".";
     const key = `${value.id}@${value.speed}`;
     const existing = entries.get(key);
     if (existing) return existing.symbol;
@@ -406,10 +456,10 @@ function syncGridCanvasSize(): { width: number; height: number } {
 function gridShapes(now: number): NeonTopDownShape[] {
   const actors = {
     player: new NeonShapeActor({ shape: swarmShapes.player }),
-    enemy: new NeonShapeActor({ shape: swarmShapes.enemy }),
     gun: new NeonShapeActor({ shape: swarmShapes.gunPickup }),
     multiplier: new NeonShapeActor({ shape: swarmShapes.multiplier }),
   };
+  const enemyActors = new Map<string, NeonShapeActor>();
   const canvasBounds = gridCanvas.getBoundingClientRect();
   const panelBounds = gridPanel.getBoundingClientRect();
   const viewport = { width: gridCanvas.width, height: gridCanvas.height, playerY: gridCanvas.height };
@@ -429,23 +479,38 @@ function gridShapes(now: number): NeonTopDownShape[] {
     for (let side = 0 as 0 | 1; side < 2; side = (side + 1) as 0 | 1) {
       for (let column = 0; column < laneWidth; column++) {
         const value = cells[row][side][column];
-        if (value.id === "empty") continue;
+        if (value.id === "empty" || value.id === "__occupied") continue;
         const button = cellAt({ row, side, column });
         if (!button) continue;
         const bounds = button.getBoundingClientRect();
         if (bounds.bottom < panelBounds.top || bounds.top > panelBounds.bottom) continue;
-        const x = bounds.left - canvasBounds.left + bounds.width / 2;
+        const enemyDef = enemyDefinitionFromTrackId(value.id)?.definition;
+        const span = enemyDef?.columnSpan ?? 1;
+        const lastButton = span > 1 ? cellAt({ row, side, column: Math.min(laneWidth - 1, column + span - 1) }) : button;
+        const lastBounds = lastButton?.getBoundingClientRect() ?? bounds;
+        const spanWidth = lastBounds.right - bounds.left;
+        const x = (span > 1 ? bounds.left + bounds.width / 2 : bounds.left + spanWidth / 2) - canvasBounds.left;
         const y = bounds.top - canvasBounds.top + bounds.height / 2;
-        const size = Math.min(bounds.width, bounds.height) * .3;
+        const cellSize = Math.min(bounds.width, bounds.height) * .3;
+        const size = enemyDef ? bounds.height * .34 : cellSize;
         if (value.id === "player.start") {
           shapes.push(actorInTopDownScene(actors.player, x, y, size, {
             ...playerOrientation(defaultHelicopterCameraSettings, helicopterViewport, x, y, now, column),
             ...cellTuning,
           }));
-        } else if (value.id.startsWith("enemy.")) {
-          shapes.push(actorInTopDownScene(actors.enemy, x, y, size, {
+        } else if (enemyDef) {
+          let actor = enemyActors.get(value.id);
+          if (!actor) {
+            const shape = getNeonShape(enemyDef.shapeId);
+            if (!shape) continue;
+            actor = new NeonShapeActor({ shape, color: neonPalette[enemyDef.baseColor] });
+            enemyActors.set(value.id, actor);
+          }
+          actor.color = neonPalette[enemyDef.baseColor];
+          shapes.push(actorInTopDownScene(actor, x, y, size, {
             ...enemyOrientation(defaultHelicopterCameraSettings, helicopterViewport, x, y, now, row),
             ...cellTuning,
+            ...(span > 1 ? { width: Math.min(spanWidth * .58, size * span * 1.8), height: size } : {}),
           }));
         } else if (value.id.startsWith("pickup.weapon.gun.")) {
           const gunId = value.id.slice("pickup.weapon.gun.".length) as keyof typeof gunFamily.members;

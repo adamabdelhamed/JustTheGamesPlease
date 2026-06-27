@@ -6,6 +6,8 @@ export interface NeonTopDownShape extends Omit<NeonShapeInstance, "x" | "y" | "s
   x: number;
   y: number;
   size: number;
+  width?: number;
+  height?: number;
 }
 
 export interface NeonTopDownScene {
@@ -53,7 +55,8 @@ export class NeonTopDownSceneRenderer {
       ...shape,
       x: (shape.x / this.#width - .5) * aspect * 2.5,
       y: (.5 - shape.y / this.#height) * 2.5,
-      scale: shape.size / this.#height * 2.5,
+      scale: (shape.height ?? shape.size) / this.#height * 2.5,
+      scaleX: (shape.scaleX ?? 1) * ((shape.width ?? shape.size) / (shape.height ?? shape.size)),
     })), true, target);
     if (clouds.length) this.#clouds.render(clouds.map(cloud => this.#clouds.mapTopDownCloud(cloud, this.#width, this.#height)), timeSeconds, true);
   }

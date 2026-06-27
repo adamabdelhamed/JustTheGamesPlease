@@ -5,6 +5,7 @@ import {
   multiplierFamily,
   orbFamily
 } from "../../CombatDefinition";
+import { enemyTrackId } from "../../src/enemyCatalog";
 
 // DOM references
 const customRequirements = document.querySelector<HTMLTextAreaElement>("#custom-requirements")!;
@@ -50,8 +51,8 @@ function generateItemsDocumentation(): string {
   doc += "| :--- | :--- | :---: | :---: | :--- | :--- |\n";
   for (const [id, orb] of Object.entries(orbFamily.members)) {
     const symbol = id === "basicOrb" ? "E" : id.charAt(0).toUpperCase();
-    const power = id === "basicOrb" ? "Low (Standard)" : "Medium/High";
-    doc += `| \`enemy.${id === "basicOrb" ? "basic" : id}\` | ${orb.label} | \`${symbol}\` | ${orb.health} HP | Standard runner threat. | ${power} |\n`;
+    const power = orb.columnSpan > 1 ? `${orb.columnSpan}-column boss` : id === "basicOrb" ? "Low (Standard)" : "Medium";
+    doc += `| \`${enemyTrackId(id as keyof typeof orbFamily.members)}\` | ${orb.label} | \`${symbol}\` | ${orb.health} HP | ${orb.columnSpan} column${orb.columnSpan === 1 ? "" : "s"}, ${orb.speed} speed. | ${power} |\n`;
   }
   doc += "\n";
 

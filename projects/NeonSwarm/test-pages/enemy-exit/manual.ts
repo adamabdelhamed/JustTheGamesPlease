@@ -1,10 +1,11 @@
 import {
   createTestPage,
-  getNeonShape,
   NeonShapeActor,
   NeonTopDownSceneRenderer,
+  neonPalette,
   type NeonTopDownShape,
 } from "@just-the-games-please/neon-factory";
+import { orbFamily } from "../../CombatDefinition";
 import {
   createEnemyExitEffect,
   enemyExitCloud,
@@ -15,6 +16,7 @@ import {
   type EnemyVisualType,
 } from "../../src/enemyExitVisuals";
 import { actorInTopDownScene } from "../../src/shapeVisuals";
+import { createEnemyActor } from "../../src/enemyCatalog";
 
 const q = <T extends Element>(selector: string) => document.querySelector<T>(selector)!;
 const canvas = q<HTMLCanvasElement>("#stage");
@@ -24,9 +26,8 @@ const enemyType = q<HTMLSelectElement>("#enemy-type");
 const color = q<HTMLInputElement>("#color");
 const json = q<HTMLTextAreaElement>("#json");
 const readout = q<HTMLElement>("#readout");
-const shape = getNeonShape("hunter-eye");
-if (!shape) throw new Error("Enemy exit lab requires hunter-eye shape.");
-const actor = new NeonShapeActor({ shape });
+for (const [id, enemy] of Object.entries(orbFamily.members)) enemyType.add(new Option(enemy.label, id));
+let actor: NeonShapeActor = createEnemyActor("basicOrb");
 const effects: ActiveEnemyExitEffect[] = [];
 let last = performance.now();
 
@@ -38,7 +39,9 @@ const syncJson = () => {
 };
 const run = () => {
   effects.length = 0;
-  effects.push(createEnemyExitEffect({ enemyType: selectedType(), x: 450, y: 350, color: color.value }));
+  actor = createEnemyActor(selectedType());
+  actor.color = color.value || neonPalette[orbFamily.members[selectedType()].baseColor];
+  effects.push(createEnemyExitEffect({ enemyType: selectedType(), x: 450, y: 350, color: actor.color }));
   syncJson();
 };
 q<HTMLButtonElement>("#run").addEventListener("click", run);
@@ -56,9 +59,10 @@ try {
     last = now;
     updateEnemyExitEffects(effects, delta);
     if (!effects.length) run();
-    actor.color = color.value;
+    actor.update(delta);
+    actor.color = color.value || neonPalette[orbFamily.members[selectedType()].baseColor];
     const shapes: NeonTopDownShape[] = effects.length && effects[0].age < .09
-      ? [actorInTopDownScene(actor, 450, 350, 18, { color: color.value, opacity: 1 - effects[0].age / .09 })]
+      ? [actorInTopDownScene(actor, 450, 350, 18 * orbFamily.members[selectedType()].columnSpan, { color: actor.color, opacity: 1 - effects[0].age / .09 })]
       : [];
     renderer.render({ clouds: effects.map(enemyExitCloud), shapes }, now / 1000);
     frame = requestAnimationFrame(render);
@@ -66,7 +70,7 @@ try {
   frame = requestAnimationFrame(render);
   addEventListener("pagehide", () => { cancelAnimationFrame(frame); renderer.destroy(); }, { once: true });
   test.ready();
-  test.assert("Enemy exit profile is shared", enemyExitProfiles.basicOrb.dissipationAction === "sparkFade");
+  test.assert("Enemy exit profiles include new enemies", "glassShield" in enemyExitProfiles && "winger" in enemyExitProfiles && "tank" in enemyExitProfiles);
   test.assert("WebGPU enemy exit lab initialized", true);
 } catch (cause) {
   const message = cause instanceof Error ? cause.message : String(cause);

@@ -3,8 +3,9 @@ import {
   type NeonCloudBurstSettings,
   type NeonTopDownCloudBurst,
 } from "@just-the-games-please/neon-factory";
+import type { OrbId } from "../CombatDefinition";
 
-export type EnemyVisualType = "basicOrb";
+export type EnemyVisualType = OrbId;
 
 export interface EnemyExitEnvelope {
   entrySeconds: number;
@@ -18,6 +19,7 @@ export interface EnemyExitEnvelope {
 export interface EnemyExitCloudProfile extends Omit<NeonCloudBurstSettings, "age" | "color" | "coreColor" | "x" | "y" | "seed"> {
   size: number;
   envelope: EnemyExitEnvelope;
+  cloud: boolean;
 }
 
 export interface ActiveEnemyExitEffect {
@@ -30,6 +32,7 @@ export interface ActiveEnemyExitEffect {
 }
 
 const basicOrbExitProfile: EnemyExitCloudProfile = {
+  cloud: true,
   size: 11,
   detail: 6,
   turbulence: 2.72,
@@ -50,8 +53,23 @@ const basicOrbExitProfile: EnemyExitCloudProfile = {
   },
 };
 
+const noCloudExitProfile: EnemyExitCloudProfile = {
+  ...basicOrbExitProfile,
+  cloud: false,
+  size: 0,
+};
+
+const tankExitProfile: EnemyExitCloudProfile = {
+  ...basicOrbExitProfile,
+  size: 15,
+  glow: 13,
+};
+
 export const enemyExitProfiles: Record<EnemyVisualType, EnemyExitCloudProfile> = {
   basicOrb: basicOrbExitProfile,
+  glassShield: noCloudExitProfile,
+  winger: basicOrbExitProfile,
+  tank: tankExitProfile,
 };
 
 export function enemyExitDuration(enemyType: EnemyVisualType): number {
@@ -86,6 +104,25 @@ export function updateEnemyExitEffects(effects: ActiveEnemyExitEffect[], deltaSe
 
 export function enemyExitCloud(effect: ActiveEnemyExitEffect): NeonTopDownCloudBurst {
   const profile = enemyExitProfiles[effect.enemyType];
+  if (!profile.cloud) {
+    return {
+      color: effect.color,
+      coreColor: effect.color,
+      x: effect.x,
+      y: effect.y,
+      size: 0,
+      detail: 3,
+      turbulence: 0,
+      glow: 0,
+      coreIntensity: 0,
+      rimIntensity: 0,
+      opacity: 0,
+      dissipationTime: enemyExitDuration(effect.enemyType),
+      dissipationAction: "sparkFade",
+      seed: effect.seed,
+      age: effect.age,
+    };
+  }
   const envelope = profile.envelope;
   const duration = enemyExitDuration(effect.enemyType);
   const entryT = Math.min(1, effect.age / Math.max(.001, envelope.entrySeconds));

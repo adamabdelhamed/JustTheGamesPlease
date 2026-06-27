@@ -1,5 +1,5 @@
 import { createLaneRunnerScene, NeonShapeActor, NeonShapeDisposal, NeonTopDownSceneRenderer, neonPalette, type NeonPrimitive, type NeonTopDownShape } from "@just-the-games-please/neon-factory";
-import { gunFamily, multiplierFamily, orbFamily, type GunLevel, type GunMember } from "../../CombatDefinition";
+import { gunFamily, multiplierFamily, orbFamily, type GunLevel, type GunMember, type OrbId } from "../../CombatDefinition";
 import { bindSquadInput } from "../../src/input";
 import { SquadModel } from "../../src/squad";
 import { AutoAimControlState, selectAutoAimOffset } from "../../src/autoAim";
@@ -7,13 +7,17 @@ import { defaultHelicopterCameraSettings, applyPortraitStage, projectHelicopterS
 import { actorInTopDownScene, shapeLabel, swarmShapes } from "../../src/shapeVisuals";
 import { billboardOrientation, enemyOrientation, helicopterViewportFor, playerOrientation } from "../../src/renderOrientation";
 import { GunSimulation } from "../../src/combat/gunSimulation";
+import { createEnemyActor, projectedEnemyHealthBarPrimitives, resolveEnemyDamage } from "../../src/enemyCatalog";
+import { enemyExitCloud, updateEnemyExitEffects, type ActiveEnemyExitEffect } from "../../src/enemyExitVisuals";
 
 interface Enemy {
   id: number;
   lane: number;
+  enemyId: OrbId;
   x: number;
   y: number;
   health: number;
+  maxHealth: number;
   hitFlashUntil: number;
   rowId: number;
   actor: NeonShapeActor;
@@ -34,6 +38,7 @@ const canvas = document.querySelector<HTMLCanvasElement>("#game-canvas")!;
 const error = document.querySelector<HTMLElement>("#error")!;
 const gunSelect = document.querySelector<HTMLSelectElement>("#gun-select")!;
 const levelSelect = document.querySelector<HTMLSelectElement>("#level-select")!;
+const enemySelect = document.querySelector<HTMLSelectElement>("#enemy-select")!;
 const weaponReadout = document.querySelector<HTMLElement>("#weapon-readout")!;
 const scoreReadout = document.querySelector<HTMLElement>("#score-readout")!;
 const specReadout = document.querySelector<HTMLElement>("#spec-readout")!;
@@ -42,16 +47,19 @@ const formationRows = document.querySelector<HTMLSelectElement>("#formation-rows
 const shapeZoom = document.querySelector<HTMLInputElement>("#shape-zoom")!;
 const gameElement = document.querySelector<HTMLElement>("#game")!;
 applyPortraitStage(gameElement, { aspectWidth: 9, aspectHeight: 16 });
+const audioId = (id: string): string => `../../../../audio/${id}`;
+const playSfx = (id: string): void => window.gameAudio?.play(audioId(id));
+const playRotatedSfx = (id: string, alternatives: number): void => window.gameAudio?.playRotated(audioId(id), alternatives);
 
 try {
   const renderer = await NeonTopDownSceneRenderer.create(canvas, 450, 800);
   const guns: Record<string, GunMember> = gunFamily.members;
-  const orb = orbFamily.members.basicOrb;
   const enemies: Enemy[] = [];
   const gunSimulation = new GunSimulation();
   const projectiles = gunSimulation.projectiles;
   const pickups: Pickup[] = [];
   const effects = gunSimulation.effects;
+  const enemyExitEffects: ActiveEnemyExitEffect[] = [];
   const multipliers: MultiplierPickup[] = [];
   const squad = new SquadModel();
   let playerLane = 0;
@@ -72,11 +80,20 @@ try {
   const laneX = (lane: number) => canvas.width * (lane === 0 ? 0.32 : 0.68);
   const playerY = () => canvas.height * 0.82;
   const scale = () => 1;
+  const playEnemySpawnSound = (id: string | null): void => {
+    if (!id) return;
+    if (id === "Boss") playRotatedSfx("Boss", 1);
+    else playSfx(id);
+  };
 
   for (const [id, gun] of Object.entries(guns)) {
     gunSelect.add(new Option(gun.label, id));
   }
   gunSelect.value = equippedGunId;
+  for (const [id, enemy] of Object.entries(orbFamily.members)) {
+    enemySelect.add(new Option(enemy.label, id));
+  }
+  enemySelect.value = "basicOrb";
 
   const selectedLevel = (): GunLevel => {
     const levels = guns[equippedGunId].levels;
@@ -86,6 +103,7 @@ try {
   const updateReadout = (): void => {
     const gun = guns[equippedGunId];
     const level = selectedLevel();
+    const enemy = orbFamily.members[enemySelect.value as OrbId];
     weaponReadout.textContent = `${gun.label} · L${level.level}`;
     scoreReadout.textContent = `Kills ${kills}`;
     specReadout.innerHTML = [
@@ -96,8 +114,9 @@ try {
       ["Radius", String(level.projectileRadius)],
       ["Burst", String(level.burstCount)],
       ["Pierce", String(level.pierce)],
-      ["Enemy HP", String(orb.health)],
-      ["Enemy speed", String(orb.speed)],
+      ["Enemy", enemy.label],
+      ["Enemy HP", String(enemy.health)],
+      ["Enemy speed", String(enemy.speed)],
     ].map(([name, value]) => `<dt>${name}</dt><dd>${value}</dd>`).join("");
   };
 
@@ -107,7 +126,7 @@ try {
     cooldown = 0;
     gunSelect.value = gunId;
     levelSelect.value = String(level);
-    window.gameAudio?.play("Pickup");
+    playSfx("Pickup");
     updateReadout();
   };
 
@@ -115,7 +134,11 @@ try {
   squad.targetX = laneX(0);
 
   const spawnEnemy = (lane: number, x = laneX(lane), y = 105 * scale(), rowId = ++entitySequence): void => {
-    enemies.push({ id: ++entitySequence, lane, x, y, health: orb.health, hitFlashUntil: 0, rowId, actor: new NeonShapeActor({ shape: swarmShapes.enemy }), dying: false });
+    const enemyId = enemySelect.value as OrbId;
+    const definition = orbFamily.members[enemyId];
+    const maxHealth = definition.health;
+    enemies.push({ id: ++entitySequence, lane, enemyId, x, y, health: maxHealth, maxHealth, hitFlashUntil: 0, rowId, actor: createEnemyActor(enemyId), dying: false });
+    playEnemySpawnSound(definition.spawnSound);
   };
 
   const spawnPickup = (lane: number): void => {
@@ -155,7 +178,7 @@ try {
     setTimeout(() => spawnEnemy(1), 700);
   });
   document.querySelector<HTMLButtonElement>("#clear-stage")!.addEventListener("click", () => {
-    enemies.length = projectiles.length = pickups.length = effects.length = multipliers.length = 0;
+    enemies.length = projectiles.length = pickups.length = effects.length = multipliers.length = enemyExitEffects.length = 0;
   });
 
   bindSquadInput(document.querySelector<HTMLElement>("#game")!, "#joystick", {
@@ -184,32 +207,27 @@ try {
   };
 
   const hitEnemy = (projectile: typeof projectiles[number], enemy: Enemy, now: number): void => {
-    enemy.actor.impact({ direction: { x: 0, y: 1 }, magnitude: (projectile.damage + projectile.knockback * .06) / orb.impactResistance });
-    enemy.hitFlashUntil = now + orb.hitFlashDurationMs;
-    window.gameAudio?.play("Hit");
-    if (enemy.health <= 0) {
-      effects.push({
-        kind: "death",
-        style: "deathBloom",
-        x: enemy.x, y: enemy.y, color: neonPalette[orb.baseColor],
-        secondaryColor: neonPalette[orb.rimColor],
-        radius: orb.radius * orb.deathFlashScale * scale(),
-        expiresAt: now + orb.hitFlashDurationMs * 2,
-        duration: orb.hitFlashDurationMs * 2,
-        seed: enemy.id,
-      });
-      enemy.dying = true;
-      enemy.actor.explodeMagnitude = orb.explosionMagnitude;
-      enemy.actor.dispose(NeonShapeDisposal.Explode);
+    const definition = orbFamily.members[enemy.enemyId];
+    const result = resolveEnemyDamage({
+      enemy,
+      effects: enemyExitEffects,
+      impactMagnitude: projectile.damage + projectile.knockback * .06,
+      hitFlashUntil: now + definition.hitFlashDurationMs,
+      color: neonPalette[definition.baseColor],
+    });
+    if (result.killed) {
       kills += 1;
-      window.gameAudio?.play("EnemyDestroyed");
+      playSfx(result.definition.deathSound);
       updateReadout();
+    } else {
+      playSfx("Hit");
     }
   };
 
   const update = (now: number): void => {
     const delta = Math.min((now - lastFrame) / 1000, 0.05);
     lastFrame = now;
+    updateEnemyExitEffects(enemyExitEffects, delta);
     const gun = guns[equippedGunId];
     const level = selectedLevel();
     cooldown -= delta;
@@ -217,7 +235,7 @@ try {
       fire(gun, level);
       cooldown += 1 / level.fireRatePerSecond;
     }
-    if (gunSimulation.updateFiring(now) > 0) window.gameAudio?.playRotated("Primary", 3);
+    if (gunSimulation.updateFiring(now) > 0) playRotatedSfx("Primary", 3);
     recoil *= Math.pow(0.001, delta);
     if (!aimControl.manual) {
       const laneEnemies = enemies.filter(enemy => enemy.lane === squad.lane && !enemy.dying);
@@ -230,13 +248,13 @@ try {
     gameElement.dataset.squadAim = squad.aimOffset.toFixed(2);
 
     gunSimulation.updateProjectiles(delta, now, enemies.map(enemy => Object.assign(enemy, {
-      radius: orb.radius * scale(),
+      radius: orbFamily.members[enemy.enemyId].radius * scale(),
     })), { top: -40 * scale(), left: -40, right: canvas.width + 40 },
     (projectile, target) => hitEnemy(projectile, target as unknown as Enemy, now));
 
     for (const enemy of [...enemies]) {
       enemy.actor.update(delta);
-      enemy.y += orb.speed * scale() * delta - enemy.actor.y * canvas.height / 2.5;
+      enemy.y += orbFamily.members[enemy.enemyId].speed * scale() * delta - enemy.actor.y * canvas.height / 2.5;
       enemy.actor.moveTo(0, 0);
       if (enemy.dying && enemy.actor.disposed) { enemies.splice(enemies.indexOf(enemy), 1); continue; }
       if (!enemy.dying && enemy.y >= playerY()) enemies.splice(enemies.indexOf(enemy), 1);
@@ -267,24 +285,25 @@ try {
     for (const point of squad.points(playerY() + recoil, s)) void point;
     primitives.push(...gunSimulation.projectilePrimitives());
     if (false) for (const enemy of enemies) {
+      const definition = orbFamily.members[enemy.enemyId];
       primitives.push({
-        x: enemy.x + orb.radius * .35 * s,
-        y: enemy.y + orb.radius * 1.12 * s,
-        width: orb.radius * .9 * s,
-        height: orb.radius * .28 * s,
-        color: neonPalette[orb.shadowColor],
+        x: enemy.x + definition.radius * .35 * s,
+        y: enemy.y + definition.radius * 1.12 * s,
+        width: definition.radius * .9 * s,
+        height: definition.radius * .28 * s,
+        color: neonPalette[definition.shadowColor],
         glow: .18,
         intensity: .3,
         shape: "circle",
       });
       primitives.push({
-        x: enemy.x, y: enemy.y, width: orb.radius * s,
-        color: enemy.hitFlashUntil > now ? neonPalette.whiteHot : neonPalette[orb.rimColor],
-        secondaryColor: neonPalette[orb.baseColor],
-        glow: orb.glow,
-        texture: orb.surfaceTexture,
-        rimIntensity: orb.rimIntensity,
-        shadowStrength: orb.shadowStrength,
+        x: enemy.x, y: enemy.y, width: definition.radius * s,
+        color: enemy.hitFlashUntil > now ? neonPalette.whiteHot : neonPalette[definition.rimColor],
+        secondaryColor: neonPalette[definition.baseColor],
+        glow: definition.glow,
+        texture: definition.surfaceTexture,
+        rimIntensity: definition.rimIntensity,
+        shadowStrength: definition.shadowStrength,
         intensity: enemy.hitFlashUntil > now ? 1.55 : 1,
         shape: "orb",
       });
@@ -394,7 +413,13 @@ try {
     for (const [index, point] of squad.points(playerY() + recoil, s).entries()) {
       shapes.push(actorInTopDownScene(new NeonShapeActor({ shape: swarmShapes.player }), point.x, point.y, 14 * zoom, playerOrientation(defaultHelicopterCameraSettings, helicopterViewport, point.x, point.y, now, index)));
     }
-    for (const enemy of enemies) shapes.push(actorInTopDownScene(enemy.actor, enemy.x, enemy.y, 18 * zoom, enemyOrientation(defaultHelicopterCameraSettings, helicopterViewport, enemy.x, enemy.y, now, enemy.rowId)));
+    const enemyHealthBars: Parameters<typeof projectedEnemyHealthBarPrimitives>[0][number][] = [];
+    for (const enemy of enemies) {
+      const definition = orbFamily.members[enemy.enemyId];
+      const size = 18 * definition.columnSpan * zoom;
+      enemyHealthBars.push({ enemyId: enemy.enemyId, x: enemy.x, y: enemy.y, health: enemy.health, maxHealth: enemy.maxHealth, size, scale: s });
+      shapes.push(actorInTopDownScene(enemy.actor, enemy.x, enemy.y, size, enemyOrientation(defaultHelicopterCameraSettings, helicopterViewport, enemy.x, enemy.y, now, enemy.rowId)));
+    }
     for (const pickup of pickups) {
       const gun = guns[pickup.gunId];
       pickup.actor.label = shapeLabel(gun.label, "above", 10, 7);
@@ -406,7 +431,9 @@ try {
       pickup.actor.color = neonPalette[multiplierFamily.members.squadPlusOne.pickupColor];
       shapes.push(actorInTopDownScene(pickup.actor, laneX(pickup.lane), pickup.y, 16 * zoom, billboardOrientation(defaultHelicopterCameraSettings, helicopterViewport, laneX(pickup.lane), pickup.y, now)));
     }
-  renderer.render(projectHelicopterScene(primitives, shapes, [], defaultHelicopterCameraSettings, helicopterViewport), now / 1000);
+  const projected = projectHelicopterScene(primitives, shapes, enemyExitEffects.map(enemyExitCloud), defaultHelicopterCameraSettings, helicopterViewport);
+  projected.primitives.push(...projectedEnemyHealthBarPrimitives(enemyHealthBars, defaultHelicopterCameraSettings, helicopterViewport));
+  renderer.render(projected, now / 1000);
   };
 
   const frame = (now: number): void => {
@@ -416,6 +443,7 @@ try {
   };
 
   equip(equippedGunId, equippedLevel);
+  enemySelect.addEventListener("change", updateReadout);
   spawnEnemy(0);
   spawnEnemy(1);
   requestAnimationFrame(frame);

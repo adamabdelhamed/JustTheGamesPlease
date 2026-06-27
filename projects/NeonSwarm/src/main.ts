@@ -1,5 +1,5 @@
 import { NeonShapeActor, NeonShapeDisposal, NeonTopDownSceneRenderer, NeonVictoryExperience, createLaneRunnerScene, getLaneRunnerSceneName, isLaneRunnerSceneId, laneRunnerSceneIds, neonPalette, type LaneRunnerSceneId, type NeonPrimitive, type NeonTopDownShape } from "@just-the-games-please/neon-factory";
-import { combatTuning, gunFamily, multiplierFamily, orbFamily, parseTrackDefinition, shieldFamily, swordFamily, trackFamily, type GunId, type MultiplierId, type ParsedTrackEntity, type ShieldId, type SwordId, type TrackMember, type SwordTargetingMode } from "../CombatDefinition";
+import { combatTuning, gunFamily, multiplierFamily, orbFamily, parseTrackDefinition, shieldFamily, swordFamily, trackFamily, type GunId, type MultiplierId, type OrbId, type ParsedTrackEntity, type ShieldId, type SwordId, type TrackMember, type SwordTargetingMode } from "../CombatDefinition";
 import { bindSquadInput } from "./input";
 import { SquadModel } from "./squad";
 import { AutoAimControlState, selectAutoAimOffset } from "./autoAim";
@@ -11,14 +11,14 @@ import { SwordState, tickSword } from "./combat/swordEvaluator";
 import { queryNearbyThreats } from "./combat/nearbyThreatQuery";
 import { shieldPickupVisual, shieldVisuals, swordPickupVisual, swordVisuals } from "./familyVisuals";
 import { GunSimulation } from "./combat/gunSimulation";
-import { createEnemyExitEffect, enemyExitCloud, updateEnemyExitEffects, type ActiveEnemyExitEffect, type EnemyVisualType } from "./enemyExitVisuals";
-import { enemyEntranceProfiles } from "./enemyEntranceVisuals";
+import { enemyExitCloud, updateEnemyExitEffects, type ActiveEnemyExitEffect, type EnemyVisualType } from "./enemyExitVisuals";
+import { createEnemyActor, defeatEnemy, enemyDefinitionFromTrackId, projectedEnemyHealthBarPrimitives, resolveEnemyDamage } from "./enemyCatalog";
 
 // ---------------------------------------------------------------------------
 // Interfaces
 // ---------------------------------------------------------------------------
 
-interface Enemy { id: number; enemyType: EnemyVisualType; lane: 0 | 1; x: number; y: number; health: number; speedMultiplier: number; rowId: number; actor: NeonShapeActor; dying: boolean; exitEffectSpawned?: boolean }
+interface Enemy { id: number; enemyType: EnemyVisualType; enemyId: OrbId; lane: 0 | 1; x: number; y: number; health: number; maxHealth: number; speedMultiplier: number; rowId: number; actor: NeonShapeActor; dying: boolean; exitEffectSpawned?: boolean }
 interface GunPickup { lane: 0 | 1; x: number; y: number; gunId: GunId; level: number; speedMultiplier: number; actor: NeonShapeActor }
 interface ShieldPickup { lane: 0 | 1; x: number; y: number; shieldId: ShieldId; speedMultiplier: number }
 interface SwordPickup { lane: 0 | 1; x: number; y: number; swordId: SwordId; speedMultiplier: number }
@@ -103,6 +103,7 @@ const soundAlternativeCounts: Partial<Record<string, number>> = {
   EnemyDestroyed: 2,
   EnemyHit: 2,
   EnemySpawn: 2,
+  Boss: 1,
   ProjectileHit: 2,
 };
 
@@ -179,23 +180,18 @@ try {
 
   const scale = () => 1;
   const enemyExitColor = (enemy: Enemy): string => enemy.actor.color ?? enemy.actor.shape.color;
-  const spawnEnemyExitEffect = (enemy: Enemy): void => {
-    if (enemy.exitEffectSpawned) return;
-    enemy.exitEffectSpawned = true;
-    enemyExitEffects.push(createEnemyExitEffect({
-      enemyType: enemy.enemyType,
-      x: enemy.x,
-      y: enemy.y,
-      color: enemyExitColor(enemy),
-    }));
+  const enemyDefinition = (enemy: Enemy) => orbFamily.members[enemy.enemyId];
+  const destroyEnemy = (enemy: Enemy): void => {
+    const definition = defeatEnemy(enemy, enemyExitEffects, enemyExitColor(enemy));
+    playLibrarySfx(definition.deathSound);
   };
   const laneX = (lane: number) => canvas.width * (lane === 0 ? .32 : .68);
-  const entityX = (entity: ParsedTrackEntity) => laneX(entity.side === "left" ? 0 : 1) + (entity.laneIndex - 2) * 15 * scale();
+  const entityX = (entity: ParsedTrackEntity) => laneX(entity.side === "left" ? 0 : 1) + (entity.laneIndex - 2 + (entity.columnSpan - 1) / 2) * 15 * scale();
   const playerY = () => canvas.height * .82;
   const activeSceneId = (): LaneRunnerSceneId => sceneOverride ?? activeTrack?.environment.sceneId ?? defaultTrack.environment.sceneId;
   const entityBaseY = (entity: ParsedTrackEntity): number => entity.id === "pickup.unitMultiplier.2x" ? 125 : entity.id.startsWith("pickup.") ? 120 : 110;
   const entitySpeed = (entity: ParsedTrackEntity): number =>
-    (entity.id === "enemy.basic" ? orbFamily.members.basicOrb.speed : 72) * entity.speedMultiplier * scale();
+    (enemyDefinitionFromTrackId(entity.id)?.definition.speed ?? 72) * entity.speedMultiplier * scale();
   const visualSpawnY = (): number =>
     worldYForProjectedY(canvas.height * .14, cameraSettings, { height: canvas.height, playerY: playerY() });
   const enemySpawnY = (entity: ParsedTrackEntity): number =>
@@ -369,23 +365,27 @@ try {
     ) {
       const entity = trackEntities[nextTrackEntity++];
       const lane = entity.side === "left" ? 0 : 1;
-      if (entity.id === "enemy.basic") {
-        const enemyType: EnemyVisualType = "basicOrb";
-        const entrance = enemyEntranceProfiles[enemyType];
-        const actor = new NeonShapeActor({ shape: swarmShapes.enemy, entranceDuration: entrance.durationSeconds, entranceMagnitude: entrance.scatterMagnitude }).enter(entrance.durationSeconds, entrance.scatterMagnitude);
+      const enemyDefinitionEntry = enemyDefinitionFromTrackId(entity.id);
+      if (enemyDefinitionEntry) {
+        const { enemyId, definition } = enemyDefinitionEntry;
+        const enemyType: EnemyVisualType = enemyId;
+        const actor = createEnemyActor(enemyId);
+        const maxHealth = definition.health * activeTrack.definition.balance.enemyHp;
         enemies.push({
           id: ++entityIdCounter,
           enemyType,
+          enemyId,
           lane,
           x: entityX(entity),
           y: enemySpawnY(entity),
-          health: orbFamily.members.basicOrb.health * activeTrack.definition.balance.enemyHp,
+          health: maxHealth,
+          maxHealth,
           speedMultiplier: entity.speedMultiplier,
           rowId: entity.rowIndex,
           actor,
           dying: false,
         });
-        playLibrarySfx("EnemySpawn");
+        if (definition.spawnSound) playLibrarySfx(definition.spawnSound);
       } else if (entity.id.startsWith("pickup.weapon.gun.")) {
         const candidate = entity.id.slice("pickup.weapon.gun.".length);
         if (!(candidate in gunFamily.members)) throw new Error(`Track uses unknown gun id "${entity.id}".`);
@@ -425,16 +425,17 @@ try {
 
     // --- Projectile movement + hit detection ---
     gunSimulation.updateProjectiles(delta, combatNow, enemies.map(enemy => Object.assign(enemy, {
-      radius: orbFamily.members.basicOrb.radius * scale(),
+      radius: enemyDefinition(enemy).radius * scale(),
     })), { top: -40 * scale(), left: -40, right: canvas.width + 40 }, (shot, enemy) => {
       const gameEnemy = enemy as Enemy & { radius: number };
-      gameEnemy.actor.impact({ direction: { x: 0, y: 1 }, magnitude: (shot.damage + shot.knockback * .06) / orbFamily.members.basicOrb.impactResistance });
-      if (gameEnemy.health <= 0) {
-        gameEnemy.dying = true;
-        spawnEnemyExitEffect(gameEnemy);
-        gameEnemy.actor.explodeMagnitude = orbFamily.members.basicOrb.explosionMagnitude;
-        gameEnemy.actor.dispose(NeonShapeDisposal.Explode);
-        playLibrarySfx("EnemyDestroyed");
+      const result = resolveEnemyDamage({
+        enemy: gameEnemy,
+        effects: enemyExitEffects,
+        impactMagnitude: shot.damage + shot.knockback * .06,
+        color: enemyExitColor(gameEnemy),
+      });
+      if (result.killed) {
+        playLibrarySfx(result.definition.deathSound);
       } else {
         playLibrarySfx("ProjectileHit");
         playLibrarySfx("EnemyHit");
@@ -492,11 +493,7 @@ try {
           if (!isContact) continue;
           enemy.health -= shieldResult.contactDamageAmount * delta;
           if (enemy.health <= 0) {
-            enemy.dying = true;
-            spawnEnemyExitEffect(enemy);
-            enemy.actor.explodeMagnitude = orbFamily.members.basicOrb.explosionMagnitude;
-            enemy.actor.dispose(NeonShapeDisposal.Explode);
-            playLibrarySfx("EnemyDestroyed");
+            destroyEnemy(enemy);
           }
         }
       }
@@ -526,15 +523,17 @@ try {
         for (const enemy of [...enemies]) {
           if (enemy.dying) continue;
           if (!swordResult.hitEnemyIds.includes(enemy.id ?? 0)) continue;
-          enemy.health -= swordResult.damage;
-          enemy.actor.impact({ direction: { x: 0, y: 1 }, magnitude: swordResult.damage / orbFamily.members.basicOrb.impactResistance });
-          playLibrarySfx("SwordHit");
-          if (enemy.health <= 0) {
-            enemy.dying = true;
-            spawnEnemyExitEffect(enemy);
-            enemy.actor.explodeMagnitude = orbFamily.members.basicOrb.explosionMagnitude;
-            enemy.actor.dispose(NeonShapeDisposal.Explode);
-            playLibrarySfx("EnemyDestroyed");
+          const result = resolveEnemyDamage({
+            enemy,
+            effects: enemyExitEffects,
+            damage: swordResult.damage,
+            impactMagnitude: swordResult.damage,
+            color: enemyExitColor(enemy),
+          });
+          if (result.killed) {
+            playLibrarySfx(result.definition.deathSound);
+          } else {
+            playLibrarySfx("SwordHit");
           }
         }
       }
@@ -548,7 +547,7 @@ try {
       const effective = slowEnemyIds.has(enemy.id ?? 0)
         ? enemy.speedMultiplier * (shieldDef?.slowMultiplier ?? 1)
         : enemy.speedMultiplier;
-      enemy.y += orbFamily.members.basicOrb.speed * effective * scale() * delta - enemy.actor.y * canvas.height / 2.5;
+      enemy.y += enemyDefinition(enemy).speed * effective * scale() * delta - enemy.actor.y * canvas.height / 2.5;
       enemy.actor.moveTo(0, 0);
       if (enemy.dying && enemy.actor.disposed) { enemies.splice(enemies.indexOf(enemy), 1); continue; }
       if (enemy.dying) continue;
@@ -557,17 +556,13 @@ try {
       // vertical approaches and horizontal collisions while the squad changes lanes.
       if (activeByFamily.shield && shieldDef) {
         const shieldContact = resolveShieldContact(activeByFamily.shield, shieldDef, Object.assign(enemy, {
-          radius: orbFamily.members.basicOrb.radius * scale(),
+          radius: enemyDefinition(enemy).radius * scale(),
         }), px, py, combatNow, scale());
         if (shieldContact.absorbed) {
           if (shieldContact.enemyDestroyed) {
-            enemy.dying = true;
-            spawnEnemyExitEffect(enemy);
-            enemy.actor.explodeMagnitude = orbFamily.members.basicOrb.explosionMagnitude;
-            enemy.actor.dispose(NeonShapeDisposal.Explode);
-            playLibrarySfx("EnemyDestroyed");
+            destroyEnemy(enemy);
           } else {
-            enemy.actor.impact({ direction: { x: 0, y: 1 }, magnitude: shieldContact.damageAbsorbed / orbFamily.members.basicOrb.impactResistance });
+            enemy.actor.impact({ direction: { x: 0, y: 1 }, magnitude: shieldContact.damageAbsorbed / enemyDefinition(enemy).impactResistance });
             playLibrarySfx("ShieldImpact");
           }
           continue;
@@ -576,7 +571,7 @@ try {
 
       // Player body contact
       const points = squad.points(playerY(), scale());
-      const hitIndex = points.findIndex(point => Math.hypot(point.x - enemy.x, point.y - enemy.y) <= orbFamily.members.basicOrb.radius * 3.2);
+      const hitIndex = points.findIndex(point => Math.hypot(point.x - enemy.x, point.y - enemy.y) <= enemyDefinition(enemy).radius * 3.2);
       if (hitIndex >= 0) {
         const point = points[hitIndex];
         const actor = playerActors[hitIndex] ?? new NeonShapeActor({ shape: swarmShapes.player });
@@ -737,7 +732,13 @@ try {
       shapeInstances.push(actorInTopDownScene(actor, point.x, point.y, playerSize, playerOrientation(cameraSettings, helicopterViewport, point.x, point.y, now, index)));
     }
     for (const item of explodingPlayers) shapeInstances.push(actorInTopDownScene(item.actor, item.x, item.y, playerSize));
-    for (const enemy of enemies) shapeInstances.push(actorInTopDownScene(enemy.actor, enemy.x, enemy.y, 18, enemyOrientation(cameraSettings, helicopterViewport, enemy.x, enemy.y, now, enemy.rowId)));
+    const enemyHealthBars: Parameters<typeof projectedEnemyHealthBarPrimitives>[0][number][] = [];
+    for (const enemy of enemies) {
+      const definition = enemyDefinition(enemy);
+      const size = 18 * definition.columnSpan;
+      enemyHealthBars.push({ enemyId: enemy.enemyId, x: enemy.x, y: enemy.y, health: enemy.health, maxHealth: enemy.maxHealth, size, scale: s });
+      shapeInstances.push(actorInTopDownScene(enemy.actor, enemy.x, enemy.y, size, enemyOrientation(cameraSettings, helicopterViewport, enemy.x, enemy.y, now, enemy.rowId)));
+    }
     for (const pickup of gunPickups) {
       const gun = gunFamily.members[pickup.gunId];
       pickup.actor.label = shapeLabel(gun.label, "above", 10, 7);
@@ -753,6 +754,7 @@ try {
     const projected = projectHelicopterScene(primitives, shapeInstances, cloudInstances, cameraSettings, {
       ...helicopterViewport,
     });
+    projected.primitives.push(...projectedEnemyHealthBarPrimitives(enemyHealthBars, cameraSettings, helicopterViewport));
     renderer.render(projected, now / 1000);
   };
 

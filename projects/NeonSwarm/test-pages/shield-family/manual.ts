@@ -5,6 +5,7 @@ import {
 } from "@just-the-games-please/neon-factory";
 import {
   shieldFamily, orbFamily,
+  type OrbId,
   type ShieldId,
 } from "../../CombatDefinition";
 import { bindSquadInput } from "../../src/input";
@@ -16,13 +17,17 @@ import { enemyOrientation, helicopterViewportFor, playerOrientation } from "../.
 import { resolveShieldContact, ShieldState, tickShield } from "../../src/combat/shieldEvaluator";
 import { queryNearbyThreats } from "../../src/combat/nearbyThreatQuery";
 import { shieldPickupVisual, shieldVisuals } from "../../src/familyVisuals";
+import { createEnemyActor, projectedEnemyHealthBarPrimitives, resolveEnemyDamage } from "../../src/enemyCatalog";
+import { enemyExitCloud, updateEnemyExitEffects, type ActiveEnemyExitEffect } from "../../src/enemyExitVisuals";
 
 interface Enemy {
   id: number;
   lane: 0 | 1;
+  enemyId: OrbId;
   x: number;
   y: number;
   health: number;
+  maxHealth: number;
   rowId: number;
   actor: NeonShapeActor;
   dying: boolean;
@@ -37,6 +42,7 @@ interface ShieldPickup {
 const canvas = document.querySelector<HTMLCanvasElement>("#game-canvas")!;
 const error = document.querySelector<HTMLElement>("#error")!;
 const shieldSelect = document.querySelector<HTMLSelectElement>("#shield-select")!;
+const enemySelect = document.querySelector<HTMLSelectElement>("#enemy-select")!;
 const weaponReadout = document.querySelector<HTMLElement>("#weapon-readout")!;
 const scoreReadout = document.querySelector<HTMLElement>("#score-readout")!;
 const specReadout = document.querySelector<HTMLElement>("#spec-readout")!;
@@ -46,12 +52,18 @@ const gameElement = document.querySelector<HTMLElement>("#game")!;
 applyPortraitStage(gameElement, { aspectWidth: 9, aspectHeight: 16 });
 const audioId = (id: string): string => `../../../../audio/${id}`;
 const playSfx = (id: string): void => window.gameAudio?.play(audioId(id));
+const playRotatedSfx = (id: string, alternatives: number): void => window.gameAudio?.playRotated(audioId(id), alternatives);
 const playEnemyDestroyed = (): void => window.gameAudio?.playRotated(audioId("EnemyDestroyed"), 2);
+const playEnemySpawnSound = (id: string | null): void => {
+  if (!id) return;
+  if (id === "Boss") playRotatedSfx("Boss", 1);
+  else playSfx(id);
+};
 
 try {
   const renderer = await NeonTopDownSceneRenderer.create(canvas, 450, 800);
-  const orb = orbFamily.members.basicOrb;
   const enemies: Enemy[] = [];
+  const enemyExitEffects: ActiveEnemyExitEffect[] = [];
   const pickups: ShieldPickup[] = [];
   const squad = new SquadModel();
   const aimControl = new AutoAimControlState();
@@ -75,6 +87,10 @@ try {
     shieldSelect.add(new Option(shield.label, id));
   }
   shieldSelect.value = activeShieldId;
+  for (const [id, enemy] of Object.entries(orbFamily.members)) {
+    enemySelect.add(new Option(enemy.label, id));
+  }
+  enemySelect.value = "basicOrb";
 
   const equip = (id: ShieldId) => {
     activeShieldId = id;
@@ -90,6 +106,7 @@ try {
 
   const updateReadout = () => {
     const def = shieldFamily.members[activeShieldId];
+    const enemy = orbFamily.members[enemySelect.value as OrbId];
     weaponReadout.textContent = `${def.label}`;
     scoreReadout.textContent = `Kills ${kills}`;
     const chargesText = def.maxCharges > 0 ? `${Math.ceil(shieldStrength)}/${def.maxCharges}` : "—";
@@ -100,15 +117,22 @@ try {
       ["Cooldown", `${def.cooldownSeconds}s`],
       ["Orbiters", `${def.orbiterCount} × ${def.orbiterShape}`],
     ].map(([name, value]) => `<dt>${name}</dt><dd>${value}</dd>`).join("");
+    specReadout.innerHTML += [
+      ["Enemy", enemy.label],
+      ["Enemy speed", String(enemy.speed)],
+    ].map(([name, value]) => `<dt>${name}</dt><dd>${value}</dd>`).join("");
   };
 
   squad.x = laneX(0);
   squad.targetX = laneX(0);
 
   const spawnEnemy = (lane: 0 | 1): void => {
+    const enemyId = enemySelect.value as OrbId;
+    const definition = orbFamily.members[enemyId];
     const requestedHp = Number.parseFloat(enemyHpInput.value);
-    const health = Number.isFinite(requestedHp) && requestedHp > 0 ? requestedHp : orb.health;
-    enemies.push({ id: ++entitySequence, lane, x: laneX(lane), y: 105, health, rowId: ++entitySequence, actor: new NeonShapeActor({ shape: swarmShapes.enemy }), dying: false });
+    const health = Number.isFinite(requestedHp) && requestedHp > 0 ? requestedHp : definition.health;
+    enemies.push({ id: ++entitySequence, lane, enemyId, x: laneX(lane), y: 105, health, maxHealth: health, rowId: ++entitySequence, actor: createEnemyActor(enemyId), dying: false });
+    playEnemySpawnSound(definition.spawnSound);
   };
 
   const spawnPickup = (lane: 0 | 1): void => {
@@ -117,6 +141,7 @@ try {
 
   const restartSimulation = (): void => {
     enemies.length = 0;
+    enemyExitEffects.length = 0;
     pickups.length = 0;
     playerAlive = true;
     restartAt = 0;
@@ -145,8 +170,10 @@ try {
   });
   document.querySelector<HTMLButtonElement>("#clear-stage")!.addEventListener("click", () => {
     enemies.length = pickups.length = 0;
+    enemyExitEffects.length = 0;
   });
   shieldSelect.addEventListener("change", () => equip(shieldSelect.value as ShieldId));
+  enemySelect.addEventListener("change", updateReadout);
 
   bindSquadInput(gameElement, "#joystick", {
     lane: () => squad.lane,
@@ -158,6 +185,7 @@ try {
   const update = (now: number): void => {
     const delta = Math.min((now - lastFrame) / 1000, 0.05);
     lastFrame = now;
+    updateEnemyExitEffects(enemyExitEffects, delta);
     playerActor.update(delta);
     if (!playerAlive) {
       if (shieldState.hitFlashUntil > 0) {
@@ -181,33 +209,38 @@ try {
     const px = squad.x;
     const py = playerY();
     const def = shieldFamily.members[activeShieldId];
-    const threats = queryNearbyThreats(enemies, { origin: { x: px, y: py }, lane: playerLane as 0 | 1, range: def.radius + orb.radius, purpose: "shield" });
+    const maxEnemyRadius = Math.max(...enemies.map(e => orbFamily.members[e.enemyId].radius), orbFamily.members.basicOrb.radius);
+    const threats = queryNearbyThreats(enemies, { origin: { x: px, y: py }, lane: playerLane as 0 | 1, range: def.radius + maxEnemyRadius, purpose: "shield" });
     tickShield(shieldState, def, [], px, py, now, delta);
 
     // Enemy movement + player contact
     for (const e of [...enemies]) {
+      const enemyDef = orbFamily.members[e.enemyId];
       e.actor.update(delta);
-      e.y += orb.speed * delta - e.actor.y * canvas.height / 2.5;
+      e.y += enemyDef.speed * delta - e.actor.y * canvas.height / 2.5;
       e.actor.moveTo(0, 0);
       if (e.dying && e.actor.disposed) { enemies.splice(enemies.indexOf(e), 1); continue; }
       if (e.dying) continue;
-      const contact = resolveShieldContact(shieldState, def, Object.assign(e, { radius: orb.radius }), px, py, now);
+      const contact = resolveShieldContact(shieldState, def, Object.assign(e, { radius: enemyDef.radius }), px, py, now);
       if (contact.absorbed) {
         shieldStrength = shieldState.charges;
         updateReadout();
         if (contact.enemyDestroyed) {
-          e.dying = true;
-          e.actor.explodeMagnitude = orb.explosionMagnitude;
-          e.actor.dispose(NeonShapeDisposal.Explode);
+          const result = resolveEnemyDamage({
+            enemy: e,
+            effects: enemyExitEffects,
+            color: neonPalette[enemyDef.baseColor],
+          });
           kills++;
           updateReadout();
-          playEnemyDestroyed();
+          if (result.definition.deathSound === "EnemyDestroyed") playEnemyDestroyed();
+          else playSfx(result.definition.deathSound);
           continue;
         }
         playSfx("ShieldImpact");
       }
       const pts = squad.points(playerY(), scale());
-      const hit = pts.findIndex(pt => Math.hypot(pt.x - e.x, pt.y - e.y) <= orb.radius * 3.2);
+      const hit = pts.findIndex(pt => Math.hypot(pt.x - e.x, pt.y - e.y) <= enemyDef.radius * 3.2);
       if (hit >= 0) {
         if (!e.dying) {
           shieldStrength = 0;
@@ -218,7 +251,7 @@ try {
         }
         continue;
       }
-      if (e.y > canvas.height + orb.radius * 2) enemies.splice(enemies.indexOf(e), 1);
+      if (e.y > canvas.height + enemyDef.radius * 2) enemies.splice(enemies.indexOf(e), 1);
     }
 
     // Pickups
@@ -262,8 +295,16 @@ try {
     }
     const helicopterViewport = helicopterViewportFor(canvas.width, canvas.height, playerY());
     shapes.push(actorInTopDownScene(playerActor, squad.x, playerY(), 14, playerOrientation(defaultHelicopterCameraSettings, helicopterViewport, squad.x, playerY(), now)));
-    for (const e of enemies) shapes.push(actorInTopDownScene(e.actor, e.x, e.y, 18, enemyOrientation(defaultHelicopterCameraSettings, helicopterViewport, e.x, e.y, now, e.rowId)));
-  renderer.render(projectHelicopterScene(primitives, shapes, [], defaultHelicopterCameraSettings, helicopterViewport), now / 1000);
+    const enemyHealthBars: Parameters<typeof projectedEnemyHealthBarPrimitives>[0][number][] = [];
+    for (const e of enemies) {
+      const enemyDef = orbFamily.members[e.enemyId];
+      const size = 18 * enemyDef.columnSpan;
+      enemyHealthBars.push({ enemyId: e.enemyId, x: e.x, y: e.y, health: e.health, maxHealth: e.maxHealth, size, scale: s });
+      shapes.push(actorInTopDownScene(e.actor, e.x, e.y, size, enemyOrientation(defaultHelicopterCameraSettings, helicopterViewport, e.x, e.y, now, e.rowId)));
+    }
+  const projected = projectHelicopterScene(primitives, shapes, enemyExitEffects.map(enemyExitCloud), defaultHelicopterCameraSettings, helicopterViewport);
+  projected.primitives.push(...projectedEnemyHealthBarPrimitives(enemyHealthBars, defaultHelicopterCameraSettings, helicopterViewport));
+  renderer.render(projected, now / 1000);
   };
 
   const frame = (now: number): void => { update(now); draw(now); requestAnimationFrame(frame); };

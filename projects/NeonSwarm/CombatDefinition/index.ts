@@ -15,6 +15,8 @@ export {
 export {
   orbFamily,
   OrbFamilyDefinition,
+  type EnemyDeathVisual,
+  type EnemySpawnEntrance,
   type OrbId,
   type OrbMember,
 } from "./OrbFamily";
