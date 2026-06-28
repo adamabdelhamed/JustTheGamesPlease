@@ -414,8 +414,6 @@ function exportSource(): { fileName: string; source: string } {
 export const ${exportName}: TrackMember = {
   label: ${quoted(input<HTMLInputElement>("#display-name").value)},
   description: ${quoted(input<HTMLTextAreaElement>("#description").value)},
-  startingGun: "pulsePistol",
-  startingGunLevel: 1,
   environment: {
     sceneId: ${quoted(sceneId())},
   },

@@ -3,8 +3,6 @@ import type { TrackMember } from "../TrackDefinition";
 export const generatedTrack: TrackMember = {
   label: "Skybreak",
   description: "The Aurora opener is busier than the tutorial arc, but gives a nearby shield and burst weapon before the first squeeze.",
-  startingGun: "pulsePistol",
-  startingGunLevel: 2,
   environment: {
     sceneId: "aurora",
   },

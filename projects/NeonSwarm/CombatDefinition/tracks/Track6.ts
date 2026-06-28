@@ -3,8 +3,6 @@ import type { TrackMember } from "../TrackDefinition";
 export const generatedTrack: TrackMember = {
   label: "Magnetic Dawn",
   description: "A dense Aurora finale with hard surges, deliberate safe shelves, and top-tier tools before the biggest waves.",
-  startingGun: "burstCarbine",
-  startingGunLevel: 2,
   environment: {
     sceneId: "aurora",
   },

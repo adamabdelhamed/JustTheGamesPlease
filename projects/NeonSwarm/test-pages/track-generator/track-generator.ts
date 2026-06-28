@@ -9,37 +9,11 @@ import { enemyTrackId } from "../../src/enemyCatalog";
 
 // DOM references
 const customRequirements = document.querySelector<HTMLTextAreaElement>("#custom-requirements")!;
-const startGunSelect = document.querySelector<HTMLSelectElement>("#start-gun")!;
-const startGunLevelSelect = document.querySelector<HTMLSelectElement>("#start-gun-level")!;
-const startShieldSelect = document.querySelector<HTMLSelectElement>("#start-shield")!;
-const startSwordSelect = document.querySelector<HTMLSelectElement>("#start-sword")!;
 const trackLabelInput = document.querySelector<HTMLInputElement>("#track-label")!;
 const enemyHpInput = document.querySelector<HTMLInputElement>("#enemy-hp")!;
 const enemySpeedInput = document.querySelector<HTMLInputElement>("#enemy-speed")!;
 const copyBtn = document.querySelector<HTMLButtonElement>("#copy-btn")!;
 const promptPreview = document.querySelector<HTMLPreElement>("#prompt-preview")!;
-
-// Populate selectors
-function initializeSelectors(): void {
-  // Starting Gun
-  for (const [id, gun] of Object.entries(gunFamily.members)) {
-    const opt = new Option(gun.label, id);
-    if (id === "pulsePistol") opt.selected = true;
-    startGunSelect.add(opt);
-  }
-
-  // Starting Shield
-  for (const [id, shield] of Object.entries(shieldFamily.members)) {
-    const opt = new Option(shield.label, id);
-    startShieldSelect.add(opt);
-  }
-
-  // Starting Sword
-  for (const [id, sword] of Object.entries(swordFamily.members)) {
-    const opt = new Option(sword.label, id);
-    startSwordSelect.add(opt);
-  }
-}
 
 // Generate the markdown documentation for available items
 function generateItemsDocumentation(): string {
@@ -104,17 +78,9 @@ function generateItemsDocumentation(): string {
 // Generate the dynamic prompt
 function buildPrompt(): string {
   const reqText = customRequirements.value.trim() || "(No custom requirements provided. Design a balanced, intermediate difficulty track.)";
-  const startGun = startGunSelect.value;
-  const startGunLevel = startGunLevelSelect.value;
-  const startShield = startShieldSelect.value;
-  const startSword = startSwordSelect.value;
   const trackLabel = trackLabelInput.value.trim() || "Custom Nebula Drive";
   const enemyHp = enemyHpInput.value || "1.0";
   const enemySpeed = enemySpeedInput.value || "1.0";
-
-  const shieldField = startShield === "none" ? "null" : `{\n    shieldId: "${startShield}",\n    charges: ${shieldFamily.members[startShield as keyof typeof shieldFamily.members]?.maxCharges || 2},\n    cooldownLeft: 0,\n    pulseEffects: [],\n    hitFlashUntil: 0,\n  }`;
-
-  const swordField = startSword === "none" ? "null" : `{\n    swordId: "${startSword}",\n    cooldownLeft: 0,\n    activeSlash: null,\n  }`;
 
   const itemsDoc = generateItemsDocumentation();
 
@@ -134,6 +100,7 @@ ${reqText}
   - Each side must be exactly 5 characters wide, representing the 5 columns of that lane.
   - Example: \`..... | .....\` represents an empty row across both lanes.
   - The player starts at the bottom of the layout, moving upwards. The LLM must place \`P\` (Player Start) exactly once at the bottom row.
+  - Tracks begin without an equipped weapon. The track author must place gun pickups directly in the layout when the player should receive one.
 
 ---
 
@@ -153,8 +120,6 @@ import type { TrackMember } from "../TrackDefinition";
 export const generatedTrack: TrackMember = {
   label: "${trackLabel}",
   description: "An AI-generated combat runner track designed for custom challenges.",
-  startingGun: "${startGun}",
-  startingGunLevel: ${startGunLevel},
   environment: {
     sceneId: "neonHall",
   },
@@ -233,15 +198,10 @@ async function copyToClipboard(): Promise<void> {
 
 // Event listeners
 customRequirements.addEventListener("input", updatePreview);
-startGunSelect.addEventListener("change", updatePreview);
-startGunLevelSelect.addEventListener("change", updatePreview);
-startShieldSelect.addEventListener("change", updatePreview);
-startSwordSelect.addEventListener("change", updatePreview);
 trackLabelInput.addEventListener("input", updatePreview);
 enemyHpInput.addEventListener("input", updatePreview);
 enemySpeedInput.addEventListener("input", updatePreview);
 copyBtn.addEventListener("click", copyToClipboard);
 
 // Init
-initializeSelectors();
 updatePreview();

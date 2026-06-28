@@ -3,8 +3,6 @@ import type { TrackMember } from "../TrackDefinition";
 export const generatedTrack: TrackMember = {
   label: "Drift Lesson",
   description: "Alternating lanes introduce aim pressure, with a shield pocket before the first paired wave.",
-  startingGun: "pulsePistol",
-  startingGunLevel: 1,
   environment: {
     sceneId: "neonHall",
   },

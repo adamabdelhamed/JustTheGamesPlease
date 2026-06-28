@@ -2,7 +2,7 @@ import { neonPalette } from "./tokens";
 import type { NeonPrimitive } from "./primitive-renderer";
 import type { NeonTopDownScene } from "./top-down-scene";
 
-export const laneRunnerSceneIds = ["neonHall", "aurora"] as const;
+export const laneRunnerSceneIds = ["neonHall", "aurora", "crystalForge", "voidGarden", "solarArray"] as const;
 
 export type LaneRunnerSceneId = typeof laneRunnerSceneIds[number];
 
@@ -16,6 +16,9 @@ export interface LaneRunnerSceneOptions {
 const sceneNames: Record<LaneRunnerSceneId, string> = {
   neonHall: "Neon Hall",
   aurora: "Aurora",
+  crystalForge: "Crystal Forge",
+  voidGarden: "Void Garden",
+  solarArray: "Solar Array",
 };
 
 const hallBottomWidth = 0.92;
@@ -54,6 +57,33 @@ const auroraLaneRunnerPalette: LaneRunnerScenePalette = {
   laneHighlight: "#b9ff6a",
 };
 
+const crystalForgeLaneRunnerPalette: LaneRunnerScenePalette = {
+  floor: "#071018",
+  boundary: "#26d7ff",
+  lane: "#63f1ff",
+  centerLane: "#ff5fd8",
+  accent: "#ffb84d",
+  laneHighlight: "#f4fbff",
+};
+
+const voidGardenLaneRunnerPalette: LaneRunnerScenePalette = {
+  floor: "#080818",
+  boundary: "#6f53ff",
+  lane: "#35e8b6",
+  centerLane: "#ff4fc7",
+  accent: "#b9ff6a",
+  laneHighlight: "#9bd7ff",
+};
+
+const solarArrayLaneRunnerPalette: LaneRunnerScenePalette = {
+  floor: "#110c07",
+  boundary: "#ff9e38",
+  lane: "#ffd45a",
+  centerLane: "#26d7ff",
+  accent: "#ff4f66",
+  laneHighlight: "#fff6b8",
+};
+
 export function getLaneRunnerSceneName(sceneId: LaneRunnerSceneId): string {
   return sceneNames[sceneId];
 }
@@ -63,13 +93,16 @@ export function isLaneRunnerSceneId(value: string): value is LaneRunnerSceneId {
 }
 
 export function createLaneRunnerScene(options: LaneRunnerSceneOptions): NeonTopDownScene {
-  switch (options.sceneId) {
-    case "aurora":
-      return createAurora(options);
-    case "neonHall":
-      return createNeonHall(options);
-  }
+  return sceneCreators[options.sceneId](options);
 }
+
+const sceneCreators: Record<LaneRunnerSceneId, (options: LaneRunnerSceneOptions) => NeonTopDownScene> = {
+  neonHall: createNeonHall,
+  aurora: createAurora,
+  crystalForge: options => createThemedLaneRunnerScene(options, crystalForgeLaneRunnerPalette, addCrystalForgeDetails),
+  voidGarden: options => createThemedLaneRunnerScene(options, voidGardenLaneRunnerPalette, addVoidGardenDetails),
+  solarArray: options => createThemedLaneRunnerScene(options, solarArrayLaneRunnerPalette, addSolarArrayDetails),
+};
 
 function createNeonHall(options: LaneRunnerSceneOptions): NeonTopDownScene {
   const { width, height, timeMs } = options;
@@ -96,6 +129,20 @@ function createAurora(options: LaneRunnerSceneOptions): NeonTopDownScene {
   addAuroraGroundFlares(primitives, geometry, timeMs);
   addAuroraHorizonVeils(primitives, geometry, timeMs);
 
+  return { primitives };
+}
+
+function createThemedLaneRunnerScene(
+  options: LaneRunnerSceneOptions,
+  palette: LaneRunnerScenePalette,
+  addDetails: (items: NeonPrimitive[], geometry: ReturnType<typeof laneRunnerPerspective>, timeMs: number) => void,
+): NeonTopDownScene {
+  const { width, height, timeMs } = options;
+  const primitives: NeonPrimitive[] = [];
+  const geometry = laneRunnerPerspective(width, height);
+  addStandardLaneRunnerPerspective(primitives, geometry, palette, timeMs);
+  addThemedLaneSignals(primitives, geometry, palette, timeMs);
+  addDetails(primitives, geometry, timeMs);
   return { primitives };
 }
 
@@ -327,6 +374,86 @@ function addAuroraHorizonVeils(items: NeonPrimitive[], geometry: ReturnType<type
       rotation: u * .28 + wave * .08,
     });
   }
+}
+
+function addThemedLaneSignals(items: NeonPrimitive[], geometry: ReturnType<typeof laneRunnerPerspective>, palette: LaneRunnerScenePalette, timeMs: number): void {
+  const { leftBottom, rightBottom, leftHorizon, rightHorizon } = geometry;
+  for (let pulseIndex = 0; pulseIndex < 8; pulseIndex++) {
+    const travel = (timeMs / 1700 + pulseIndex / 8) % 1;
+    const t = Math.pow(travel, 1.5);
+    const left = lerpPoint(leftHorizon, leftBottom, t);
+    const right = lerpPoint(rightHorizon, rightBottom, t);
+    addGlowingLine(items, left, right, pulseIndex % 2 === 0 ? palette.laneHighlight : palette.accent, .28 * (1 - travel), 1.1 + t * 1.6);
+  }
+}
+
+function addCrystalForgeDetails(items: NeonPrimitive[], geometry: ReturnType<typeof laneRunnerPerspective>, timeMs: number): void {
+  const { leftBottom, rightBottom, leftHorizon, rightHorizon, width, height, vp } = geometry;
+  for (let index = 0; index < 16; index++) {
+    const t = Math.pow((index + 1) / 17, 1.55);
+    const side = index % 2 === 0 ? .14 : .86;
+    const edge = lerpPoint(lerpPoint(leftHorizon, leftBottom, t), lerpPoint(rightHorizon, rightBottom, t), side);
+    const glint = .55 + Math.sin(timeMs / 520 + index * 1.17) * .35;
+    items.push({
+      x: edge.x,
+      y: edge.y,
+      width: width * (.012 + t * .012),
+      height: height * (.025 + t * .06),
+      color: index % 3 === 0 ? "#ffb84d" : "#63f1ff",
+      secondaryColor: index % 4 === 0 ? "#ff5fd8" : "#f4fbff",
+      glow: .38,
+      intensity: (.08 + t * .055) * glint,
+      shape: "diamond",
+      rotation: (side < .5 ? -.22 : .22) + Math.sin(timeMs / 1400 + index) * .08,
+    });
+  }
+  addGlowingLine(items, { x: vp.x - width * .13, y: vp.y + height * .045 }, { x: vp.x + width * .13, y: vp.y + height * .045 }, "#ffb84d", .22, 1.3);
+}
+
+function addVoidGardenDetails(items: NeonPrimitive[], geometry: ReturnType<typeof laneRunnerPerspective>, timeMs: number): void {
+  const { leftBottom, rightBottom, leftHorizon, rightHorizon, width, height, vp } = geometry;
+  for (let index = 0; index < 20; index++) {
+    const t = Math.pow(.08 + ((index * 23) % 100) / 112, 1.65);
+    const side = index % 4 < 2 ? .18 : .82;
+    const center = lerpPoint(lerpPoint(leftHorizon, leftBottom, t), lerpPoint(rightHorizon, rightBottom, t), side + Math.sin(timeMs / 1900 + index) * .035);
+    const bloom = .5 + Math.sin(timeMs / 760 + index * .8) * .32;
+    items.push({
+      x: center.x,
+      y: center.y,
+      width: width * (.006 + t * .014),
+      height: width * (.006 + t * .014),
+      color: index % 3 === 0 ? "#b9ff6a" : "#35e8b6",
+      secondaryColor: index % 2 === 0 ? "#6f53ff" : "#ff4fc7",
+      glow: .42,
+      intensity: (.07 + t * .05) * bloom,
+      shape: index % 2 === 0 ? "diamond" : "bolt",
+      rotation: Math.sin(timeMs / 1200 + index) * .4,
+    });
+  }
+  addGlowingLine(items, { x: vp.x - width * .18, y: vp.y + height * .07 }, { x: vp.x + width * .18, y: vp.y + height * .07 }, "#35e8b6", .18, 1.1);
+}
+
+function addSolarArrayDetails(items: NeonPrimitive[], geometry: ReturnType<typeof laneRunnerPerspective>, timeMs: number): void {
+  const { leftBottom, rightBottom, leftHorizon, rightHorizon, width, height, vp } = geometry;
+  for (let index = 0; index < 18; index++) {
+    const t = Math.pow((index + 1) / 19, 1.48);
+    const side = index % 2 === 0 ? .1 : .9;
+    const mount = lerpPoint(lerpPoint(leftHorizon, leftBottom, t), lerpPoint(rightHorizon, rightBottom, t), side);
+    const pulse = .62 + Math.sin(timeMs / 610 + index * 1.05) * .3;
+    items.push({
+      x: mount.x,
+      y: mount.y,
+      width: width * (.018 + t * .035),
+      height: height * (.012 + t * .024),
+      color: index % 3 === 0 ? "#ffd45a" : "#ff9e38",
+      secondaryColor: index % 4 === 0 ? "#26d7ff" : "#ff4f66",
+      glow: .32,
+      intensity: (.08 + t * .055) * pulse,
+      shape: "bolt",
+      rotation: side < .5 ? -.38 : .38,
+    });
+  }
+  addGlowingLine(items, { x: vp.x - width * .11, y: vp.y + height * .035 }, { x: vp.x + width * .11, y: vp.y + height * .035 }, "#fff6b8", .24, 1.4);
 }
 
 function addGlowingLine(items: NeonPrimitive[], a: { x: number; y: number }, b: { x: number; y: number }, color: string, alpha: number, thickness: number): void {

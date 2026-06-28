@@ -1,5 +1,4 @@
 import type { LaneRunnerSceneId } from "@just-the-games-please/neon-factory";
-import type { GunId } from "./GunFamily";
 import { orbFamily, type OrbId } from "./OrbFamily";
 
 export interface TrackLegendEntry {
@@ -21,8 +20,6 @@ export interface TrackDefinition {
 export interface TrackMember {
   label: string;
   description: string;
-  startingGun: GunId;
-  startingGunLevel: 1 | 2 | 3;
   environment: {
     sceneId: LaneRunnerSceneId;
   };

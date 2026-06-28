@@ -3,8 +3,6 @@ import type { TrackMember } from "../TrackDefinition";
 export const generatedTrack: TrackMember = {
   label: "First Glow",
   description: "A short teaching run with a weapon in reach, one lane at a time, then a calm two-lane finish.",
-  startingGun: "pulsePistol",
-  startingGunLevel: 1,
   environment: {
     sceneId: "neonHall",
   },

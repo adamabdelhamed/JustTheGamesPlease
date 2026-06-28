@@ -3,8 +3,6 @@ import type { TrackMember } from "../TrackDefinition";
 export const generatedTrack: TrackMember = {
   label: "Ribbon Storm",
   description: "Aurora pressure comes in waves: flankers, glass decoys, a tank break, then a heavy weapon payoff.",
-  startingGun: "burstCarbine",
-  startingGunLevel: 1,
   environment: {
     sceneId: "aurora",
   },

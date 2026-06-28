@@ -1,6 +1,5 @@
 import { isLaneRunnerSceneId } from "@just-the-games-please/neon-factory";
 import { FamilyDefinition } from "./FamilyDefinition";
-import { gunFamily } from "./GunFamily";
 import type { TrackFamilyMember, TrackMember } from "./TrackDefinition";
 import { parseTrackDefinition } from "./TrackDefinition";
 import { trackFamilies, tracks } from "./tracks";
@@ -18,7 +17,6 @@ export class TrackFamilyDefinition extends FamilyDefinition<Record<string, Track
 
   validate(): void {
     for (const [id, track] of Object.entries(this.members)) {
-      this.require(track.startingGun in gunFamily.members, `${id} has an unknown starting gun.`);
       parseTrackDefinition(track.definition);
       this.require(isLaneRunnerSceneId(track.environment.sceneId), `${id} has an unknown scene id.`);
     }

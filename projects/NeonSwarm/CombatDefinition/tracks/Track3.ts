@@ -3,8 +3,6 @@ import type { TrackMember } from "../TrackDefinition";
 export const generatedTrack: TrackMember = {
   label: "Nebula Gate",
   description: "The learning finale adds fast flankers and a single tank, with clear recovery shelves between pressure waves.",
-  startingGun: "pulsePistol",
-  startingGunLevel: 2,
   environment: {
     sceneId: "neonHall",
   },

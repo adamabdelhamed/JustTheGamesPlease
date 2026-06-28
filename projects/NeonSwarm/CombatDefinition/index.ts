@@ -22,6 +22,24 @@ export {
 } from "./OrbFamily";
 export { FamilyDefinition } from "./FamilyDefinition";
 export {
+  c,
+  trackBuilder,
+  type TrackAlternatingOptions,
+  type TrackBuilder,
+  type TrackBuilderFactory,
+  type TrackBuilderOptions,
+  type TrackColumn,
+  type TrackColumns,
+  type TrackDripOptions,
+  type TrackEnemyRef,
+  type TrackLineOptions,
+  type TrackPickupRef,
+  type TrackPlacementOptions,
+  type TrackSectionBuilder,
+  type TrackWallOptions,
+  type TrackWeaponRef,
+} from "./TrackBuilder";
+export {
   trackFamily,
   TrackFamilyDefinition,
   type TrackFamilyId,
@@ -36,7 +54,25 @@ export {
   type TrackLegendEntry,
   type TrackMember,
 } from "./TrackDefinition";
-export { auroraTrack1, auroraTrack2, auroraTrack3, neonNebulaeTrack1, neonNebulaeTrack2, neonNebulaeTrack3, trackFamilies, tracks } from "./tracks";
+export {
+  auroraTrack1,
+  auroraTrack2,
+  auroraTrack3,
+  crystalForgeTrack1,
+  crystalForgeTrack2,
+  crystalForgeTrack3,
+  neonNebulaeTrack1,
+  neonNebulaeTrack2,
+  neonNebulaeTrack3,
+  solarArrayTrack1,
+  solarArrayTrack2,
+  solarArrayTrack3,
+  trackFamilies,
+  tracks,
+  voidGardenTrack1,
+  voidGardenTrack2,
+  voidGardenTrack3,
+} from "./tracks";
 export {
   multiplierFamily,
   MultiplierFamilyDefinition,
