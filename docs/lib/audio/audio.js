@@ -7,6 +7,9 @@
   const rotations = new Map();
   const preloadCache = new Map();
   const decodedLoopCache = new Map();
+  const effectPools = new Map();
+  const maxEffectPlayers = 24;
+  const maxPlayersPerEffect = 4;
   let audioContext = null;
   let musicIds = [];
   let musicIndex = 0;
@@ -27,6 +30,83 @@
       const attempt = element.play();
       if (attempt && typeof attempt.catch === 'function') attempt.catch(() => {});
     } catch (_) { /* Missing or unsupported audio is intentionally a no-op. */ }
+  }
+
+  function allEffectPlayers() {
+    return Array.from(effectPools.values()).flat();
+  }
+
+  function stopEffectPlayer(player) {
+    player.element.pause();
+    try { player.element.currentTime = 0; } catch (_) {}
+    player.inUse = false;
+    player.lastUsedAt = performance.now();
+  }
+
+  function createEffectPlayer(id) {
+    const element = new Audio(source(id));
+    element.preload = 'auto';
+    const player = {
+      id,
+      element,
+      inUse: false,
+      startedAt: 0,
+      lastUsedAt: 0,
+    };
+    element.addEventListener('ended', () => {
+      player.inUse = false;
+      player.lastUsedAt = performance.now();
+      try { element.currentTime = 0; } catch (_) {}
+    });
+    element.addEventListener('pause', () => {
+      if (element.ended) {
+        player.inUse = false;
+        player.lastUsedAt = performance.now();
+      }
+    });
+    return player;
+  }
+
+  function retargetEffectPlayer(player, id) {
+    if (player.id === id) return player;
+    stopEffectPlayer(player);
+    const previousPool = effectPools.get(player.id);
+    if (previousPool) {
+      const index = previousPool.indexOf(player);
+      if (index >= 0) previousPool.splice(index, 1);
+    }
+    player.id = id;
+    player.element.src = source(id);
+    player.element.preload = 'auto';
+    const pool = effectPools.get(id) || [];
+    pool.push(player);
+    effectPools.set(id, pool);
+    return player;
+  }
+
+  function acquireEffectPlayer(id) {
+    const pool = effectPools.get(id) || [];
+    effectPools.set(id, pool);
+
+    const idle = pool.find(player => !player.inUse || player.element.paused || player.element.ended);
+    if (idle) return idle;
+
+    const players = allEffectPlayers();
+    if (pool.length < maxPlayersPerEffect && players.length < maxEffectPlayers) {
+      const player = createEffectPlayer(id);
+      pool.push(player);
+      return player;
+    }
+
+    const idleAny = players
+      .filter(player => !player.inUse || player.element.paused || player.element.ended)
+      .sort((a, b) => a.lastUsedAt - b.lastUsedAt)[0];
+    if (idleAny) return retargetEffectPlayer(idleAny, id);
+
+    const oldestActive = players
+      .slice()
+      .sort((a, b) => a.startedAt - b.startedAt)[0];
+    return oldestActive ? retargetEffectPlayer(oldestActive, id) : createEffectPlayer(id);
   }
 
   function disarmMusicUnlock() {
@@ -50,9 +130,11 @@
 
   function play(id) {
     if (!id) return;
-    const effect = new Audio(source(id));
-    effect.preload = 'auto';
-    safePlay(effect);
+    const player = acquireEffectPlayer(id);
+    player.inUse = true;
+    player.startedAt = performance.now();
+    try { player.element.currentTime = 0; } catch (_) {}
+    safePlay(player.element);
   }
 
   function loop(id) {
@@ -135,11 +217,12 @@
   function preload(ids) {
     (ids || []).forEach(id => {
       if (!id || preloadCache.has(id)) return;
-      const effect = new Audio();
-      effect.preload = 'auto';
-      effect.src = source(id);
-      preloadCache.set(id, effect);
-      try { effect.load(); } catch (_) {}
+      const link = document.createElement('link');
+      link.rel = 'preload';
+      link.as = 'audio';
+      link.href = source(id);
+      preloadCache.set(id, link);
+      document.head.append(link);
     });
   }
 

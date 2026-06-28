@@ -66,7 +66,7 @@ interface ScheduledVolley {
   gun: GunMember;
   level: GunLevel;
   lane: number;
-  origins: readonly { x: number; y: number }[];
+  origins: readonly { x: number; y: number; aimX?: number; aimY?: number }[];
   scale: number;
 }
 
@@ -83,7 +83,7 @@ export class GunSimulation {
     this.scheduledVolleys.length = 0;
   }
 
-  fire(gun: GunMember, level: GunLevel, lane: number, origins: readonly { x: number; y: number }[], now: number, scale = 1): void {
+  fire(gun: GunMember, level: GunLevel, lane: number, origins: readonly { x: number; y: number; aimX?: number; aimY?: number }[], now: number, scale = 1): void {
     for (let burstIndex = 0; burstIndex < level.burstCount; burstIndex++) {
       this.scheduledVolleys.push({
         firesAt: now + burstIndex * level.burstIntervalMs,
@@ -169,8 +169,11 @@ export class GunSimulation {
     for (const origin of origins) {
       const count = Math.max(1, level.projectileCount);
       for (let index = 0; index < count; index++) {
-        const angleDegrees = count === 1 ? 0 : (index / (count - 1) - .5) * level.spreadDegrees;
-        const angle = angleDegrees * Math.PI / 180;
+        const aimAngle = origin.aimX === undefined || origin.aimY === undefined
+          ? 0
+          : Math.atan2(origin.aimX - origin.x, origin.y - origin.aimY);
+        const spreadDegrees = count === 1 ? 0 : (index / (count - 1) - .5) * level.spreadDegrees;
+        const angle = aimAngle + spreadDegrees * Math.PI / 180;
         const speed = level.projectileSpeed * scale;
         this.shotSequence++;
         this.projectiles.push({

@@ -10,6 +10,7 @@
  */
 
 import type { SwordId, SwordMember, SwordTargetingMode } from "../../CombatDefinition/SwordFamily";
+import { advanceCooldownSlots, removeClaimedTargets, syncSlotArray, updateActiveSlots } from "./independentWeaponSlots";
 import type { NearbyThreat } from "./nearbyThreatQuery";
 
 // ---------------------------------------------------------------------------
@@ -67,13 +68,9 @@ export class SwordState {
   }
 
   syncSlots(count: number): void {
-    const target = Math.max(1, Math.floor(count));
-    while (this.cooldownLefts.length < target) this.cooldownLefts.push(0);
-    while (this.activeSlashes.length < target) this.activeSlashes.push(null);
-    while (this.previousSlashSides.length < target) this.previousSlashSides.push(1);
-    this.cooldownLefts.length = target;
-    this.activeSlashes.length = target;
-    this.previousSlashSides.length = target;
+    syncSlotArray(this.cooldownLefts, count, () => 0);
+    syncSlotArray(this.activeSlashes, count, () => null);
+    syncSlotArray(this.previousSlashSides, count, () => 1);
     this.cooldownLeft = Math.min(...this.cooldownLefts);
     this.activeSlash = this.activeSlashes.find(Boolean) ?? null;
     this.previousSlashSide = this.previousSlashSides[0] ?? 1;
@@ -189,14 +186,11 @@ export function tickSword(
 
   state.syncSlots(swordCount);
 
-  for (let slot = 0; slot < state.cooldownLefts.length; slot++) {
-    if (state.cooldownLefts[slot] > 0) state.cooldownLefts[slot] = Math.max(0, state.cooldownLefts[slot] - delta);
-    const slash = state.activeSlashes[slot];
-    if (slash) {
-      slash.progress = (now - slash.startedAt) / slash.durationMs;
-      if (slash.progress >= 1) state.activeSlashes[slot] = null;
-    }
-  }
+  advanceCooldownSlots(state.cooldownLefts, delta);
+  updateActiveSlots(state.activeSlashes, slash => {
+    slash.progress = (now - slash.startedAt) / slash.durationMs;
+    return slash.progress >= 1 ? null : slash;
+  });
   state.cooldownLeft = Math.min(...state.cooldownLefts);
   state.activeSlash = state.activeSlashes.find(Boolean) ?? null;
 
@@ -235,8 +229,7 @@ export function tickSword(
       color,
       thickness: sword.slashThickness,
     };
-    const selectedIds = new Set(selected.map(({ target }) => target.id));
-    remaining = remaining.filter(({ target }) => !selectedIds.has(target.id));
+    remaining = removeClaimedTargets(remaining, selected, ({ target }) => target.id);
   }
   state.cooldownLeft = Math.min(...state.cooldownLefts);
   state.activeSlash = state.activeSlashes.find(Boolean) ?? null;

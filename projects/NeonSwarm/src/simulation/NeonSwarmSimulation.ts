@@ -28,6 +28,7 @@ import {
 } from "../../CombatDefinition";
 import { selectAutoAimOffset } from "../autoAim";
 import { GunSimulation } from "../combat/gunSimulation";
+import { advanceCooldownSlots, selectBestUnclaimed, syncSlotArray } from "../combat/independentWeaponSlots";
 import { queryNearbyThreats } from "../combat/nearbyThreatQuery";
 import { resolveShieldContact, ShieldState, tickShield } from "../combat/shieldEvaluator";
 import { SwordState, tickSword } from "../combat/swordEvaluator";
@@ -206,6 +207,7 @@ export class NeonSwarmSimulation {
   private combatNow = 0;
   private playerLane: Lane = 0;
   private cooldown = 0;
+  private gunCooldowns: number[] = [];
   private entityIdCounter = 0;
   private trackEntities: ParsedTrackEntity[] = [];
   private nextTrackEntity = 0;
@@ -280,6 +282,7 @@ export class NeonSwarmSimulation {
     this.combatElapsed = 0;
     this.combatNow = 0;
     this.cooldown = 0;
+    this.gunCooldowns = [];
     this.nextTrackEntity = 0;
     this.trackEntities = [];
     this.breaches = 0;
@@ -329,6 +332,7 @@ export class NeonSwarmSimulation {
     this.activeByFamily.shield = null;
     this.activeByFamily.sword = null;
     this.cooldown = 0;
+    this.gunCooldowns = [];
     this.nextTrackEntity = 0;
     this.trackEntities = allEntities.filter(entity => entity.id !== "player.start");
     this.breaches = 0;
@@ -357,6 +361,7 @@ export class NeonSwarmSimulation {
   equipGun(gunId: GunId, level = 1): void {
     this.activeByFamily.gun = { id: gunId, level };
     this.cooldown = 0;
+    this.gunCooldowns = [];
     this.playPickup("PickupGun");
     this.play("WeaponReady");
   }
@@ -507,8 +512,8 @@ export class NeonSwarmSimulation {
     this.syncPlayerActors();
 
     if (this.activeByFamily.gun) {
-      this.cooldown -= delta;
-      if (this.cooldown <= 0) this.fire();
+      advanceCooldownSlots(this.gunCooldowns, delta);
+      this.fire();
       if (this.gunSimulation.updateFiring(this.combatNow) > 0) this.playGunFire(this.activeByFamily.gun.id);
     }
 
@@ -743,9 +748,69 @@ export class NeonSwarmSimulation {
     const gun = gunFamily.members[gunId];
     const tuning = gun.levels.find(item => item.level === gunLevel) ?? gun.levels[0];
     const points = this.squad.points(this.playerY(), this.scale()).map(point => ({ x: point.x, y: this.playerY() - 20 * this.scale() }));
-    this.gunSimulation.fire(gun, tuning, this.playerLane, points, this.combatNow, this.scale());
-    this.cooldown += 1 / tuning.fireRatePerSecond;
-    this.playGunFire(gunId);
+    this.syncGunCooldowns(points.length);
+    const claimedTargetIds = new Set<number>();
+    const cycleSeconds = 1 / tuning.fireRatePerSecond;
+    for (const [index, point] of points.entries()) {
+      if (this.gunCooldowns[index] > 0) continue;
+      const target = this.selectGunTarget(point.x, claimedTargetIds);
+      if (!target) continue;
+      claimedTargetIds.add(target.id);
+      this.gunSimulation.fire(gun, tuning, this.playerLane, [{ ...point, aimX: target.x, aimY: target.y }], this.combatNow, this.scale());
+      this.gunCooldowns[index] = cycleSeconds;
+    }
+    this.cooldown = this.gunCooldowns.length > 0 ? Math.min(...this.gunCooldowns) : 0;
+  }
+
+  private syncGunCooldowns(count: number): void {
+    syncSlotArray(this.gunCooldowns, count, () => 0);
+  }
+
+  private selectGunTarget(originX: number, claimedTargetIds: ReadonlySet<number>): Enemy | null {
+    const nativeReach = 42 * this.scale();
+    const assistReach = 96 * this.scale();
+    const liveLaneEnemies = this.enemies.filter(enemy => !enemy.dying && enemy.lane === this.playerLane && enemy.y < this.playerY());
+    const nativeTarget = selectBestUnclaimed(
+      liveLaneEnemies,
+      claimedTargetIds,
+      enemy => enemy.id,
+      enemy => this.scoreGunNativeTarget(enemy, originX, nativeReach),
+    );
+    const pressureTarget = selectBestUnclaimed(
+      liveLaneEnemies,
+      new Set(),
+      enemy => enemy.id,
+      enemy => this.scoreGunPressureTarget(enemy, originX, assistReach, claimedTargetIds.has(enemy.id)),
+    );
+    if (!nativeTarget) return pressureTarget;
+    if (!pressureTarget) return nativeTarget;
+
+    const nativeDistance = this.playerY() - nativeTarget.y;
+    const pressureDistance = this.playerY() - pressureTarget.y;
+    return pressureDistance + 80 * this.scale() < nativeDistance ? pressureTarget : nativeTarget;
+  }
+
+  private scoreGunNativeTarget(enemy: Enemy, originX: number, horizontalReach: number): number | null {
+    const dx = Math.abs(enemy.x - originX);
+    if (dx > horizontalReach + this.enemyDefinition(enemy).radius * this.scale()) return null;
+    const dy = this.playerY() - enemy.y;
+    return dx * 1000 + dy;
+  }
+
+  private scoreGunPressureTarget(enemy: Enemy, originX: number, horizontalReach: number, alreadyClaimed: boolean): number | null {
+    const dx = Math.abs(enemy.x - originX);
+    if (dx > horizontalReach + this.enemyDefinition(enemy).radius * this.scale()) return null;
+    const dy = this.playerY() - enemy.y;
+    const columnPressure = this.enemies.filter(other =>
+      !other.dying &&
+      other.lane === enemy.lane &&
+      other.y < this.playerY() &&
+      Math.abs(other.x - enemy.x) <= 18 * this.scale() &&
+      Math.abs(other.y - enemy.y) <= 180 * this.scale()
+    ).length;
+    const claimedPenalty = alreadyClaimed ? 450 : 0;
+    const pressureBonus = Math.min(4, columnPressure) * 70 * this.scale();
+    return claimedPenalty + dx * 7 + dy - pressureBonus;
   }
 
   private updateProjectiles(delta: number): void {
@@ -964,6 +1029,7 @@ export class NeonSwarmSimulation {
       if (pickup.y >= this.playerY() - 15 * this.scale() && pickup.lane === this.playerLane) {
         this.activeByFamily.gun = { id: pickup.gunId, level: pickup.level };
         this.cooldown = 0;
+        this.gunCooldowns = [];
         this.gunPickups.splice(this.gunPickups.indexOf(pickup), 1);
         this.playPickup("PickupGun");
         this.play("WeaponReady");

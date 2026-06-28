@@ -36,8 +36,8 @@ const targetRowsByTier: Record<TrackTier, number> = {
 
 const enemyHpByTier: Record<TrackTier, number> = {
   1: 1,
-  2: 1.08,
-  3: 1.16,
+  2: 1,
+  3: 1,
 };
 
 const pick = <T>(items: readonly T[], tier: TrackTier, cycleIndex: number): T =>
