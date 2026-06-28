@@ -1,5 +1,6 @@
 import { orbFamily, swordFamily, type OrbId, type SwordId } from "../../CombatDefinition";
 import { bindSquadInput } from "../../src/input";
+import { defaultSwordVisualTuning, type SwordVisualTuning } from "../../src/familyVisuals";
 import { NeonSwarmSimulation } from "../../src/simulation/NeonSwarmSimulation";
 import { applyPortraitStage, laneRunnerViewport } from "../../src/viewport";
 
@@ -7,9 +8,13 @@ const canvas = document.querySelector<HTMLCanvasElement>("#game-canvas")!;
 const error = document.querySelector<HTMLElement>("#error")!;
 const swordSelect = document.querySelector<HTMLSelectElement>("#sword-select")!;
 const enemySelect = document.querySelector<HTMLSelectElement>("#enemy-select")!;
+const simSpeed = document.querySelector<HTMLInputElement>("#sim-speed")!;
+const simSpeedReadout = document.querySelector<HTMLOutputElement>("#sim-speed-readout")!;
 const weaponReadout = document.querySelector<HTMLElement>("#weapon-readout")!;
 const scoreReadout = document.querySelector<HTMLElement>("#score-readout")!;
 const specReadout = document.querySelector<HTMLElement>("#spec-readout")!;
+const tuningReadout = document.querySelector<HTMLTextAreaElement>("#tuning-readout")!;
+const tuningInputs = Array.from(document.querySelectorAll<HTMLInputElement>("[data-tuning]"));
 const gameElement = document.querySelector<HTMLElement>("#game")!;
 const audioId = (id: string): string => `../../../../audio/${id}`;
 
@@ -33,6 +38,15 @@ try {
 
   const selectedSword = (): SwordId => swordSelect.value as SwordId;
   const selectedEnemy = (): OrbId => enemySelect.value as OrbId;
+  const currentTuning = (): SwordVisualTuning => Object.fromEntries(tuningInputs.map(input => [
+    input.dataset.tuning!,
+    input.dataset.tuning === "trailSegments" ? Math.round(Number(input.value)) : Number(input.value),
+  ])) as unknown as SwordVisualTuning;
+  const updateTuning = (): void => {
+    const tuning = currentTuning();
+    sim.setSwordVisualTuning(tuning);
+    tuningReadout.value = JSON.stringify(tuning, null, 2);
+  };
   const updateReadout = (): void => {
     const def = swordFamily.members[selectedSword()];
     const enemy = orbFamily.members[selectedEnemy()];
@@ -56,9 +70,22 @@ try {
     sim.equipSword(selectedSword());
     updateReadout();
   };
+  const updateSimSpeed = (): void => {
+    const speed = Number(simSpeed.value);
+    sim.setSimulationSpeed(speed);
+    simSpeedReadout.value = `${speed.toFixed(2)}x`;
+    simSpeedReadout.textContent = simSpeedReadout.value;
+  };
   const spawnEnemy = (lane: 0 | 1): void => {
     sim.spawnEnemy({ enemyId: selectedEnemy(), lane });
   };
+
+  for (const input of tuningInputs) {
+    const key = input.dataset.tuning as keyof SwordVisualTuning;
+    input.value = String(defaultSwordVisualTuning[key]);
+    input.addEventListener("input", updateTuning);
+  }
+  updateTuning();
 
   document.querySelectorAll<HTMLButtonElement>("[data-spawn-enemy]").forEach(button => {
     button.addEventListener("click", () => spawnEnemy(Number(button.dataset.spawnEnemy) as 0 | 1));
@@ -75,6 +102,7 @@ try {
   document.querySelector<HTMLButtonElement>("#clear-stage")!.addEventListener("click", () => sim.clearStage());
   swordSelect.addEventListener("change", equip);
   enemySelect.addEventListener("change", updateReadout);
+  simSpeed.addEventListener("input", updateSimSpeed);
 
   bindSquadInput(gameElement, {
     lane: () => sim.snapshot().squad.lane,
@@ -82,6 +110,7 @@ try {
   });
 
   equip();
+  updateSimSpeed();
   spawnEnemy(0);
   spawnEnemy(1);
   sim.startLoop();

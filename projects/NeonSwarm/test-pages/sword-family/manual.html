@@ -35,6 +35,9 @@
       <label>Enemy type
         <select id="enemy-select"></select>
       </label>
+      <label>Sim speed <output id="sim-speed-readout">1.00x</output>
+        <input type="range" id="sim-speed" min="0.1" max="1.25" step="0.05" value="1">
+      </label>
       <div class="button-row">
         <button type="button" data-spawn-enemy="0">Enemy left</button>
         <button type="button" data-spawn-enemy="1">Enemy right</button>
@@ -47,6 +50,20 @@
         <button type="button" id="spawn-wave">Spawn wave</button>
         <button type="button" id="clear-stage">Clear stage</button>
       </div>
+      <fieldset class="tuning-panel">
+        <legend>Swing tuning</legend>
+        <label>Dock side <input type="range" min="-36" max="36" step="1" data-tuning="dockSideOffset"></label>
+        <label>Dock forward <input type="range" min="0" max="48" step="1" data-tuning="dockForward"></label>
+        <label>Strike duration <input type="range" min="0.12" max="1.4" step="0.01" data-tuning="strikeDuration"></label>
+        <label>Follow-through <input type="range" min="0.05" max="0.9" step="0.01" data-tuning="followThroughDuration"></label>
+        <label>Swing angle <input type="range" min="1.2" max="5.6" step="0.01" data-tuning="swingAngle"></label>
+        <label>Arc lift <input type="range" min="-20" max="70" step="1" data-tuning="arcLift"></label>
+        <label>Arc radius <input type="range" min="15" max="95" step="1" data-tuning="arcRadius"></label>
+        <label>Trail segments <input type="range" min="4" max="28" step="1" data-tuning="trailSegments"></label>
+        <label>Trail width <input type="range" min="1" max="12" step="0.1" data-tuning="trailWidth"></label>
+        <label>Trail intensity <input type="range" min="0.2" max="5" step="0.05" data-tuning="trailIntensity"></label>
+        <textarea id="tuning-readout" rows="11" spellcheck="false" readonly></textarea>
+      </fieldset>
       <dl id="spec-readout"></dl>
       <p class="spec-note">Swords swing only when a valid target enters range — they never fire into empty space.</p>
     </aside>
@@ -57,10 +74,9 @@
   <script>
     gameAudio.preload([
       '../../../../audio/PickupSword',
-      '../../../../audio/SwordSwing',
-      '../../../../audio/SwordHeavySwing',
-      '../../../../audio/SwordStab',
-      '../../../../audio/SwordHit',
+      '../../../../audio/SwordSwingWhoosh',
+      '../../../../audio/SwordArcImpact',
+      '../../../../audio/SwordCleaverImpact',
       '../../../../audio/EnemyDestroyed',
       '../../../../audio/EnemyDestroyed_Alt1',
       '../../../../audio/EnemyDestroyed_Alt2',

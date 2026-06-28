@@ -50,6 +50,11 @@ export const neonShapeCatalog: readonly NeonGeometricShapeDefinition[] = [
   make("player", "wing-split", "Wing Split", [[-1,-.85],[-.25,.1],[0,-.25],[.25,.1],[1,-.85],[.66,.72],[0,.35],[-.66,.72]], "roll", [diamond.map(([x,y]) => [x*.18,y*.28] as const)]),
   make("player", "triad-pod", "Triad Pod", regular(3), "yaw", [regular(3, -Math.PI/2, .38, .38)]),
   make("player", "spike-lance", "Spike Lance", [[0,-1],[.48,.65],[.18,.42],[0,1],[-.18,.42],[-.48,.65]], "pitch"),
+  make("player", "sword-arc-katana", "Sword Arc Katana", [[-.16,-1], [.16,-1], [.22,.28], [.48,.62], [.18,.52], [.1,1], [-.1,1], [-.18,.52], [-.48,.62], [-.22,.28]], "pitch", [[[-.055,-.72], [.055,-.72], [.055,.18], [-.055,.18]]]),
+  make("player", "sword-cleaver-wide", "Sword Cleaver Wide", [[-.28,-1], [.28,-1], [.44,-.76], [.34,.34], [.72,.58], [.22,.55], [.16,1], [-.16,1], [-.22,.55], [-.72,.58], [-.34,.34], [-.44,-.76]], "roll", [[[-.1,-.68], [.1,-.68], [.08,.18], [-.08,.18]]]),
+  make("player", "sword-needle-sabre", "Sword Needle Sabre", [[0,-1], [.08,-.82], [.11,.5], [.32,.72], [.08,.64], [.05,1], [-.05,1], [-.08,.64], [-.32,.72], [-.11,.5], [-.08,-.82]], "pitch"),
+  make("player", "sword-guarded-blade", "Sword Guarded Blade", [[-.12,-1], [.12,-1], [.16,.36], [.62,.36], [.62,.54], [.14,.56], [.1,1], [-.1,1], [-.14,.56], [-.62,.54], [-.62,.36], [-.16,.36]], "yaw", [[[-.045,-.72], [.045,-.72], [.045,.22], [-.045,.22]]]),
+  make("player", "sword-prism-greatblade", "Sword Prism Greatblade", [[0,-1], [.34,-.74], [.3,.28], [.56,.52], [.2,.48], [.12,1], [-.12,1], [-.2,.48], [-.56,.52], [-.3,.28], [-.34,-.74]], "roll", [[[-.08,-.48], [.08,-.48], [.08,.16], [-.08,.16]]]),
   make("player", "orbit-drone", "Orbit Drone", regular(12), "orbit", [regular(12, 0, .58, .58)]),
   make("player", "shield-ring", "Shield Ring", regular(32), "orbit", [regular(32, 0, .91, .91)]),
 

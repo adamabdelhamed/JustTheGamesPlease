@@ -148,6 +148,36 @@ export function projectHelicopterPoint(
   return projectHelicopterPointFactory(settings, viewport)(x, y);
 }
 
+export function unprojectHelicopterScreenPoint(
+  screenX: number,
+  screenY: number,
+  settings: HelicopterCameraSettings,
+  viewport: HelicopterViewport,
+): { x: number; y: number } {
+  const fallback = { x: screenX, y: screenY };
+  const centerX = viewport.width / 2;
+  const focusX = viewport.focusX ?? centerX;
+  const pitch = settings.lookAngleDegrees * Math.PI / 180;
+  const cos = Math.cos(pitch);
+  const sin = Math.sin(pitch);
+  const focalLength = viewport.height * settings.zoom;
+  const horizonY = viewport.height * settings.horizon;
+  const relativeY = -settings.height;
+  const screenRatio = (horizonY - screenY) / focalLength;
+  const denominator = sin - screenRatio * cos;
+  if (Math.abs(denominator) < .0001) return fallback;
+  const worldZ = -relativeY * (cos + screenRatio * sin) / denominator;
+  const cameraZ = Math.max(20, worldZ * cos - relativeY * sin);
+  const scale = focalLength / cameraZ;
+  const point = {
+    x: focusX + (screenX - centerX) / scale,
+    y: viewport.playerY + settings.followDistance - worldZ,
+  };
+  return Number.isFinite(point.x) && Number.isFinite(point.y) && Math.abs(point.x) < 5000 && Math.abs(point.y) < 5000
+    ? point
+    : fallback;
+}
+
 function projectHelicopterPointFactory(settings: HelicopterCameraSettings, viewport: HelicopterViewport) {
   const centerX = viewport.width / 2;
   const focusX = viewport.focusX ?? centerX;

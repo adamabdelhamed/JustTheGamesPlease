@@ -2,6 +2,48 @@
 .lab-panel h2 { color: #7fffc2; }
 select:focus, button:hover { border-color: #7fffc2; color: #7fffc2; }
 
+.tuning-panel {
+  display: grid;
+  gap: 7px;
+  margin: 12px 0;
+  padding: 10px;
+  border: 1px solid #7fffc244;
+  background: #07131dcc;
+}
+
+.tuning-panel legend {
+  padding: 0 6px;
+  color: #7fffc2;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+
+.tuning-panel label {
+  display: grid;
+  grid-template-columns: minmax(92px, 1fr) minmax(120px, 1.3fr);
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+}
+
+.tuning-panel input {
+  width: 100%;
+}
+
+#tuning-readout {
+  width: 100%;
+  box-sizing: border-box;
+  margin-top: 4px;
+  padding: 8px;
+  border: 1px solid #7fffc244;
+  background: #020711;
+  color: #b9ffe2;
+  font: 11px/1.35 Consolas, "Courier New", monospace;
+  resize: vertical;
+}
+
 /* Cooldown indicator */
 .cooldown-bar {
   height: 4px;

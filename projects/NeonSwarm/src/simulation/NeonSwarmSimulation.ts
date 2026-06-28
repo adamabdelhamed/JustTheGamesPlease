@@ -33,7 +33,8 @@ import { resolveShieldContact, ShieldState, tickShield } from "../combat/shieldE
 import { SwordState, tickSword } from "../combat/swordEvaluator";
 import { createEnemyActor, defeatEnemy, enemyDefinitionFromTrackId, projectedEnemyHealthBarPrimitives, resolveEnemyDamage } from "../enemyCatalog";
 import { enemyExitCloud, updateEnemyExitEffects, type ActiveEnemyExitEffect, type EnemyVisualType } from "../enemyExitVisuals";
-import { shieldPickupVisual, shieldVisuals, swordPickupVisual, swordVisuals } from "../familyVisuals";
+import { shieldPickupVisual, shieldVisuals, swordPickupVisual, swordVisualDurationMs, swordVisuals } from "../familyVisuals";
+import type { SwordVisualTuning } from "../familyVisuals";
 import { billboardOrientation, enemyOrientation, helicopterViewportFor, playerOrientation } from "../renderOrientation";
 import { applyLaneRunnerSceneBackground, laneRunnerScenePrimitives } from "../sceneEnvironment";
 import { actorInTopDownScene, shapeLabel, swarmShapes } from "../shapeVisuals";
@@ -43,6 +44,8 @@ import {
   laneRunnerCameraFocusX,
   laneRunnerViewport,
   projectHelicopterScene,
+  projectHelicopterPoint,
+  unprojectHelicopterScreenPoint,
   type HelicopterCameraSettings,
 } from "../viewport";
 
@@ -152,6 +155,13 @@ interface MultiplierPickup {
   actor: NeonShapeActor;
 }
 
+interface PendingSwordDamage {
+  hits: Array<{ enemyId: number; dueAt: number }>;
+  damage: number;
+  color: string;
+  impactSoundId: string;
+}
+
 const gunFireSoundIds: Record<GunId, string> = {
   pulsePistol: "Primary",
   needlerSmg: "NeedlerFire",
@@ -160,9 +170,9 @@ const gunFireSoundIds: Record<GunId, string> = {
   splitterRifle: "SplitterRifleFire",
 };
 
-const swordSwingSoundIds: Record<SwordId, string> = {
-  arcBlade: "SwordSwing",
-  cleaver: "SwordHeavySwing",
+const swordImpactSoundIds: Record<SwordId, string> = {
+  arcBlade: "SwordArcImpact",
+  cleaver: "SwordCleaverImpact",
 };
 
 const soundAlternativeCounts: Partial<Record<string, number>> = {
@@ -209,9 +219,12 @@ export class NeonSwarmSimulation {
   private multipliers: MultiplierPickup[] = [];
   private enemyExitEffects: ActiveEnemyExitEffect[] = [];
   private victory: NeonVictoryExperience | null = null;
+  private swordVisualTuning: Partial<SwordVisualTuning> = {};
+  private pendingSwordDamage: PendingSwordDamage | null = null;
   private failureReason = "";
   private playerActors: NeonShapeActor[] = [];
   private explodingPlayers: Array<{ actor: NeonShapeActor; x: number; y: number }> = [];
+  private simulationSpeed = 1;
   private activeByFamily: {
     gun: { id: GunId; level: number } | null;
     shield: ShieldState | null;
@@ -284,6 +297,7 @@ export class NeonSwarmSimulation {
     this.playerActors = [new NeonShapeActor({ shape: swarmShapes.player })];
     this.failureReason = "";
     this.victory = null;
+    this.pendingSwordDamage = null;
     if (!options.silent) this.play("MenuOpen");
   }
 
@@ -297,6 +311,7 @@ export class NeonSwarmSimulation {
     this.enemyExitEffects = [];
     this.explodingPlayers = [];
     this.victory = null;
+    this.pendingSwordDamage = null;
   }
 
   startTrack(track: TrackMember): void {
@@ -358,6 +373,14 @@ export class NeonSwarmSimulation {
     this.activeByFamily.sword = new SwordState(swordId, current?.swordId === swordId ? current.level + 1 : 1);
     this.playPickup("PickupSword");
     this.play("WeaponReady");
+  }
+
+  setSwordVisualTuning(tuning: Partial<SwordVisualTuning>): void {
+    this.swordVisualTuning = { ...tuning };
+  }
+
+  setSimulationSpeed(speed: number): void {
+    this.simulationSpeed = Number.isFinite(speed) ? Math.max(.05, Math.min(2, speed)) : 1;
   }
 
   addSquadMembers(amount: number): void {
@@ -456,7 +479,7 @@ export class NeonSwarmSimulation {
   tick(frameNow: number): void {
     const rawDelta = Math.min(.05, (frameNow - this.lastFrame) / 1000);
     this.lastFrame = frameNow;
-    const delta = rawDelta * combatTuning.globalSpeedMultiplier;
+    const delta = rawDelta * combatTuning.globalSpeedMultiplier * this.simulationSpeed;
     this.combatElapsed += delta;
     this.combatNow = this.combatElapsed * 1000;
     for (const item of [...this.explodingPlayers]) {
@@ -500,8 +523,10 @@ export class NeonSwarmSimulation {
   render(now = this.combatNow): void {
     const primitives = laneRunnerScenePrimitives(this.trackSceneId, this.canvas.width, this.canvas.height, now);
     const s = this.scale();
+    const playerPoints = this.squad.points(this.playerY(), s);
+    const helicopterViewport = helicopterViewportFor(this.canvas.width, this.canvas.height, this.playerY(), laneRunnerCameraFocusX(this.canvas.width, this.squad.x));
 
-    for (const point of this.squad.points(this.playerY(), s)) {
+    for (const point of playerPoints) {
       const smear = Math.min(22 * s, Math.abs(this.squad.targetX - this.squad.x) * .45);
       if (smear > 2) {
         primitives.push({
@@ -533,6 +558,10 @@ export class NeonSwarmSimulation {
         y: this.playerY(),
         now,
         scale: s,
+        projectScreenOffset: (x, y, offsetX, offsetY) => {
+          const center = projectHelicopterPoint(x, y, this.cameraSettings, helicopterViewport);
+          return unprojectHelicopterScreenPoint(center.x + offsetX * center.scale, center.y + offsetY * center.scale, this.cameraSettings, helicopterViewport);
+        },
         hitProgress: liveShield.hitFlashProgress,
       });
       primitives.push(...scene.primitives);
@@ -544,8 +573,11 @@ export class NeonSwarmSimulation {
       const scene = swordVisuals({
         definition: liveDef,
         slash: liveSword.activeSlash,
-        x: this.squad.x,
-        y: this.playerY(),
+        slashes: liveSword.activeSlashes,
+        dockSide: liveSword.previousSlashSide,
+        dockSides: liveSword.previousSlashSides,
+        points: playerPoints,
+        tuning: this.swordVisualTuning,
         scale: s,
         visible: true,
       });
@@ -574,9 +606,8 @@ export class NeonSwarmSimulation {
       }));
     }
 
-    const helicopterViewport = helicopterViewportFor(this.canvas.width, this.canvas.height, this.playerY(), laneRunnerCameraFocusX(this.canvas.width, this.squad.x));
     const playerSize = 14;
-    for (const [index, point] of this.squad.points(this.playerY(), s).entries()) {
+    for (const [index, point] of playerPoints.entries()) {
       const actor = this.playerActors[index] ?? new NeonShapeActor({ shape: swarmShapes.player });
       shapeInstances.push(actorInTopDownScene(actor, point.x, point.y, playerSize, playerOrientation(this.cameraSettings, helicopterViewport, point.x, point.y, now, index)));
     }
@@ -785,26 +816,76 @@ export class NeonSwarmSimulation {
         maxTargets: swordDef.rowReach ? undefined : swordDef.maxTargets,
         purpose: "sword",
       }).filter(threat => !swordDef.rowReach || Math.abs(threat.target.y - py) <= swordDef.range * this.scale());
-      const swordResult = tickSword(swordState, swordDef, swordThreats, px, py, this.combatNow, delta, neonPalette[swordDef.color]);
+      const swordResult = tickSword(swordState, swordDef, swordThreats, px, py, this.combatNow, delta, neonPalette[swordDef.color], swordVisualDurationMs(this.swordVisualTuning), this.squad.count);
       if (swordResult.swingTriggered && swordResult.hitEnemyIds.length > 0) {
-        this.playSwordSwing(swordState.swordId);
-        for (const enemy of [...this.enemies]) {
-          if (enemy.dying || !swordResult.hitEnemyIds.includes(enemy.id)) continue;
-          const result = resolveEnemyDamage({
-            enemy,
-            effects: this.enemyExitEffects,
-            damage: swordResult.damage,
-            impactMagnitude: swordResult.damage,
-            color: this.enemyExitColor(enemy),
-          });
-          if (result.killed) {
-            this.kills++;
-            this.play(result.definition.deathSound);
-          }
-          else this.play("SwordHit");
-        }
+        this.applyPendingSwordDamage({ force: true });
+        this.play("SwordSwingWhoosh");
+        this.pendingSwordDamage = {
+          hits: this.scheduleSwordHits(swordResult.hitTargets, swordState.previousSlashSide),
+          damage: swordResult.damage,
+          color: neonPalette[swordDef.color],
+          impactSoundId: swordImpactSoundIds[swordState.swordId],
+        };
+      }
+      this.applyPendingSwordDamage();
+    }
+  }
+
+  private scheduleSwordHits(targets: Array<{ id: number; x: number; y: number }>, side: -1 | 1): Array<{ enemyId: number; dueAt: number }> {
+    if (targets.length === 0) return [];
+    const duration = swordVisualDurationMs(this.swordVisualTuning);
+    const xs = targets.map(target => target.x);
+    const minX = Math.min(...xs);
+    const maxX = Math.max(...xs);
+    const span = Math.max(1, maxX - minX);
+    const leftToRight = side === 1;
+    return targets.map(target => {
+      const laneProgress = leftToRight
+        ? (target.x - minX) / span
+        : (maxX - target.x) / span;
+      return {
+        enemyId: target.id,
+        dueAt: this.combatNow + duration * this.swordStrikeProgress(laneProgress),
+      };
+    });
+  }
+
+  private swordStrikeProgress(laneProgress = .72): number {
+    const tuning = this.swordVisualTuning;
+    const strike = tuning.strikeDuration ?? .31;
+    const followThrough = tuning.followThroughDuration ?? .18;
+    const total = Math.max(.01, strike + followThrough);
+    const clampedLaneProgress = Math.max(.18, Math.min(.88, laneProgress));
+    return Math.min(.95, (strike * clampedLaneProgress) / total);
+  }
+
+  private applyPendingSwordDamage(options: { force?: boolean } = {}): void {
+    const pending = this.pendingSwordDamage;
+    if (!pending) return;
+    const dueHits = options.force
+      ? pending.hits
+      : pending.hits.filter(hit => this.combatNow >= hit.dueAt);
+    if (dueHits.length === 0) return;
+    const dueEnemyIds = dueHits.map(hit => hit.enemyId);
+    pending.hits = pending.hits.filter(hit => !dueEnemyIds.includes(hit.enemyId));
+    if (pending.hits.length === 0) this.pendingSwordDamage = null;
+    let impacted = false;
+    for (const enemy of [...this.enemies]) {
+      if (enemy.dying || !dueEnemyIds.includes(enemy.id)) continue;
+      impacted = true;
+      const result = resolveEnemyDamage({
+        enemy,
+        effects: this.enemyExitEffects,
+        damage: pending.damage,
+        impactMagnitude: pending.damage,
+        color: pending.color,
+      });
+      if (result.killed) {
+        this.kills++;
+        this.play(result.definition.deathSound);
       }
     }
+    if (impacted) this.play(pending.impactSoundId);
   }
 
   private updateEnemies(delta: number, shieldDef: (typeof shieldFamily.members)[ShieldId] | null): void {
@@ -838,6 +919,8 @@ export class NeonSwarmSimulation {
           continue;
         }
       }
+
+      if (this.pendingSwordDamage?.hits.some(hit => hit.enemyId === enemy.id)) continue;
 
       const hitIndex = this.squad.points(this.playerY(), this.scale()).findIndex(point => Math.hypot(point.x - enemy.x, point.y - enemy.y) <= this.enemyDefinition(enemy).radius * 3.2);
       if (hitIndex >= 0) {
@@ -997,10 +1080,6 @@ export class NeonSwarmSimulation {
 
   private playGunFire(gunId: GunId): void {
     this.play(gunFireSoundIds[gunId]);
-  }
-
-  private playSwordSwing(swordId: SwordId): void {
-    this.play(swordSwingSoundIds[swordId]);
   }
 
   private playPickup(id: "PickupGun" | "PickupShield" | "PickupSword" | "PickupMultiplier"): void {

@@ -168,28 +168,22 @@
     "count": 1
   },
   {
-    "id": "SwordSwing",
-    "description": "short fast neon sword swing, sharp synthetic blade arc with airy electric slash, clean melee feel, no voice, no music",
+    "id": "SwordSwingWhoosh",
+    "description": "short neon sword whoosh, airy synthetic blade movement without contact impact, clean melee startup, no voice, no music",
     "location": "docs/NeonSwarm/audio",
-    "count": 3
+    "count": 1
   },
   {
-    "id": "SwordHeavySwing",
-    "description": "short heavy neon cleaver swing, thick synthetic blade whoosh with weighty electric edge, no voice, no music",
+    "id": "SwordArcImpact",
+    "description": "short fast neon arc blade impact, sharp synthetic blade contact with bright electric slice, clean melee hit, no voice, no music",
     "location": "docs/NeonSwarm/audio",
-    "count": 3
+    "count": 1
   },
   {
-    "id": "SwordStab",
-    "description": "short precise neon rapier stab, thin crystalline electric thrust with clean impact point, no voice, no music",
+    "id": "SwordCleaverImpact",
+    "description": "short heavy neon cleaver impact, thick synthetic blade contact with weighty electric edge, no voice, no music",
     "location": "docs/NeonSwarm/audio",
-    "count": 3
-  },
-  {
-    "id": "SwordHit",
-    "description": "short neon melee hit, bright blade contact spark with synthetic slice and tiny glass crackle, no voice, no music",
-    "location": "docs/NeonSwarm/audio",
-    "count": 3
+    "count": 1
   },
   {
     "id": "LowHealthWarning",

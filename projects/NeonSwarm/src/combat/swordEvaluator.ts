@@ -24,6 +24,8 @@ export interface ActiveSlashAnimation {
   /** Center x (snapshot of player position when swing occurred). */
   x: number;
   y: number;
+  targetPoints: readonly { x: number; y: number }[];
+  side: -1 | 1;
   /** Reach of the arc in pixels. */
   reach: number;
   /** Arc width in degrees. */
@@ -46,12 +48,35 @@ export class SwordState {
   cooldownLeft: number;
   /** Active slash animation, if any. */
   activeSlash: ActiveSlashAnimation | null;
+  previousSlashSide: -1 | 1;
+  cooldownLefts: number[];
+  activeSlashes: Array<ActiveSlashAnimation | null>;
+  previousSlashSides: Array<-1 | 1>;
+  nextSlotLaunchAllowedAt: number;
 
   constructor(swordId: SwordId, level = 1) {
     this.swordId = swordId;
     this.level = Math.min(5, Math.max(1, Math.floor(level)));
     this.cooldownLeft = 0;
     this.activeSlash = null;
+    this.previousSlashSide = 1;
+    this.cooldownLefts = [0];
+    this.activeSlashes = [null];
+    this.previousSlashSides = [1];
+    this.nextSlotLaunchAllowedAt = 0;
+  }
+
+  syncSlots(count: number): void {
+    const target = Math.max(1, Math.floor(count));
+    while (this.cooldownLefts.length < target) this.cooldownLefts.push(0);
+    while (this.activeSlashes.length < target) this.activeSlashes.push(null);
+    while (this.previousSlashSides.length < target) this.previousSlashSides.push(1);
+    this.cooldownLefts.length = target;
+    this.activeSlashes.length = target;
+    this.previousSlashSides.length = target;
+    this.cooldownLeft = Math.min(...this.cooldownLefts);
+    this.activeSlash = this.activeSlashes.find(Boolean) ?? null;
+    this.previousSlashSide = this.previousSlashSides[0] ?? 1;
   }
 }
 
@@ -62,6 +87,8 @@ export class SwordState {
 export interface SwordTickResult {
   /** Enemy IDs hit by the swing this frame. Empty if no swing occurred. */
   hitEnemyIds: number[];
+  /** Hit targets with their positions for delayed visual/contact timing. */
+  hitTargets: Array<{ id: number; x: number; y: number }>;
   /** Damage to apply to each hit enemy. */
   damage: number;
   /** Whether a new slash was triggered this frame (for audio, etc.). */
@@ -149,48 +176,70 @@ export function tickSword(
   now: number,
   delta: number,
   color: string,
+  visualDurationMs = sword.slashDurationMs,
+  swordCount = 1,
+  slotLaunchStaggerMs = 180,
 ): SwordTickResult {
   const result: SwordTickResult = {
     hitEnemyIds: [],
+    hitTargets: [],
     damage: 0,
     swingTriggered: false,
   };
 
-  // Advance cooldown
-  if (state.cooldownLeft > 0) state.cooldownLeft = Math.max(0, state.cooldownLeft - delta);
+  state.syncSlots(swordCount);
 
-  // Advance active slash animation
-  if (state.activeSlash) {
-    state.activeSlash.progress = (now - state.activeSlash.startedAt) / state.activeSlash.durationMs;
-    if (state.activeSlash.progress >= 1) state.activeSlash = null;
+  for (let slot = 0; slot < state.cooldownLefts.length; slot++) {
+    if (state.cooldownLefts[slot] > 0) state.cooldownLefts[slot] = Math.max(0, state.cooldownLefts[slot] - delta);
+    const slash = state.activeSlashes[slot];
+    if (slash) {
+      slash.progress = (now - slash.startedAt) / slash.durationMs;
+      if (slash.progress >= 1) state.activeSlashes[slot] = null;
+    }
   }
+  state.cooldownLeft = Math.min(...state.cooldownLefts);
+  state.activeSlash = state.activeSlashes.find(Boolean) ?? null;
 
   // Swords only swing when a target exists in range AND cooldown is ready.
   // This is the key difference from guns, which fire on a period regardless.
-  if (state.cooldownLeft > 0 || threats.length === 0) return result;
+  if (threats.length === 0) return result;
 
-  // Select targets
-  const selected = selectTargets(threats, sword.targetingMode, sword.maxTargets, swordRowReach(sword, state.level));
-  if (selected.length === 0) return result;
-
-  // Trigger swing
-  state.cooldownLeft = sword.cooldownSeconds;
-  result.swingTriggered = true;
-  result.damage = swordDamage(sword, state.level);
-  for (const { target } of selected) result.hitEnemyIds.push(target.id);
-
-  // Start slash animation
-  state.activeSlash = {
-    progress: 0,
-    startedAt: now,
-    durationMs: sword.slashDurationMs,
-    x: playerX,
-    y: playerY,
-    reach: sword.range * 0.75, // Arc reach is a fraction of detection range
-    arcDegrees: sword.arcDegrees,
-    color,
-    thickness: sword.slashThickness,
-  };
+  let remaining = [...threats];
+  const damage = swordDamage(sword, state.level);
+  for (let slot = 0; slot < state.cooldownLefts.length && remaining.length > 0; slot++) {
+    if (state.cooldownLefts.length > 1 && now < state.nextSlotLaunchAllowedAt) break;
+    if (state.cooldownLefts[slot] > 0) continue;
+    const selected = selectTargets(remaining, sword.targetingMode, sword.maxTargets, swordRowReach(sword, state.level));
+    if (selected.length === 0) continue;
+    const side: -1 | 1 = state.previousSlashSides[slot] === -1 ? 1 : -1;
+    state.previousSlashSides[slot] = side;
+    state.previousSlashSide = side;
+    state.cooldownLefts[slot] = sword.cooldownSeconds;
+    if (state.cooldownLefts.length > 1) state.nextSlotLaunchAllowedAt = now + slotLaunchStaggerMs;
+    result.swingTriggered = true;
+    result.damage = damage;
+    for (const { target } of selected) {
+      result.hitEnemyIds.push(target.id);
+      result.hitTargets.push({ id: target.id, x: target.x, y: target.y });
+    }
+    state.activeSlashes[slot] = {
+      progress: 0,
+      startedAt: now,
+      durationMs: visualDurationMs,
+      x: playerX,
+      y: playerY,
+      targetPoints: selected.map(({ target }) => ({ x: target.x, y: target.y })),
+      side,
+      reach: sword.range * 0.75,
+      arcDegrees: sword.arcDegrees,
+      color,
+      thickness: sword.slashThickness,
+    };
+    const selectedIds = new Set(selected.map(({ target }) => target.id));
+    remaining = remaining.filter(({ target }) => !selectedIds.has(target.id));
+  }
+  state.cooldownLeft = Math.min(...state.cooldownLefts);
+  state.activeSlash = state.activeSlashes.find(Boolean) ?? null;
 
   return result;
 }
