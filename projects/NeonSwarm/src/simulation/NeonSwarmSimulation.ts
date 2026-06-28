@@ -22,6 +22,7 @@ import {
   type ParsedTrackEntity,
   type ShieldId,
   type SwordId,
+  type SwordMember,
   type SwordTargetingMode,
   type TrackMember,
 } from "../../CombatDefinition";
@@ -88,7 +89,7 @@ export interface NeonSwarmSnapshot {
   active: {
     gun: { id: GunId; level: number } | null;
     shield: ShieldId | null;
-    sword: SwordId | null;
+    sword: { id: SwordId; level: number } | null;
   };
   enemies: Array<{ id: number; enemyId: OrbId; lane: Lane; x: number; y: number; health: number; maxHealth: number; dying: boolean }>;
   pickups: {
@@ -162,7 +163,6 @@ const gunFireSoundIds: Record<GunId, string> = {
 const swordSwingSoundIds: Record<SwordId, string> = {
   arcBlade: "SwordSwing",
   cleaver: "SwordHeavySwing",
-  needleRapier: "SwordStab",
 };
 
 const soundAlternativeCounts: Partial<Record<string, number>> = {
@@ -354,7 +354,8 @@ export class NeonSwarmSimulation {
   }
 
   equipSword(swordId: SwordId): void {
-    this.activeByFamily.sword = new SwordState(swordId);
+    const current = this.activeByFamily.sword;
+    this.activeByFamily.sword = new SwordState(swordId, current?.swordId === swordId ? current.level + 1 : 1);
     this.playPickup("PickupSword");
     this.play("WeaponReady");
   }
@@ -623,7 +624,7 @@ export class NeonSwarmSimulation {
       active: {
         gun: this.activeByFamily.gun ? { ...this.activeByFamily.gun } : null,
         shield: this.activeByFamily.shield?.shieldId ?? null,
-        sword: this.activeByFamily.sword?.swordId ?? null,
+        sword: this.activeByFamily.sword ? { id: this.activeByFamily.sword.swordId, level: this.activeByFamily.sword.level } : null,
       },
       enemies: this.enemies.map(enemy => ({
         id: enemy.id,
@@ -737,7 +738,7 @@ export class NeonSwarmSimulation {
     });
   }
 
-  private updateNearPlayerEffects(delta: number, shieldDef: (typeof shieldFamily.members)[ShieldId] | null, swordDef: (typeof swordFamily.members)[SwordId] | null): void {
+  private updateNearPlayerEffects(delta: number, shieldDef: (typeof shieldFamily.members)[ShieldId] | null, swordDef: SwordMember | null): void {
     const px = this.squad.x;
     const py = this.playerY();
     if (this.activeByFamily.shield && shieldDef) {
@@ -773,14 +774,17 @@ export class NeonSwarmSimulation {
 
     if (this.activeByFamily.sword && swordDef) {
       const swordState = this.activeByFamily.sword;
+      const swordQueryRange = swordDef.rowReach
+        ? Math.max(this.canvas.width, swordDef.range * this.scale())
+        : swordDef.range * this.scale();
       const swordThreats = queryNearbyThreats(this.enemies, {
         origin: { x: px, y: py },
         lane: this.playerLane,
-        range: swordDef.range * this.scale(),
+        range: swordQueryRange,
         includeAdjacentLanes: (swordDef.targetingMode as SwordTargetingMode) === "nearestInEitherLane",
-        maxTargets: swordDef.maxTargets,
+        maxTargets: swordDef.rowReach ? undefined : swordDef.maxTargets,
         purpose: "sword",
-      });
+      }).filter(threat => !swordDef.rowReach || Math.abs(threat.target.y - py) <= swordDef.range * this.scale());
       const swordResult = tickSword(swordState, swordDef, swordThreats, px, py, this.combatNow, delta, neonPalette[swordDef.color]);
       if (swordResult.swingTriggered && swordResult.hitEnemyIds.length > 0) {
         this.playSwordSwing(swordState.swordId);
@@ -897,7 +901,8 @@ export class NeonSwarmSimulation {
     for (const pickup of [...this.swordPickups]) {
       pickup.y += 72 * pickup.speedMultiplier * this.scale() * delta;
       if (pickup.y >= this.playerY() - 15 * this.scale() && pickup.lane === this.playerLane) {
-        this.activeByFamily.sword = new SwordState(pickup.swordId);
+        const current = this.activeByFamily.sword;
+        this.activeByFamily.sword = new SwordState(pickup.swordId, current?.swordId === pickup.swordId ? current.level + 1 : 1);
         this.swordPickups.splice(this.swordPickups.indexOf(pickup), 1);
         this.playPickup("PickupSword");
         this.play("WeaponReady");

@@ -26,6 +26,7 @@ export interface ThreatTarget {
   lane: 0 | 1;
   x: number;
   y: number;
+  rowId?: number;
   dying: boolean;
 }
 

@@ -31,10 +31,30 @@ export interface SwordMember {
   arcDegrees: number;
   /** Damage per hit. */
   damage: number;
-  /** Cooldown between swings in seconds. Swords do NOT fire on a timer — only when a target exists. */
+  /**
+   * Optional level 5 damage per hit.
+   *
+   * Level 1 uses damage, level 5 uses damageAtLevel5, and intermediate levels
+   * interpolate. Use this when duplicate pickups should increase total HP
+   * cleared without changing proximity rules.
+   */
+  damageAtLevel5?: number;
+  /** Cooldown between swings in seconds. Swords do not fire on a timer; only when a target exists. */
   cooldownSeconds: number;
   /** Maximum targets hit per swing. */
   maxTargets: number;
+  /**
+   * Optional vertical reach in authored track rows.
+   *
+   * Heavy sweeping swords can use this with repeated pickups: level 1 uses
+   * level1 rows, level 5 uses level5 rows, and intermediate levels interpolate.
+   * This expands affected rows after a close target is found; it does not
+   * loosen the near-player proximity threshold.
+   */
+  rowReach?: {
+    level1: number;
+    level5: number;
+  };
   /** Lane-aware target selection mode. */
   targetingMode: SwordTargetingMode;
   /** Visual slash arc duration in milliseconds. */
@@ -44,7 +64,7 @@ export interface SwordMember {
   /** Visual thickness multiplier for the shared sword trail. 1.0 = default. */
   slashThickness: number;
   /**
-   * Optional design notes. Not used by runtime — documents intent for future agents.
+   * Optional design notes. Not used by runtime; documents intent for future agents.
    */
   agentNotes?: string;
 }
@@ -59,9 +79,10 @@ export class SwordFamilyDefinition extends FamilyDefinition<Record<string, Sword
 
   /**
    * Family-level implementation notes:
-   * - Swords are NOT period-based like guns. They swing only when a valid target
+   * - Swords are not period-based like guns. They swing only when a valid target
    *   is within range and cooldown is ready. They idle silently otherwise.
    * - One active sword per player (family-scoped exclusivity).
+   * - Repeated pickups of the same sword increase that sword's active level.
    * - Can coexist with an active Gun and an active Shield simultaneously.
    * - Targeting is lane-aware via queryNearbyThreats().
    * - The slash animation runs for slashDurationMs milliseconds, then fades.
@@ -72,8 +93,8 @@ export class SwordFamilyDefinition extends FamilyDefinition<Record<string, Sword
    */
   readonly members = {
     /**
-     * Arc Blade — Core sword. Fast, curved, targets nearest enemy in lane.
-     * Hits 1–2 enemies depending on arc overlap. Short cooldown.
+     * Arc Blade - Core sword. Fast, curved, targets nearest enemy in lane.
+     * Short cooldown makes it useful against dense single-lane waves.
      */
     arcBlade: {
       label: "Arc Blade",
@@ -82,53 +103,35 @@ export class SwordFamilyDefinition extends FamilyDefinition<Record<string, Sword
       range: 52,
       arcDegrees: 70,
       damage: 1.5,
-      cooldownSeconds: 0.85,
+      cooldownSeconds: 0.55,
       maxTargets: 2,
       targetingMode: "nearestInCurrentLane",
       slashDurationMs: 150,
       color: "cyan",
       slashThickness: 1.0,
-      agentNotes: "Fast and sharp. Curved neon slash. 120–180ms feel. Fading afterimage. Like a whip-like katana arc.",
+      agentNotes: "Fast and sharp. Curved neon slash. 120-180ms feel. Fading afterimage. Like a whip-like katana arc.",
     },
 
     /**
-     * Cleaver — Heavy sword. Slower but hits multiple clustered enemies.
-     * Wide arc, thicker slash. Better against tight groups than fast singles.
+     * Cleaver - Heavy sword. Slower, but sweeps across every column.
+     * Starts with 2 rows of vertical reach and scales to 4 rows at level 5.
      */
     cleaver: {
       label: "Cleaver",
       family: "sword",
       rarity: "common",
-      range: 56,
-      arcDegrees: 110,
-      damage: 2.8,
-      cooldownSeconds: 1.8,
-      maxTargets: 4,
-      targetingMode: "clusterNearPlayer",
-      slashDurationMs: 220,
+      range: 68,
+      arcDegrees: 360,
+      damage: 2.4,
+      damageAtLevel5: 3.4,
+      cooldownSeconds: 1.35,
+      maxTargets: 12,
+      rowReach: { level1: 2, level5: 4 },
+      targetingMode: "nearestInEitherLane",
+      slashDurationMs: 260,
       color: "orange",
-      slashThickness: 1.65,
-      agentNotes: "Heavy and wide. Thicker arc. Stronger impact flash. Geometric and procedural — not a bullet.",
-    },
-
-    /**
-     * Needle Rapier — Precision sword. Long reach, narrow arc, single target.
-     * Prioritizes the most dangerous (front-most) enemy.
-     */
-    needleRapier: {
-      label: "Needle Rapier",
-      family: "sword",
-      rarity: "uncommon",
-      range: 70,
-      arcDegrees: 30,
-      damage: 2.2,
-      cooldownSeconds: 1.1,
-      maxTargets: 1,
-      targetingMode: "frontMostThreat",
-      slashDurationMs: 130,
-      color: "green",
-      slashThickness: 0.55,
-      agentNotes: "Elegant and precise. Thin stabbing line. Not a gun shot — it must feel melee. Single target priority.",
+      slashThickness: 1.9,
+      agentNotes: "Heavy all-column sweep. Repeated cleaver pickups level it up from 2 rows of reach to 4 rows at level 5, with more total damage per swing.",
     },
   } as const satisfies Record<string, SwordMember>;
 
@@ -138,12 +141,17 @@ export class SwordFamilyDefinition extends FamilyDefinition<Record<string, Sword
   }
 
   validate(): void {
-    for (const [id, sword] of Object.entries(this.members)) {
+    for (const [id, sword] of Object.entries(this.members) as Array<[string, SwordMember]>) {
       this.require(sword.range > 0, `${id} range must be positive.`);
       this.require(sword.arcDegrees > 0 && sword.arcDegrees <= 360, `${id} arcDegrees must be in (0, 360].`);
       this.require(sword.damage > 0, `${id} damage must be positive.`);
+      if (sword.damageAtLevel5 !== undefined) this.require(sword.damageAtLevel5 >= sword.damage, `${id} damageAtLevel5 must be at least damage.`);
       this.require(sword.cooldownSeconds > 0, `${id} cooldownSeconds must be positive.`);
       this.require(sword.maxTargets >= 1, `${id} maxTargets must be at least 1.`);
+      if (sword.rowReach) {
+        this.require(Number.isInteger(sword.rowReach.level1) && sword.rowReach.level1 >= 1, `${id} rowReach.level1 must be a positive integer.`);
+        this.require(Number.isInteger(sword.rowReach.level5) && sword.rowReach.level5 >= sword.rowReach.level1, `${id} rowReach.level5 must be at least level1.`);
+      }
       this.require(sword.slashDurationMs > 0, `${id} slashDurationMs must be positive.`);
       this.require(sword.slashThickness > 0, `${id} slashThickness must be positive.`);
       this.require(neonPalette[sword.color] !== undefined, `${id} has an unknown color.`);

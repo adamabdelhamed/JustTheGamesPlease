@@ -40,13 +40,16 @@ export interface ActiveSlashAnimation {
 
 export class SwordState {
   swordId: SwordId;
+  /** Active sword level. Repeated pickups of the same sword increase this up to 5. */
+  level: number;
   /** Seconds remaining until the sword can swing again. */
   cooldownLeft: number;
   /** Active slash animation, if any. */
   activeSlash: ActiveSlashAnimation | null;
 
-  constructor(swordId: SwordId) {
+  constructor(swordId: SwordId, level = 1) {
     this.swordId = swordId;
+    this.level = Math.min(5, Math.max(1, Math.floor(level)));
     this.cooldownLeft = 0;
     this.activeSlash = null;
   }
@@ -73,8 +76,20 @@ function selectTargets(
   threats: readonly NearbyThreat[],
   mode: SwordTargetingMode,
   maxTargets: number,
+  rowReach: number,
 ): NearbyThreat[] {
   if (threats.length === 0) return [];
+  if (rowReach > 1 && threats[0].target.rowId !== undefined) {
+    const centerRow = threats[0].target.rowId;
+    const rows = [...new Set(threats
+      .map(threat => threat.target.rowId)
+      .filter(rowId => rowId !== undefined))]
+      .sort((a, b) => Math.abs(a - centerRow) - Math.abs(b - centerRow))
+      .slice(0, rowReach);
+    return threats
+      .filter(threat => threat.target.rowId !== undefined && rows.includes(threat.target.rowId))
+      .slice(0, maxTargets);
+  }
 
   switch (mode) {
     case "nearestInCurrentLane":
@@ -93,6 +108,20 @@ function selectTargets(
     default:
       return threats.slice(0, maxTargets);
   }
+}
+
+function swordRowReach(sword: SwordMember, level: number): number {
+  if (!sword.rowReach) return 1;
+  const clampedLevel = Math.min(5, Math.max(1, Math.floor(level)));
+  const progress = (clampedLevel - 1) / 4;
+  return Math.round(sword.rowReach.level1 + (sword.rowReach.level5 - sword.rowReach.level1) * progress);
+}
+
+function swordDamage(sword: SwordMember, level: number): number {
+  if (sword.damageAtLevel5 === undefined) return sword.damage;
+  const clampedLevel = Math.min(5, Math.max(1, Math.floor(level)));
+  const progress = (clampedLevel - 1) / 4;
+  return sword.damage + (sword.damageAtLevel5 - sword.damage) * progress;
 }
 
 // ---------------------------------------------------------------------------
@@ -141,13 +170,13 @@ export function tickSword(
   if (state.cooldownLeft > 0 || threats.length === 0) return result;
 
   // Select targets
-  const selected = selectTargets(threats, sword.targetingMode, sword.maxTargets);
+  const selected = selectTargets(threats, sword.targetingMode, sword.maxTargets, swordRowReach(sword, state.level));
   if (selected.length === 0) return result;
 
   // Trigger swing
   state.cooldownLeft = sword.cooldownSeconds;
   result.swingTriggered = true;
-  result.damage = sword.damage;
+  result.damage = swordDamage(sword, state.level);
   for (const { target } of selected) result.hitEnemyIds.push(target.id);
 
   // Start slash animation

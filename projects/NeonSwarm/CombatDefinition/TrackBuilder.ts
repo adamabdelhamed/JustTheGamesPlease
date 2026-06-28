@@ -60,32 +60,81 @@ export type TrackPickupRef = string;
 
 export interface TrackPlacementOptions {
   column: TrackColumn;
+  /**
+   * Optional per-symbol speed multiplier emitted into the track legend.
+   *
+   * Omit this for normal authoring. The default is 1, and future track edits
+   * should prefer speed 1 unless the user directly asks for speed tuning.
+   * Changing this value is a significant balance change.
+   */
   speed?: number;
 }
 
 export interface TrackLineOptions {
   column: TrackColumn;
   count: number;
+  /**
+   * Empty rows between each enemy.
+   *
+   * Defaults to 0. In pressure sections, omit this unless the gap is
+   * intentional; pressure should normally place enemies every row.
+   */
   gap?: number;
+  /**
+   * Optional enemy speed override for this repeated pattern.
+   *
+   * Omit this for normal authoring. Prefer speed 1 unless the user directly
+   * asks for speed tuning, because speed changes materially affect balance.
+   */
   speed?: number;
 }
 
 export interface TrackAlternatingOptions {
   columns: readonly TrackColumn[];
   count: number;
+  /**
+   * Empty rows between each enemy.
+   *
+   * Defaults to 0. In pressure sections, omit this unless the gap is
+   * intentional; pressure should normally place enemies every row.
+   */
   gap?: number;
+  /**
+   * Optional enemy speed override for this repeated pattern.
+   *
+   * Omit this for normal authoring. Prefer speed 1 unless the user directly
+   * asks for speed tuning, because speed changes materially affect balance.
+   */
   speed?: number;
 }
 
 export interface TrackWallOptions {
   columns: readonly TrackColumn[];
+  /**
+   * Optional enemy speed override for this wall.
+   *
+   * Omit this for normal authoring. Prefer speed 1 unless the user directly
+   * asks for speed tuning, because speed changes materially affect balance.
+   */
   speed?: number;
 }
 
 export interface TrackDripOptions {
   column: TrackColumn;
   rows: number;
+  /**
+   * Place one enemy every N rows.
+   *
+   * Drip is intentionally sparse. Prefer line/alternating without a gap for
+   * normal pressure, and use drip only when the sparse cadence is deliberate.
+   */
   every: number;
+  /**
+   * Optional enemy speed override for this drip pattern.
+   *
+   * Omit this for normal authoring. Prefer speed 1 unless the user directly
+   * asks for speed tuning, because speed changes materially affect balance.
+   */
   speed?: number;
 }
 
@@ -121,6 +170,12 @@ export interface TrackBuilder {
   advanceRows(rows: number): TrackBuilder;
   respite(rows: number): TrackBuilder;
   section(name: string, rows: number, build: (section: TrackSectionBuilder) => void): TrackBuilder;
+  /**
+   * Add a danger-focused section with a fixed duration.
+   *
+   * Pressure should usually contain enemy placement every row. Use explicit
+   * gaps or drip patterns only when the quiet space is intentional.
+   */
   pressure(rows: number, build: (section: TrackSectionBuilder) => void): TrackBuilder;
   rebuild(rows: number, build: (section: TrackSectionBuilder) => void): TrackBuilder;
   line(enemyId: TrackEnemyRef, options: TrackLineOptions): TrackBuilder;
@@ -178,7 +233,6 @@ const preferredSymbols: Readonly<Record<string, string>> = {
   "pickup.weapon.shield.hexGuard": "X",
   "pickup.weapon.sword.arcBlade": "a",
   "pickup.weapon.sword.cleaver": "c",
-  "pickup.weapon.sword.needleRapier": "n",
   "pickup.unitMultiplier.2x": "2",
 };
 const fallbackSymbols = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz23456789!#$%&*+,-/:;<=>?@^_~".split("")
