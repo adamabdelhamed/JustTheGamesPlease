@@ -82,10 +82,12 @@ Adding a family is a big deal. These are ideas and need to be authored as full s
 ## Track Family Design and Balance
 
 - [Audit / Cleanup] We have done a decent job of automating a lot of the design of the track families, but the current composer/generated track split still feels noisy. The grammar may also be too close to literal layout generation instead of authored design intent.
+  - Completed: catalog + authored journey recipes now generate all catalog tracks at startup through a shared deterministic composer. `TrackDefinition` / `TrackBuilder` remain as runtime compatibility output, not an authoring target.
+  - Completed: the literal row track editor was removed. Future track tuning should happen through readable journey grammar, family recipes, tier profiles, and composer debug summaries.
   - First useful slice: inspect the current composer/generated track split and propose a small cleanup that reduces noise without hiding useful authored data.
-  - Preserve old hardcoded / authored tracks if they contain useful design information, but move noisy generated row data behind a clearer generated/composer boundary.
+  - Preserve old hardcoded / authored tracks only as design reference if they contain useful information; do not keep generated row data or literal-layout authoring workflows as constraints.
   - Prefer keeping authored intent, catalog metadata, tuning, and recipes in source control. Avoid keeping large generated layouts as standalone source files unless there is a clear reason.
-  - Do not break the existing track definition format. The old format should continue to work beside the composer-generated tracks.
+  - Do not break the existing track definition format. The old format is now the runtime output/parsing boundary for composer-generated tracks.
 
 - [Spec Task] Improve the track family composer grammar so it can generate compelling track families and tracks dynamically from the catalog, available weapons, pickups, enemy types, balance data, and any existing game concepts discovered in the codebase.
   - Treat the interfaces below as design direction, not a rigid required shape. Adapt names, types, and boundaries to fit the existing code.
@@ -293,7 +295,7 @@ Adding a family is a big deal. These are ideas and need to be authored as full s
     - Future agents should be able to tune the experience by editing the journey without needing to rewrite primitive generation.
 
 - Debuggability
-  - Add composer debug output that can be used during development.
+  - Composer debug output exists for development through the track composer debug test page and exported summary helpers.
   - Useful debug info:
     - seed
     - family id
@@ -311,33 +313,9 @@ Adding a family is a big deal. These are ideas and need to be authored as full s
   - The goal is to make generated tracks inspectable instead of magic.
 
 - Suggested First Implementation Slice
-  - Inspect the current track files, generated files, composer code, catalog code, item definitions, weapon definitions, enemy definitions, and balance definitions.
-  - Propose and implement a small cleanup of the composer/generated/authored split.
-  - Keep the old track format working.
-  - Add or adapt recipe types for:
-    - track family recipe
-    - track recipe
-    - tier profile
-    - user journey grammar
-    - beat primitives
-    - composite beats
-    - simple player power estimate based on existing weapon/item tuning
-    - simple threat estimate
-  - Implement deterministic seeded generation.
-  - Start with a small grammar:
-    - intro
-    - ramp
-    - lesson
-    - pressure
-    - rest
-    - rebuild
-    - challenge
-    - finale
-  - Add spike/payoff/check/telegraph only if they fit naturally into the existing code after inspection.
-  - Convert one existing family to the new recipe/composer path first.
-  - Verify the old authored tracks still work.
-  - Add debug output so generated tracks can be evaluated.
-  - Include at least one example track journey that is easy for a human to read and safely adjust.
+  - Completed: replaced the old theme-specific procedural composer with shared family recipes, track recipes, tier profiles, deterministic seeded generation, simple player power estimates, simple threat estimates, and composer debug summaries.
+  - Completed: all existing track families now use the recipe/composer path instead of preserving the old `gunSchoolPressure` / `guardBladePressure` / etc. procedural structure.
+  - Follow-up: iterate the actual journey recipes and tier budgets through manual playtesting. The current implementation prioritizes clean authored intent, deterministic generation, and inspectability over final balance.
 
 - Design Goal
   - The composer should not become a purely random procedural generator.

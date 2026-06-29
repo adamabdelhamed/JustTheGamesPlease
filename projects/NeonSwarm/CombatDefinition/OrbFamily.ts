@@ -115,7 +115,7 @@ export class OrbFamilyDefinition extends FamilyDefinition<Record<string, OrbMemb
     },
     tank: {
       label: "Tank",
-      health: 6,
+      health: 24,
       speed: 44,
       radius: 16,
       columnSpan: 3,

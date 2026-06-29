@@ -8,6 +8,8 @@ export const tracks = Object.fromEntries(
 export const trackFamilies = trackFamiliesFromCatalog;
 export { trackCatalog, trackFamilyCatalog, trackThemeCatalog } from "./TrackCatalog";
 export type { TrackCatalogId, TrackFamilyCatalogId, TrackThemeId, TrackTier } from "./TrackCatalog";
+export { describeComposedCatalogTrack, describeComposedTrack } from "./TrackComposer";
+export type { ComposerDebugSummary, FamilyRecipe, JourneyBeatKind, JourneyBeatRecipe, PressureLevel, PressureStyle, SegmentDebugSummary, TierProfile, TrackRecipe } from "./TrackComposer";
 
 export const neonNebulaeTrack1 = tracks["neon-nebulae-1"];
 export const neonNebulaeTrack2 = tracks["neon-nebulae-2"];

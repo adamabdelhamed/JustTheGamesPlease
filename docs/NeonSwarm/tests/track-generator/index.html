@@ -2,71 +2,56 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-  <title>Neon Swarm · AI Track Generator Prompt Builder</title>
-  <meta name="description" content="Generate structured instructions for LLM agents to design balanced tracks for Neon Swarm.">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Neon Swarm · Track Composer Debug</title>
+  <meta name="description" content="Inspect deterministic track recipe composer output for Neon Swarm.">
   <meta name="theme-color" content="#03050d">
   <link rel="stylesheet" href="track-generator.css">
+  <script src="../../../lib/url-options.js"></script>
 </head>
 <body>
-  <main id="generator-container">
+  <main id="generator-container" hidden>
     <header class="generator-header">
       <div class="header-logo">
-        <span class="eyebrow">NEON SWARM · AUTHORING TOOL</span>
-        <h1>AI Track Generator</h1>
-        <p>Configure guidelines and custom requirements to build a prompt that asks an LLM agent to design a new track.</p>
+        <span class="eyebrow">NEON SWARM · COMPOSER DEBUG</span>
+        <h1>Track Composer Debug</h1>
+        <p>Track tuning now happens through catalog metadata, readable journey recipes, and composer debug summaries.</p>
       </div>
       <a class="back-link" href="../index.html#dev-1">Back to Test Center</a>
     </header>
 
     <div class="grid-layout">
-      <!-- Left side: Configuration inputs -->
       <section class="panel config-panel" aria-labelledby="config-title">
-        <h2 id="config-title">Track Parameters & Requirements</h2>
-        
+        <h2 id="config-title">Catalog Track</h2>
         <div class="form-group">
-          <label for="custom-requirements">Custom Requirements</label>
-          <textarea id="custom-requirements" rows="6" placeholder="Describe your track here (e.g., 'An introductory track that teaches the player to use shields. Start with slow, single enemies, then add a dense shield tutorial wave midway. End with a simple pacing run.')"></textarea>
+          <label for="track-select">Track</label>
+          <select id="track-select"></select>
         </div>
-
-        <div class="form-row">
-          <div class="form-group">
-            <label for="track-label">Track Label</label>
-            <input type="text" id="track-label" value="Custom Nebula Drive" placeholder="e.g. Neon Horizon">
-          </div>
-          <div class="form-group">
-            <label for="balance-difficulty">Difficulty Multipliers</label>
-            <div class="multi-inputs">
-              <input type="number" id="enemy-hp" value="1.0" min="0.1" max="10" step="0.1" title="Enemy HP Multiplier">
-              <span class="x-sep">× HP</span>
-              <input type="number" id="enemy-speed" value="1.0" min="0.1" max="10" step="0.1" title="Enemy Speed Multiplier">
-              <span class="x-sep">× Speed</span>
-            </div>
-          </div>
-        </div>
-
         <div class="info-alert">
-          <span class="alert-icon">⚡</span>
-          <p><strong>Note on Duration:</strong> The length/duration of the track is determined entirely by the number of lines in the layout. Each layout line corresponds to approximately 1 second of playtime.</p>
+          <span class="alert-icon">!</span>
+          <p>Literal layout editing is no longer supported. Use authored journey recipes and this debug summary to inspect generated output.</p>
         </div>
       </section>
 
-      <!-- Right side: Preview and Actions -->
       <section class="panel preview-panel" aria-labelledby="preview-title">
         <div class="preview-header">
-          <h2 id="preview-title">Prompt Preview</h2>
+          <h2 id="preview-title">Composer Summary</h2>
           <button type="button" id="copy-btn" class="glow-button">
-            <span class="btn-text">Copy to Clipboard</span>
-            <span class="btn-icon">📋</span>
+            <span class="btn-text">Copy JSON</span>
+            <span class="btn-icon">Copy</span>
           </button>
         </div>
-
         <div class="prompt-scroll-container">
-          <pre id="prompt-preview">Assembling prompt components...</pre>
+          <pre id="prompt-preview">Loading composer summary...</pre>
         </div>
       </section>
     </div>
   </main>
+
+  <section id="dev-required" class="dev-required" hidden>
+    <h1>Developer mode required</h1>
+    <p>Open this page from the game with <code>?dev=1</code> or <code>#dev-1</code>.</p>
+  </section>
 
   <script type="module" src="track-generator.js"></script>
 </body>

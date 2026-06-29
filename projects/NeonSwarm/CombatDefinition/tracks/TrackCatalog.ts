@@ -227,35 +227,14 @@ export const trackFamilyCatalog = {
 
 export type TrackFamilyCatalogId = keyof typeof trackFamilyCatalog;
 
-export const trackFamiliesFromCatalog = {
-  neonNebulae: {
-    label: trackFamilyCatalog.neonNebulae.label,
-    description: trackFamilyCatalog.neonNebulae.description,
-    environment: { sceneId: trackFamilyCatalog.neonNebulae.sceneId },
-    trackIds: trackFamilyCatalog.neonNebulae.trackIds,
-  },
-  aurora: {
-    label: trackFamilyCatalog.aurora.label,
-    description: trackFamilyCatalog.aurora.description,
-    environment: { sceneId: trackFamilyCatalog.aurora.sceneId },
-    trackIds: trackFamilyCatalog.aurora.trackIds,
-  },
-  crystalForge: {
-    label: trackFamilyCatalog.crystalForge.label,
-    description: trackFamilyCatalog.crystalForge.description,
-    environment: { sceneId: trackFamilyCatalog.crystalForge.sceneId },
-    trackIds: trackFamilyCatalog.crystalForge.trackIds,
-  },
-  voidGarden: {
-    label: trackFamilyCatalog.voidGarden.label,
-    description: trackFamilyCatalog.voidGarden.description,
-    environment: { sceneId: trackFamilyCatalog.voidGarden.sceneId },
-    trackIds: trackFamilyCatalog.voidGarden.trackIds,
-  },
-  solarArray: {
-    label: trackFamilyCatalog.solarArray.label,
-    description: trackFamilyCatalog.solarArray.description,
-    environment: { sceneId: trackFamilyCatalog.solarArray.sceneId },
-    trackIds: trackFamilyCatalog.solarArray.trackIds,
-  },
-} as const satisfies Record<TrackFamilyCatalogId, TrackFamilyMember<TrackCatalogId>>;
+export const trackFamiliesFromCatalog = Object.fromEntries(
+  Object.entries(trackFamilyCatalog).map(([id, family]) => [
+    id,
+    {
+      label: family.label,
+      description: family.description,
+      environment: { sceneId: family.sceneId },
+      trackIds: family.trackIds,
+    },
+  ]),
+) as unknown as { readonly [FamilyId in TrackFamilyCatalogId]: TrackFamilyMember<TrackCatalogId> };

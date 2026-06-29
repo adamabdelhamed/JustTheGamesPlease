@@ -137,6 +137,7 @@ interface Enemy {
   maxHealth: number;
   speedMultiplier: number;
   rowId: number;
+  planned: boolean;
   actor: NeonShapeActor;
   dying: boolean;
   exitEffectSpawned?: boolean;
@@ -225,6 +226,16 @@ const soundAlternativeCounts: Partial<Record<string, number>> = {
 const maxTrackSpawnLeadSeconds = 18;
 const firstTrackRowArrivalSeconds = 2 * combatTuning.globalSpeedMultiplier;
 const trackRowTravelSeconds = .375 * combatTuning.globalSpeedMultiplier;
+const smoothingClearDistance = 390;
+const smoothingSpawnDistance = 430;
+const smoothingMinimumUpcomingSeconds = 3.2;
+const smoothingCooldownSeconds = 1.6;
+const smoothingMaxEnemiesPerBurst = 5;
+const smoothingFinalActClearDistance = 320;
+const smoothingFinalActCooldownSeconds = 1.05;
+const smoothingFinalActMaxEnemiesPerBurst = 7;
+const smoothingSourceRowWindow = 3;
+const smoothingExcludedEnemyIds = new Set<OrbId>(["tank"]);
 
 export class NeonSwarmSimulation {
   readonly mode: NeonSwarmSimulationMode;
@@ -249,6 +260,8 @@ export class NeonSwarmSimulation {
   private entityIdCounter = 0;
   private trackEntities: ParsedTrackEntity[] = [];
   private nextTrackEntity = 0;
+  private smoothedTrackRows = new Set<number>();
+  private nextSmoothingAt = 0;
   private breaches = 0;
   private kills = 0;
   private enemies: Enemy[] = [];
@@ -334,6 +347,8 @@ export class NeonSwarmSimulation {
     this.cooldown = 0;
     this.gunCooldowns = [];
     this.nextTrackEntity = 0;
+    this.smoothedTrackRows.clear();
+    this.nextSmoothingAt = 0;
     this.trackEntities = [];
     this.breaches = 0;
     this.kills = 0;
@@ -390,6 +405,8 @@ export class NeonSwarmSimulation {
     this.cooldown = 0;
     this.gunCooldowns = [];
     this.nextTrackEntity = 0;
+    this.smoothedTrackRows.clear();
+    this.nextSmoothingAt = 0;
     this.trackEntities = allEntities.filter(entity => entity.id !== "player.start");
     this.breaches = 0;
     this.clearStage();
@@ -480,6 +497,7 @@ export class NeonSwarmSimulation {
       maxHealth: health,
       speedMultiplier: options.speedMultiplier ?? 1,
       rowId: options.rowId ?? id,
+      planned: false,
       actor,
       dying: false,
     });
@@ -578,7 +596,10 @@ export class NeonSwarmSimulation {
     updateEnemyExitEffects(this.enemyExitEffects, delta);
 
     if (this.mode === "game" && !this.activeTrack) return;
-    if (this.activeTrack) this.spawnTrackEntities();
+    if (this.activeTrack) {
+      this.spawnTrackEntities();
+      this.smoothClearedTrackSpace();
+    }
 
     const gunStatus = this.activeByFamily.gun ? gunFamily.members[this.activeByFamily.gun.id].label : "No weapon";
     const shieldDef = this.activeByFamily.shield ? shieldFamily.members[this.activeByFamily.shield.shieldId] : null;
@@ -811,22 +832,7 @@ export class NeonSwarmSimulation {
       const lane: Lane = entity.side === "left" ? 0 : 1;
       const enemyDefinitionEntry = enemyDefinitionFromTrackId(entity.id);
       if (enemyDefinitionEntry) {
-        const { enemyId, definition } = enemyDefinitionEntry;
-        this.enemies.push({
-          id: ++this.entityIdCounter,
-          enemyType: enemyId,
-          enemyId,
-          lane,
-          x: this.entityX(entity),
-          y: this.enemySpawnY(entity),
-          health: definition.health * this.activeTrack.definition.balance.enemyHp,
-          maxHealth: definition.health * this.activeTrack.definition.balance.enemyHp,
-          speedMultiplier: entity.speedMultiplier,
-          rowId: entity.rowIndex,
-          actor: createEnemyActor(enemyId),
-          dying: false,
-        });
-        if (definition.spawnSound) this.play(definition.spawnSound);
+        this.spawnTrackEnemy(entity, lane, this.enemySpawnY(entity), entity.rowIndex);
       } else if (entity.id.startsWith("pickup.weapon.gun.")) {
         const candidate = entity.id.slice("pickup.weapon.gun.".length);
         if (!(candidate in gunFamily.members)) throw new Error(`Track uses unknown gun id "${entity.id}".`);
@@ -849,6 +855,91 @@ export class NeonSwarmSimulation {
         throw new Error(`Track entity id "${entity.id}" is not supported by the lane runner.`);
       }
     }
+  }
+
+  private smoothClearedTrackSpace(): void {
+    if (!this.activeTrack || this.mode !== "game" || this.combatElapsed < this.nextSmoothingAt) return;
+    const finalAct = this.trackEntities.length > 0 && this.nextTrackEntity / this.trackEntities.length >= .72;
+    const clearDistance = finalAct ? smoothingFinalActClearDistance : smoothingClearDistance;
+    const liveEnemyY = this.enemies
+      .filter(enemy => !enemy.dying)
+      .map(enemy => enemy.y);
+    const closestEnemyY = liveEnemyY.length > 0 ? Math.max(...liveEnemyY) : Number.NEGATIVE_INFINITY;
+    if (this.playerY() - closestEnemyY < clearDistance) return;
+
+    const sourceEnemies = this.nextUpcomingEnemiesForSmoothing(finalAct);
+    if (sourceEnemies.length === 0) return;
+    const [first] = sourceEnemies;
+    const arrivalGap = this.entityArrivalSeconds(first) - this.combatElapsed;
+    if (!finalAct && arrivalGap < smoothingMinimumUpcomingSeconds) return;
+
+    const spawnY = this.playerY() - smoothingSpawnDistance * this.scale();
+    sourceEnemies.slice(0, finalAct ? smoothingFinalActMaxEnemiesPerBurst : smoothingMaxEnemiesPerBurst).forEach((entity, index) => {
+      this.spawnTrackEnemy(entity, entity.side === "left" ? 0 : 1, spawnY - index * 28 * this.scale(), -100000 - entity.rowIndex);
+      this.smoothedTrackRows.add(entity.rowIndex);
+    });
+    this.nextSmoothingAt = this.combatElapsed + (finalAct ? smoothingFinalActCooldownSeconds : smoothingCooldownSeconds);
+  }
+
+  private nextUpcomingEnemiesForSmoothing(finalAct: boolean): ParsedTrackEntity[] {
+    const enemies: ParsedTrackEntity[] = [];
+    for (let index = this.nextTrackEntity; index < this.trackEntities.length; index++) {
+      const candidate = this.trackEntities[index];
+      if (!enemyDefinitionFromTrackId(candidate.id) || this.smoothedTrackRows.has(candidate.rowIndex)) continue;
+      const maxRowIndex = candidate.rowIndex + smoothingSourceRowWindow;
+      for (let sourceIndex = index; sourceIndex < this.trackEntities.length && enemies.length < smoothingMaxEnemiesPerBurst; sourceIndex++) {
+        const entity = this.trackEntities[sourceIndex];
+        if (entity.rowIndex > maxRowIndex) break;
+        const enemyDefinition = enemyDefinitionFromTrackId(entity.id);
+        if (this.smoothedTrackRows.has(entity.rowIndex) || !enemyDefinition || smoothingExcludedEnemyIds.has(enemyDefinition.enemyId)) continue;
+        enemies.push(entity);
+      }
+      break;
+    }
+    if (enemies.length === 0 && finalAct && this.enemies.some(enemy => enemy.planned && !enemy.dying)) return this.recentEnemiesForSmoothing();
+    return enemies;
+  }
+
+  private recentEnemiesForSmoothing(): ParsedTrackEntity[] {
+    const enemies: ParsedTrackEntity[] = [];
+    const seenRows = new Set<number>();
+    for (let index = this.nextTrackEntity - 1; index >= 0 && enemies.length < smoothingFinalActMaxEnemiesPerBurst; index--) {
+      const entity = this.trackEntities[index];
+      const enemyDefinition = enemyDefinitionFromTrackId(entity.id);
+      if (!enemyDefinition || smoothingExcludedEnemyIds.has(enemyDefinition.enemyId) || seenRows.has(entity.rowIndex)) continue;
+      const row = this.trackEntities.filter(candidate => candidate.rowIndex === entity.rowIndex && enemyDefinitionFromTrackId(candidate.id));
+      for (const rowEnemy of row) {
+        const rowEnemyDefinition = enemyDefinitionFromTrackId(rowEnemy.id);
+        if (!rowEnemyDefinition || smoothingExcludedEnemyIds.has(rowEnemyDefinition.enemyId)) continue;
+        enemies.push(rowEnemy);
+        if (enemies.length >= smoothingFinalActMaxEnemiesPerBurst) break;
+      }
+      seenRows.add(entity.rowIndex);
+    }
+    return enemies;
+  }
+
+  private spawnTrackEnemy(entity: ParsedTrackEntity, lane: Lane, y: number, rowId: number): void {
+    if (!this.activeTrack) return;
+    const enemyDefinitionEntry = enemyDefinitionFromTrackId(entity.id);
+    if (!enemyDefinitionEntry) return;
+    const { enemyId, definition } = enemyDefinitionEntry;
+    this.enemies.push({
+      id: ++this.entityIdCounter,
+      enemyType: enemyId,
+      enemyId,
+      lane,
+      x: this.entityX(entity),
+      y,
+      health: definition.health * this.activeTrack.definition.balance.enemyHp,
+      maxHealth: definition.health * this.activeTrack.definition.balance.enemyHp,
+      speedMultiplier: entity.speedMultiplier,
+      rowId,
+      planned: rowId >= 0,
+      actor: createEnemyActor(enemyId),
+      dying: false,
+    });
+    if (definition.spawnSound) this.play(definition.spawnSound);
   }
 
   private trackResolved(): boolean {

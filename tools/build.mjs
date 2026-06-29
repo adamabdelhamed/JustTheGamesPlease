@@ -104,7 +104,6 @@ await mkdir(resolve(docs, "NeonSwarm/tests/lightning-family/manual/audio"), { re
 await mkdir(resolve(docs, "NeonSwarm/tests/multiplier-family"), { recursive: true });
 await mkdir(resolve(docs, "NeonSwarm/tests/enemy-exit"), { recursive: true });
 await mkdir(resolve(docs, "NeonSwarm/tests/auto-aim"), { recursive: true });
-await mkdir(resolve(docs, "NeonSwarm/tests/track-editor"), { recursive: true });
 await mkdir(resolve(docs, "NeonSwarm/tests/track-generator"), { recursive: true });
 await Promise.all([
   cp(resolve(docs, "Swarm/audio"), resolve(docs, "NeonSwarm/audio"), { recursive: true }),
@@ -134,8 +133,6 @@ await Promise.all([
   cp(resolve(root, "projects/NeonSwarm/test-pages/enemy-exit/manual.html"), resolve(docs, "NeonSwarm/tests/enemy-exit/manual.html")),
   cp(resolve(root, "projects/NeonSwarm/test-pages/enemy-exit/manual.css"), resolve(docs, "NeonSwarm/tests/enemy-exit/manual.css")),
   cp(resolve(root, "projects/NeonSwarm/test-pages/auto-aim/smoke.html"), resolve(docs, "NeonSwarm/tests/auto-aim/smoke.html")),
-  cp(resolve(root, "projects/NeonSwarm/test-pages/track-editor/index.html"), resolve(docs, "NeonSwarm/tests/track-editor/index.html")),
-  cp(resolve(root, "projects/NeonSwarm/test-pages/track-editor/track-editor.css"), resolve(docs, "NeonSwarm/tests/track-editor/track-editor.css")),
   cp(resolve(root, "projects/NeonSwarm/test-pages/track-generator/index.html"), resolve(docs, "NeonSwarm/tests/track-generator/index.html")),
   cp(resolve(root, "projects/NeonSwarm/test-pages/track-generator/track-generator.css"), resolve(docs, "NeonSwarm/tests/track-generator/track-generator.css")),
 ]);
@@ -196,11 +193,6 @@ await Promise.all([
   build({
     entryPoints: [resolve(root, "projects/NeonSwarm/test-pages/auto-aim/smoke.ts")],
     outfile: resolve(docs, "NeonSwarm/tests/auto-aim/smoke.js"),
-    bundle: true, format: "esm", platform: "browser", target: "es2022", sourcemap: "inline",
-  }),
-  build({
-    entryPoints: [resolve(root, "projects/NeonSwarm/test-pages/track-editor/track-editor.ts")],
-    outfile: resolve(docs, "NeonSwarm/tests/track-editor/track-editor.js"),
     bundle: true, format: "esm", platform: "browser", target: "es2022", sourcemap: "inline",
   }),
   build({
