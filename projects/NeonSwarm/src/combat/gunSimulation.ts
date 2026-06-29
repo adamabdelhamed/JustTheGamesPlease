@@ -20,6 +20,7 @@ export interface GunProjectile {
   vx: number;
   vy: number;
   radius: number;
+  collisionRadius: number;
   damage: number;
   pierceRemaining: number;
   color: string;
@@ -121,7 +122,7 @@ export class GunSimulation {
         if (target.dying || projectile.lane !== target.lane || projectile.hitEnemyIds.has(target.id)) continue;
         const dx = projectile.x - target.x;
         const dy = projectile.y - target.y;
-        const hitRadius = projectile.radius + target.radius;
+        const hitRadius = projectile.collisionRadius + target.radius;
         if (dx * dx + dy * dy > hitRadius * hitRadius) continue;
         projectile.hitEnemyIds.add(target.id);
         target.health -= projectile.damage;
@@ -183,6 +184,7 @@ export class GunSimulation {
           vx: Math.sin(angle) * speed,
           vy: -Math.cos(angle) * speed,
           radius: level.projectileRadius * scale,
+          collisionRadius: level.projectileRadius * (level.collisionRadiusScale ?? 1) * scale,
           damage: level.damage,
           pierceRemaining: level.pierce,
           color: neonPalette[gun.visualIdentity.projectileColor],

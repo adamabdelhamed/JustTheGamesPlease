@@ -16,6 +16,8 @@ When adding or changing a family:
 - Add or update a manual test page for the family.
 - Do not duplicate balance constants in TypeScript.
 
+Weapon families should support five runtime levels. Track definitions and composers should author weapon/item ids only, not pickup levels; the runtime pickup-memory system decides which level a dropped weapon grants.
+
 ## Context
 
 There is an existing NeonSwarm game in **docs\Swarm**. We are about 50% happy with the pace and style. We are not happy about the diversity of weapons, power balance, enemies, etc. That is the big thing that this combat definition will aim to improve upon.

@@ -51,6 +51,8 @@ import {
 } from "../viewport";
 
 type Lane = 0 | 1;
+type LevelWeaponFamily = "gun" | "shield" | "sword";
+type LevelWeaponId = GunId | ShieldId | SwordId;
 
 export type NeonSwarmSimulationMode = "game" | "lab";
 
@@ -93,6 +95,7 @@ export interface NeonSwarmSnapshot {
   active: {
     gun: { id: GunId; level: number } | null;
     shield: ShieldId | null;
+    shieldLevel: number | null;
     sword: { id: SwordId; level: number } | null;
   };
   enemies: Array<{ id: number; enemyId: OrbId; lane: Lane; x: number; y: number; health: number; maxHealth: number; dying: boolean }>;
@@ -103,6 +106,13 @@ export interface NeonSwarmSnapshot {
     multipliers: number;
   };
   kills: number;
+}
+
+interface WeaponHudTuning {
+  iconScale: number;
+  spacing: number;
+  fontSize: number;
+  verticalOffset: number;
 }
 
 interface Enemy {
@@ -126,7 +136,7 @@ interface GunPickup {
   x: number;
   y: number;
   gunId: GunId;
-  level: number;
+  requestedLevel?: number;
   speedMultiplier: number;
   actor: NeonShapeActor;
 }
@@ -136,6 +146,7 @@ interface ShieldPickup {
   x: number;
   y: number;
   shieldId: ShieldId;
+  requestedLevel?: number;
   speedMultiplier: number;
 }
 
@@ -144,6 +155,7 @@ interface SwordPickup {
   x: number;
   y: number;
   swordId: SwordId;
+  requestedLevel?: number;
   speedMultiplier: number;
 }
 
@@ -218,6 +230,7 @@ export class NeonSwarmSimulation {
   private gunPickups: GunPickup[] = [];
   private shieldPickups: ShieldPickup[] = [];
   private swordPickups: SwordPickup[] = [];
+  private collectedWeaponLevels = new Map<string, number>();
   private multipliers: MultiplierPickup[] = [];
   private enemyExitEffects: ActiveEnemyExitEffect[] = [];
   private victory: NeonVictoryExperience | null = null;
@@ -226,6 +239,13 @@ export class NeonSwarmSimulation {
   private failureReason = "";
   private playerActors: NeonShapeActor[] = [];
   private explodingPlayers: Array<{ actor: NeonShapeActor; x: number; y: number }> = [];
+  private weaponHudScreenX: number | null = null;
+  private weaponHudTuning: WeaponHudTuning = {
+    iconScale: .22,
+    spacing: 63,
+    fontSize: 15,
+    verticalOffset: 146,
+  };
   private simulationSpeed = 1;
   private activeByFamily: {
     gun: { id: GunId; level: number } | null;
@@ -291,12 +311,14 @@ export class NeonSwarmSimulation {
     this.activeByFamily.gun = null;
     this.activeByFamily.shield = null;
     this.activeByFamily.sword = null;
+    this.collectedWeaponLevels.clear();
     this.squad.count = 1;
     this.squad.aimOffset = 0;
     this.squad.lane = 0;
     this.squad.x = this.laneX(0);
     this.squad.targetX = this.laneX(0);
     this.playerLane = 0;
+    this.weaponHudScreenX = this.weaponHudTargetScreenX(0);
     this.playerActors = [new NeonShapeActor({ shape: swarmShapes.player })];
     this.failureReason = "";
     this.victory = null;
@@ -331,6 +353,7 @@ export class NeonSwarmSimulation {
     this.activeByFamily.gun = null;
     this.activeByFamily.shield = null;
     this.activeByFamily.sword = null;
+    this.collectedWeaponLevels.clear();
     this.cooldown = 0;
     this.gunCooldowns = [];
     this.nextTrackEntity = 0;
@@ -343,6 +366,7 @@ export class NeonSwarmSimulation {
     this.squad.lane = startLane;
     this.squad.x = this.laneX(startLane);
     this.squad.targetX = this.laneX(startLane);
+    this.weaponHudScreenX = this.weaponHudTargetScreenX(startLane);
     this.play("TrackStart");
   }
 
@@ -359,7 +383,9 @@ export class NeonSwarmSimulation {
   }
 
   equipGun(gunId: GunId, level = 1): void {
-    this.activeByFamily.gun = { id: gunId, level };
+    const normalizedLevel = this.normalizeWeaponLevel("gun", gunId, level);
+    this.recordWeaponLevel("gun", gunId, normalizedLevel);
+    this.activeByFamily.gun = { id: gunId, level: normalizedLevel };
     this.cooldown = 0;
     this.gunCooldowns = [];
     this.playPickup("PickupGun");
@@ -367,15 +393,18 @@ export class NeonSwarmSimulation {
   }
 
   equipShield(shieldId: ShieldId): void {
+    const level = this.nextWeaponPickupLevel("shield", shieldId);
     const def = shieldFamily.members[shieldId];
-    this.activeByFamily.shield = new ShieldState(shieldId, def.maxCharges);
+    this.recordWeaponLevel("shield", shieldId, level);
+    this.activeByFamily.shield = new ShieldState(shieldId, def.maxCharges, level);
     this.playPickup("PickupShield");
     this.play("Shield");
   }
 
   equipSword(swordId: SwordId): void {
-    const current = this.activeByFamily.sword;
-    this.activeByFamily.sword = new SwordState(swordId, current?.swordId === swordId ? current.level + 1 : 1);
+    const level = this.nextWeaponPickupLevel("sword", swordId);
+    this.recordWeaponLevel("sword", swordId, level);
+    this.activeByFamily.sword = new SwordState(swordId, level);
     this.playPickup("PickupSword");
     this.play("WeaponReady");
   }
@@ -428,28 +457,30 @@ export class NeonSwarmSimulation {
       x: options.x ?? this.laneX(options.lane),
       y: options.y ?? 135 * this.scale(),
       gunId: options.gunId,
-      level: options.level ?? 1,
+      requestedLevel: options.level === undefined ? undefined : this.normalizeWeaponLevel("gun", options.gunId, options.level),
       speedMultiplier: options.speedMultiplier ?? 1,
       actor: new NeonShapeActor({ shape: swarmShapes.gunPickup }),
     });
   }
 
-  spawnShieldPickup(options: { shieldId: ShieldId; lane: Lane; x?: number; y?: number; speedMultiplier?: number }): void {
+  spawnShieldPickup(options: { shieldId: ShieldId; lane: Lane; level?: number; x?: number; y?: number; speedMultiplier?: number }): void {
     this.shieldPickups.push({
       lane: options.lane,
       x: options.x ?? this.laneX(options.lane),
       y: options.y ?? 135 * this.scale(),
       shieldId: options.shieldId,
+      requestedLevel: options.level === undefined ? undefined : this.normalizeWeaponLevel("shield", options.shieldId, options.level),
       speedMultiplier: options.speedMultiplier ?? 1,
     });
   }
 
-  spawnSwordPickup(options: { swordId: SwordId; lane: Lane; x?: number; y?: number; speedMultiplier?: number }): void {
+  spawnSwordPickup(options: { swordId: SwordId; lane: Lane; level?: number; x?: number; y?: number; speedMultiplier?: number }): void {
     this.swordPickups.push({
       lane: options.lane,
       x: options.x ?? this.laneX(options.lane),
       y: options.y ?? 135 * this.scale(),
       swordId: options.swordId,
+      requestedLevel: options.level === undefined ? undefined : this.normalizeWeaponLevel("sword", options.swordId, options.level),
       speedMultiplier: options.speedMultiplier ?? 1,
     });
   }
@@ -487,6 +518,7 @@ export class NeonSwarmSimulation {
     const delta = rawDelta * combatTuning.globalSpeedMultiplier * this.simulationSpeed;
     this.combatElapsed += delta;
     this.combatNow = this.combatElapsed * 1000;
+    this.updateWeaponHud(delta);
     for (const item of [...this.explodingPlayers]) {
       item.actor.update(delta);
       if (item.actor.disposed) this.explodingPlayers.splice(this.explodingPlayers.indexOf(item), 1);
@@ -592,23 +624,31 @@ export class NeonSwarmSimulation {
 
     for (const pickup of this.shieldPickups) {
       const definition = shieldFamily.members[pickup.shieldId];
-      shapeInstances.push(shieldPickupVisual({
+      const level = this.pickupGrantLevel("shield", pickup.shieldId, pickup.requestedLevel);
+      shapeInstances.push({
+        ...shieldPickupVisual({
         x: pickup.x,
         y: pickup.y,
         color: neonPalette[definition.color],
         now,
         scale: s,
-      }));
+        }),
+        label: shapeLabel(`${definition.label}: L${level}`, "above", 10, 7),
+      });
     }
     for (const pickup of this.swordPickups) {
       const definition = swordFamily.members[pickup.swordId];
-      shapeInstances.push(swordPickupVisual({
+      const level = this.pickupGrantLevel("sword", pickup.swordId, pickup.requestedLevel);
+      shapeInstances.push({
+        ...swordPickupVisual({
         x: pickup.x,
         y: pickup.y,
         color: neonPalette[definition.color],
         now,
         scale: s,
-      }));
+        }),
+        label: shapeLabel(`${definition.label}: L${level}`, "above", 10, 7),
+      });
     }
 
     const playerSize = 14;
@@ -617,6 +657,7 @@ export class NeonSwarmSimulation {
       shapeInstances.push(actorInTopDownScene(actor, point.x, point.y, playerSize, playerOrientation(this.cameraSettings, helicopterViewport, point.x, point.y, now, index)));
     }
     for (const item of this.explodingPlayers) shapeInstances.push(actorInTopDownScene(item.actor, item.x, item.y, playerSize));
+    shapeInstances.push(...this.weaponHudShapes(now, s, helicopterViewport));
 
     const enemyHealthBars: Parameters<typeof projectedEnemyHealthBarPrimitives>[0][number][] = [];
     for (const enemy of this.enemies) {
@@ -627,7 +668,8 @@ export class NeonSwarmSimulation {
     }
     for (const pickup of this.gunPickups) {
       const gun = gunFamily.members[pickup.gunId];
-      pickup.actor.label = shapeLabel(gun.label, "above", 10, 7);
+      const level = this.pickupGrantLevel("gun", pickup.gunId, pickup.requestedLevel);
+      pickup.actor.label = shapeLabel(`${gun.label}: L${level}`, "above", 10, 7);
       pickup.actor.color = neonPalette[gun.visualIdentity.projectileColor];
       shapeInstances.push(actorInTopDownScene(pickup.actor, pickup.x, pickup.y, 15, billboardOrientation(this.cameraSettings, helicopterViewport, pickup.x, pickup.y, now)));
     }
@@ -660,6 +702,7 @@ export class NeonSwarmSimulation {
       active: {
         gun: this.activeByFamily.gun ? { ...this.activeByFamily.gun } : null,
         shield: this.activeByFamily.shield?.shieldId ?? null,
+        shieldLevel: this.activeByFamily.shield?.level ?? null,
         sword: this.activeByFamily.sword ? { id: this.activeByFamily.sword.swordId, level: this.activeByFamily.sword.level } : null,
       },
       enemies: this.enemies.map(enemy => ({
@@ -716,7 +759,7 @@ export class NeonSwarmSimulation {
       } else if (entity.id.startsWith("pickup.weapon.gun.")) {
         const candidate = entity.id.slice("pickup.weapon.gun.".length);
         if (!(candidate in gunFamily.members)) throw new Error(`Track uses unknown gun id "${entity.id}".`);
-        this.spawnGunPickup({ lane, x: this.entityX(entity), y: this.pickupSpawnY(entity), gunId: candidate as GunId, level: 1, speedMultiplier: entity.speedMultiplier });
+        this.spawnGunPickup({ lane, x: this.entityX(entity), y: this.pickupSpawnY(entity), gunId: candidate as GunId, speedMultiplier: entity.speedMultiplier });
       } else if (entity.id.startsWith("pickup.weapon.shield.")) {
         const candidate = entity.id.slice("pickup.weapon.shield.".length);
         if (!(candidate in shieldFamily.members)) throw new Error(`Track uses unknown shield id "${entity.id}".`);
@@ -1027,7 +1070,9 @@ export class NeonSwarmSimulation {
       pickup.actor.update(delta);
       pickup.y += 72 * pickup.speedMultiplier * this.scale() * delta;
       if (pickup.y >= this.playerY() - 15 * this.scale() && pickup.lane === this.playerLane) {
-        this.activeByFamily.gun = { id: pickup.gunId, level: pickup.level };
+        const level = this.pickupGrantLevel("gun", pickup.gunId, pickup.requestedLevel);
+        this.recordWeaponLevel("gun", pickup.gunId, level);
+        this.activeByFamily.gun = { id: pickup.gunId, level };
         this.cooldown = 0;
         this.gunCooldowns = [];
         this.gunPickups.splice(this.gunPickups.indexOf(pickup), 1);
@@ -1040,7 +1085,9 @@ export class NeonSwarmSimulation {
       pickup.y += 72 * pickup.speedMultiplier * this.scale() * delta;
       if (pickup.y >= this.playerY() - 15 * this.scale() && pickup.lane === this.playerLane) {
         const def = shieldFamily.members[pickup.shieldId];
-        this.activeByFamily.shield = new ShieldState(pickup.shieldId, def.maxCharges);
+        const level = this.pickupGrantLevel("shield", pickup.shieldId, pickup.requestedLevel);
+        this.recordWeaponLevel("shield", pickup.shieldId, level);
+        this.activeByFamily.shield = new ShieldState(pickup.shieldId, def.maxCharges, level);
         this.shieldPickups.splice(this.shieldPickups.indexOf(pickup), 1);
         this.playPickup("PickupShield");
         this.play("Shield");
@@ -1050,8 +1097,9 @@ export class NeonSwarmSimulation {
     for (const pickup of [...this.swordPickups]) {
       pickup.y += 72 * pickup.speedMultiplier * this.scale() * delta;
       if (pickup.y >= this.playerY() - 15 * this.scale() && pickup.lane === this.playerLane) {
-        const current = this.activeByFamily.sword;
-        this.activeByFamily.sword = new SwordState(pickup.swordId, current?.swordId === pickup.swordId ? current.level + 1 : 1);
+        const level = this.pickupGrantLevel("sword", pickup.swordId, pickup.requestedLevel);
+        this.recordWeaponLevel("sword", pickup.swordId, level);
+        this.activeByFamily.sword = new SwordState(pickup.swordId, level);
         this.swordPickups.splice(this.swordPickups.indexOf(pickup), 1);
         this.playPickup("PickupSword");
         this.play("WeaponReady");
@@ -1093,6 +1141,94 @@ export class NeonSwarmSimulation {
   private syncPlayerActors(): void {
     while (this.playerActors.length < this.squad.count) this.playerActors.push(new NeonShapeActor({ shape: swarmShapes.player }));
     if (this.playerActors.length > this.squad.count) this.playerActors.length = this.squad.count;
+  }
+
+  private weaponHudShapes(now: number, scale: number, helicopterViewport: ReturnType<typeof helicopterViewportFor>): NeonTopDownShape[] {
+    const items: NeonTopDownShape[] = [];
+    const hudScale = scale * this.weaponHudTuning.iconScale;
+    const spacing = this.weaponHudTuning.spacing * scale;
+    const entries: Array<{ label: string; color: string; kind: "gun" | "shield" | "sword" }> = [];
+    if (this.activeByFamily.gun) {
+      const gun = gunFamily.members[this.activeByFamily.gun.id];
+      entries.push({ label: `L: ${this.activeByFamily.gun.level}`, color: neonPalette[gun.visualIdentity.projectileColor], kind: "gun" });
+    }
+    if (this.activeByFamily.shield) {
+      const shield = shieldFamily.members[this.activeByFamily.shield.shieldId];
+      entries.push({ label: `L: ${this.activeByFamily.shield.level}`, color: neonPalette[shield.color], kind: "shield" });
+    }
+    if (this.activeByFamily.sword) {
+      const sword = swordFamily.members[this.activeByFamily.sword.swordId];
+      entries.push({ label: `L: ${this.activeByFamily.sword.level}`, color: neonPalette[sword.color], kind: "sword" });
+    }
+    const playerScreen = projectHelicopterPoint(this.laneX(this.playerLane), this.playerY(), this.cameraSettings, helicopterViewport);
+    const centerScreenX = this.weaponHudScreenX ?? this.weaponHudTargetScreenX(this.playerLane);
+    const startScreenX = centerScreenX - (entries.length - 1) * spacing / 2;
+    const screenY = playerScreen.y + this.weaponHudTuning.verticalOffset * scale;
+    for (const [index, entry] of entries.entries()) {
+      const screenX = startScreenX + index * spacing;
+      const { x, y } = unprojectHelicopterScreenPoint(screenX, screenY, this.cameraSettings, helicopterViewport);
+      const common = { x, y, color: entry.color, now, scale: hudScale };
+      const shape = entry.kind === "shield"
+        ? shieldPickupVisual(common)
+        : entry.kind === "sword"
+          ? swordPickupVisual(common)
+          : actorInTopDownScene(new NeonShapeActor({ shape: swarmShapes.gunPickup }), x, y, this.weaponHudTuning.iconScale * 20 * scale);
+      items.push({
+        ...shape,
+        color: entry.color,
+        label: shapeLabel(entry.label, "below", this.weaponHudTuning.fontSize, Math.max(2, this.weaponHudTuning.fontSize * .7)),
+        opacity: .68,
+      });
+    }
+    return items;
+  }
+
+  private pickupGrantLevel(family: LevelWeaponFamily, id: LevelWeaponId, requestedLevel?: number): number {
+    return requestedLevel === undefined
+      ? this.nextWeaponPickupLevel(family, id)
+      : this.normalizeWeaponLevel(family, id, requestedLevel);
+  }
+
+  private nextWeaponPickupLevel(family: LevelWeaponFamily, id: LevelWeaponId): number {
+    return this.normalizeWeaponLevel(family, id, (this.collectedWeaponLevels.get(this.weaponLevelKey(family, id)) ?? 0) + 1);
+  }
+
+  private normalizeWeaponLevel(family: LevelWeaponFamily, id: LevelWeaponId, level: number): number {
+    const requested = Math.max(1, Math.floor(level));
+    if (family === "gun") {
+      const levels = gunFamily.members[id as GunId].levels.map(item => item.level);
+      const maxLevel = Math.max(...levels);
+      const clamped = Math.min(maxLevel, requested);
+      return levels.includes(clamped) ? clamped : levels.reduce((best, candidate) =>
+        Math.abs(candidate - clamped) < Math.abs(best - clamped) ? candidate : best, levels[0]);
+    }
+    return Math.min(5, requested);
+  }
+
+  private recordWeaponLevel(family: LevelWeaponFamily, id: LevelWeaponId, level: number): void {
+    const key = this.weaponLevelKey(family, id);
+    this.collectedWeaponLevels.set(key, Math.max(this.collectedWeaponLevels.get(key) ?? 0, this.normalizeWeaponLevel(family, id, level)));
+  }
+
+  private weaponLevelKey(family: LevelWeaponFamily, id: LevelWeaponId): string {
+    return `${family}.${id}`;
+  }
+
+  private updateWeaponHud(delta: number): void {
+    const targetX = this.weaponHudTargetScreenX(this.playerLane);
+    if (this.weaponHudScreenX === null) {
+      this.weaponHudScreenX = targetX;
+      return;
+    }
+    const response = 1 - Math.pow(.0006, delta);
+    this.weaponHudScreenX += (targetX - this.weaponHudScreenX) * response;
+  }
+
+  private weaponHudTargetScreenX(lane: Lane): number {
+    const inwardBias = this.canvas.width * .12;
+    return lane === 0
+      ? this.canvas.width * .32 + inwardBias
+      : this.canvas.width * .68 - inwardBias;
   }
 
   private applySceneBackground(): void {

@@ -13,11 +13,17 @@ Every new meaningful object or system should have a test page path:
 
 Manual pages should expose controls that are useful for future tuning, but the underlying behavior should remain the same path the game uses.
 
+When adding lab controls for gameplay tuning, prefer controls that exercise the shared runtime API instead of special lab-only behavior. If a lab needs to force a value for focused inspection, keep that path explicit and do not let it replace the normal game path that should be verified.
+
 ## Visuals and rendering
 
 All render primitives, shapes, clouds, effects, trails, bursts, particles, environmental visuals, and object visuals should derive from NeonFactory abstractions. Prefer extending NeonFactory over adding local renderers in NeonSwarm. Game-specific modules may choose colors, profiles, timings, enemy-specific exits, and family-specific visual identities, but the renderer mechanics should remain reusable.
 
 Visual systems must be designed for the unified renderer. They should share the same WebGPU/canvas environment where practical, layer correctly with primitives and shapes, work with `NeonTopDownSceneRenderer`, and pass through the same camera/projection path as gameplay objects. Effects should play nicely with each other: avoid assumptions that only one visual system is active, and keep render order intentional.
+
+For player-adjacent HUD elements rendered inside the top-down scene, avoid anchoring directly to squad drift or raw world edges when the camera follows the player. Use a stable screen-space anchor and unproject it into scene space when the element must stay visually steady during auto-aim drift or lane-switch animation.
+
+Temporary in-game tuning panels are acceptable for fast visual iteration, but remove the panel before finalizing the task. Preserve only the chosen tuning values and the reusable runtime path.
 
 ## Enemy and item growth
 

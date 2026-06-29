@@ -46,14 +46,6 @@ Last Audit commit hash: NONE
 
 ## Gun Family Improvements
 
-- [Ready Task] Splitter has a cool identity (it splits), but the splitting is not all that useful and sometimes misses a target it looks like it should hit. The target selection should be a bit more forgiving and the weapon needs to get better as it levels up.
-  - L1: Kind of what it is now but with more forgiving column selection / collision.
-  - L2: Standard gun family cooldown and damage improvement on level up.
-  - L3: Extra projectile, standard family improvements.
-  - L4: Standard family improvements.
-  - L5: Extra projectile, standard family improvements.
-  - Acceptance: Splitter visibly hits targets that look aligned with its split lanes and scales to 5 levels.
-  - Verification: Gun family manual/smoke page plus a short in-game check on a track where Splitter appears.
 - [Ready Task] Burst Carbine needs a bit more spacing between projectiles in burst and is completely missing sound (will be covered by sound investment above).
   - L1: burst of 3 projectiles.
   - L2: standard gun family improvements.

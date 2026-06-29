@@ -37,6 +37,15 @@ try {
   const selectedGun = (): GunId => gunSelect.value as GunId;
   const selectedLevel = (): number => Number(levelSelect.value);
   const selectedEnemy = (): OrbId => enemySelect.value as OrbId;
+  const syncLevelOptions = (): void => {
+    const previousLevel = selectedLevel();
+    const gun = gunFamily.members[selectedGun()];
+    levelSelect.replaceChildren(...gun.levels.map(level => new Option(String(level.level), String(level.level))));
+    const validLevel = gun.levels.some(level => level.level === previousLevel)
+      ? previousLevel
+      : gun.levels[0].level;
+    levelSelect.value = String(validLevel);
+  };
   const updateReadout = (): void => {
     const gun = gunFamily.members[selectedGun()];
     const level = gun.levels.find(item => item.level === selectedLevel()) ?? gun.levels[0];
@@ -50,6 +59,9 @@ try {
       ["Damage", String(level.damage)],
       ["Speed", String(level.projectileSpeed)],
       ["Radius", String(level.projectileRadius)],
+      ["Collision", `${level.collisionRadiusScale ?? 1}x`],
+      ["Projectiles", String(level.projectileCount)],
+      ["Spread", `${level.spreadDegrees}deg`],
       ["Burst", String(level.burstCount)],
       ["Pierce", String(level.pierce)],
       ["Enemy", enemy.label],
@@ -71,7 +83,7 @@ try {
     button.addEventListener("click", () => spawnEnemy(Number(button.dataset.spawnEnemy) as 0 | 1));
   });
   document.querySelectorAll<HTMLButtonElement>("[data-spawn-pickup]").forEach(button => {
-    button.addEventListener("click", () => sim.spawnGunPickup({ gunId: selectedGun(), level: selectedLevel(), lane: Number(button.dataset.spawnPickup) as 0 | 1 }));
+    button.addEventListener("click", () => sim.spawnGunPickup({ gunId: selectedGun(), lane: Number(button.dataset.spawnPickup) as 0 | 1 }));
   });
   document.querySelectorAll<HTMLButtonElement>("[data-spawn-formation]").forEach(button => {
     button.addEventListener("click", () => {
@@ -100,7 +112,10 @@ try {
     window.setTimeout(() => spawnEnemy(1), 700);
   });
   document.querySelector<HTMLButtonElement>("#clear-stage")!.addEventListener("click", () => sim.clearStage());
-  gunSelect.addEventListener("change", equip);
+  gunSelect.addEventListener("change", () => {
+    syncLevelOptions();
+    equip();
+  });
   levelSelect.addEventListener("change", equip);
   enemySelect.addEventListener("change", updateReadout);
 
@@ -109,7 +124,8 @@ try {
     setLane: lane => sim.setSquadLane(lane),
   });
 
-  sim.equipGun("pulsePistol", 1);
+  syncLevelOptions();
+  sim.equipGun("pulsePistol", selectedLevel());
   spawnEnemy(0);
   spawnEnemy(1);
   sim.startLoop();

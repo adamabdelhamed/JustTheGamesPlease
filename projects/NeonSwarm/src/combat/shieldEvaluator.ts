@@ -40,6 +40,8 @@ export interface ActivePulseEffect {
 
 export class ShieldState {
   shieldId: ShieldId;
+  /** Active shield level. Repeated pickups of the same shield increase this up to 5. */
+  level: number;
   /** Remaining charges (charge-based shields). */
   charges: number;
   /** Seconds until cooldown completes. */
@@ -53,8 +55,9 @@ export class ShieldState {
   /** Enemy ids already resolved against this shield, preventing repeat damage per frame. */
   readonly interceptedEnemyIds = new Set<number>();
 
-  constructor(shieldId: ShieldId, maxCharges: number) {
+  constructor(shieldId: ShieldId, maxCharges: number, level = 1) {
     this.shieldId = shieldId;
+    this.level = Math.min(5, Math.max(1, Math.floor(level)));
     this.charges = maxCharges;
     this.cooldownLeft = 0;
     this.hitFlashUntil = 0;

@@ -12,6 +12,10 @@ NeonFactory is the source of rendering primitives and reusable visual systems. G
 
 When a game needs a new visual capability, prefer adding a reusable NeonFactory abstraction first, then consume it from the game. Keep game-specific tuning and identity in the game layer, but keep reusable rendering mechanics in NeonFactory.
 
+## Verification
+
+For changes under the `projects` folder, prefer `C:\Users\Adam\source\repos\JustTheGamesPlease\BuildAndRun.cmd` as the combined build/check/browser launch path. It builds the projects and binplaces the web outputs for manual inspection. Do not run the Visual Studio solution build for normal game/project changes; the solution is only needed when touching solution-backed tooling such as `tools\SfxGenerator`.
+
 ## Organization and scalability
 
 This repo is expected to grow many features, items, weapons, enemy types, effects, and scenes. Keep systems organized by durable domain concepts rather than by the first page or feature that needed them. Avoid copying tuning, rendering setup, lifecycle logic, or test harness code between the game and test pages. If a behavior must look or behave the same in gameplay and in a lab page, put the shared logic in a module that both import.
