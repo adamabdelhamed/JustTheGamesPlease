@@ -90,8 +90,10 @@ Adding a family is a big deal. These are ideas and need to be authored as full s
     - Color (feeds into tracks to modify enemy colors, player color, but probably not item or weapon color since those should be consistent across the whole game).
     - Background Image is the same across the entire family.
       - P2 idea: Currently background images don't move with the camera when the player shifts lanes. First stage of the idea would be to create a scheme where it shifts a little bit (might require new image size standard?). A way to take this even further is to define background layers (e.g. BG, FG) where the lane shift create a parallax effect where the FG layer(s) shift more dramatically on lane shift compared to BG layers. Maybe each layer has a distance property somewhere that defines the effect. I'm not sure it's worth it, but if you are asked to do some polish work you should be able to look at the existing images and use imagegen to build this.
-      - [Ready Task / Quick, Easy, Low Risk] A few of the existing backgrounds (Crystal Forge, Solar Array) have great visuals, but they set the horizon way too high in the image and it breaks the illusion. The other backgrounds look great as the horizon is about halfway up the image. We need to generate new images that are very similar to the existing ones, but with the horizon moved.
-        - Verification: Visual check in the actual game viewport on the affected track families.
+      - [Done 2026-06-29] Added first-pass lane-based background pan.
+        - Final tuning: background zoom 108%, lane shift 30%, vertical position 50%. The background shifts horizontally from the smoothed squad lane position, and the temporary tuning overlay was removed after tuning.
+      - [Done 2026-06-29] Replaced Crystal Forge and Solar Array backgrounds with similar scene images that move the horizon/vanishing point to the upper-middle of the portrait frame.
+        - Verification: Visual check in the actual game viewport on the affected track families; root `npm run build`.
     - P2: Optionally define overrides for player hp, enemy speed, or other balance values. Should reuse the lowest level primitives rather than invent something new.
     - Soundtrack to match the theme (set of mp3s to rotate, maybe each track picks a different first track).
 - Track Definition

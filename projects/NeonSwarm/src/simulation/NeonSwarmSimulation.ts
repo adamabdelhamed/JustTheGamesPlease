@@ -37,7 +37,13 @@ import { enemyExitCloud, updateEnemyExitEffects, type ActiveEnemyExitEffect, typ
 import { shieldPickupVisual, shieldVisuals, swordPickupVisual, swordVisualDurationMs, swordVisuals } from "../familyVisuals";
 import type { SwordVisualTuning } from "../familyVisuals";
 import { billboardOrientation, enemyOrientation, helicopterViewportFor, playerOrientation } from "../renderOrientation";
-import { applyLaneRunnerSceneBackground, laneRunnerScenePrimitives } from "../sceneEnvironment";
+import {
+  applyLaneRunnerSceneBackground,
+  defaultLaneRunnerSceneBackgroundTuning,
+  laneRunnerScenePrimitives,
+  syncLaneRunnerSceneBackgroundPlacement,
+  type LaneRunnerSceneBackgroundTuning,
+} from "../sceneEnvironment";
 import { actorInTopDownScene, shapeLabel, swarmShapes } from "../shapeVisuals";
 import { SquadModel } from "../squad";
 import {
@@ -247,6 +253,7 @@ export class NeonSwarmSimulation {
     verticalOffset: 146,
   };
   private simulationSpeed = 1;
+  private sceneBackgroundTuning: LaneRunnerSceneBackgroundTuning = { ...defaultLaneRunnerSceneBackgroundTuning };
   private activeByFamily: {
     gun: { id: GunId; level: number } | null;
     shield: ShieldState | null;
@@ -541,6 +548,7 @@ export class NeonSwarmSimulation {
     this.squad.autoAim(offset, this.canvas.width * .22, lane => this.laneX(lane));
     this.squad.update(delta);
     this.stageElement.dataset.squadLane = String(this.squad.lane);
+    this.syncSceneBackgroundPlacement();
     this.syncPlayerActors();
 
     if (this.activeByFamily.gun) {
@@ -1232,7 +1240,18 @@ export class NeonSwarmSimulation {
   }
 
   private applySceneBackground(): void {
-    applyLaneRunnerSceneBackground(this.stageElement, this.trackSceneId);
+    applyLaneRunnerSceneBackground(this.stageElement, this.trackSceneId, this.sceneBackgroundTuning, this.sceneBackgroundLaneOffset());
+  }
+
+  private syncSceneBackgroundPlacement(): void {
+    syncLaneRunnerSceneBackgroundPlacement(this.stageElement, this.sceneBackgroundTuning, this.sceneBackgroundLaneOffset());
+  }
+
+  private sceneBackgroundLaneOffset(): number {
+    const leftX = this.laneX(0);
+    const rightX = this.laneX(1);
+    const laneSpan = rightX - leftX || 1;
+    return ((this.squad.x - leftX) / laneSpan) * 2 - 1;
   }
 
   private enemyExitColor(enemy: Enemy): string {

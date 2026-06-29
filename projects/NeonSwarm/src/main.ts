@@ -79,7 +79,6 @@ try {
       resultDetail.textContent = finish.detail;
     },
   });
-
   const trackRoute = (trackId: TrackId): string => `#track/${encodeURIComponent(trackId)}`;
   const trackFamilyForTrack = (trackId: TrackId): (typeof trackFamily.families)[TrackFamilyId] | null => {
     const families = Object.values(trackFamily.families) as Array<(typeof trackFamily.families)[TrackFamilyId] & { trackIds: readonly TrackId[] }>;

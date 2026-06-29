@@ -4,6 +4,18 @@ type SceneBackgroundState = "missing" | "loaded" | "loading";
 
 const sceneBackgrounds = new Map<string, SceneBackgroundState>();
 
+export interface LaneRunnerSceneBackgroundTuning {
+  zoomPercent: number;
+  laneShiftPercent: number;
+  yPercent: number;
+}
+
+export const defaultLaneRunnerSceneBackgroundTuning: LaneRunnerSceneBackgroundTuning = {
+  zoomPercent: 108,
+  laneShiftPercent: 30,
+  yPercent: 50,
+};
+
 export function laneRunnerScenePrimitives(
   sceneId: LaneRunnerSceneId,
   width: number,
@@ -25,9 +37,13 @@ export function laneRunnerSceneBackgroundUrl(sceneId: LaneRunnerSceneId): string
   return `NeonSwarm/scenes/${sceneId}.png`;
 }
 
-export function applyLaneRunnerSceneBackground(element: HTMLElement, sceneId: LaneRunnerSceneId): void {
-  element.style.backgroundPosition = "center";
-  element.style.backgroundSize = "cover";
+export function applyLaneRunnerSceneBackground(
+  element: HTMLElement,
+  sceneId: LaneRunnerSceneId,
+  tuning: LaneRunnerSceneBackgroundTuning = defaultLaneRunnerSceneBackgroundTuning,
+  laneOffset = 0,
+): void {
+  syncLaneRunnerSceneBackgroundPlacement(element, tuning, laneOffset);
   element.style.backgroundRepeat = "no-repeat";
 
   const path = laneRunnerSceneBackgroundUrl(sceneId);
@@ -51,4 +67,15 @@ export function applyLaneRunnerSceneBackground(element: HTMLElement, sceneId: La
     element.style.removeProperty("background-image");
   };
   image.src = path;
+}
+
+export function syncLaneRunnerSceneBackgroundPlacement(
+  element: HTMLElement,
+  tuning: LaneRunnerSceneBackgroundTuning = defaultLaneRunnerSceneBackgroundTuning,
+  laneOffset = 0,
+): void {
+  const clampedLaneOffset = Math.max(-1, Math.min(1, laneOffset));
+  const shift = clampedLaneOffset * tuning.laneShiftPercent;
+  element.style.backgroundPosition = `calc(50% + ${shift.toFixed(2)}%) ${tuning.yPercent.toFixed(2)}%`;
+  element.style.backgroundSize = `${tuning.zoomPercent.toFixed(2)}% auto`;
 }
