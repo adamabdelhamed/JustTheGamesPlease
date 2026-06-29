@@ -1244,7 +1244,7 @@ export class NeonSwarmSimulation {
   }
 
   private syncSceneBackgroundPlacement(): void {
-    syncLaneRunnerSceneBackgroundPlacement(this.stageElement, this.sceneBackgroundTuning, this.sceneBackgroundLaneOffset());
+    syncLaneRunnerSceneBackgroundPlacement(this.stageElement, this.sceneBackgroundTuning, this.sceneBackgroundLaneOffset(), this.trackSceneId);
   }
 
   private sceneBackgroundLaneOffset(): number {

@@ -90,6 +90,14 @@ Adding a family is a big deal. These are ideas and need to be authored as full s
     - Color (feeds into tracks to modify enemy colors, player color, but probably not item or weapon color since those should be consistent across the whole game).
     - Background Image is the same across the entire family.
       - P2 idea: Currently background images don't move with the camera when the player shifts lanes. First stage of the idea would be to create a scheme where it shifts a little bit (might require new image size standard?). A way to take this even further is to define background layers (e.g. BG, FG) where the lane shift create a parallax effect where the FG layer(s) shift more dramatically on lane shift compared to BG layers. Maybe each layer has a distance property somewhere that defines the effect. I'm not sure it's worth it, but if you are asked to do some polish work you should be able to look at the existing images and use imagegen to build this.
+      - Parallax implementation pattern for future scenes:
+        - Use the base scene file as `<sceneId>.png`, then add optional foreground layers as `<sceneId>.medium.png`, `<sceneId>.close.png`, or similarly named suffixes in `projects/NeonSwarm/public/scenes`.
+        - Foreground/parallax overlay layers must be real alpha PNGs, not green/black/solid matte images. If imagegen is used, generate the source on a clean chroma-key color, remove the matte, and verify alpha before wiring it into the game.
+        - Add the scene-specific layer list in `src/sceneEnvironment.ts` under `parallaxSceneBackgroundLayers`. Keep the far/base layer shift lowest and increase `laneShiftPercent` for closer layers. Use a little extra `zoomPercent` on foreground layers so lane movement has enough bleed.
+        - Keep the central gameplay lane readable. Put large close objects near edges/corners, and avoid top-bar obstruction.
+        - Verification should include checking the actual track viewport while switching lanes; closer layers should visibly move more than distant layers without exposing edges.
+      - [Done 2026-06-29] Added a first parallax scene prototype for Neon Hall.
+        - Neon Hall now uses an outer-space base image plus medium and close planet foreground PNGs with true alpha transparency. The parallax layer config shifts the base least, the medium layer more, and the close layer most during lane movement.
       - [Done 2026-06-29] Added first-pass lane-based background pan.
         - Final tuning: background zoom 108%, lane shift 30%, vertical position 50%. The background shifts horizontally from the smoothed squad lane position, and the temporary tuning overlay was removed after tuning.
       - [Done 2026-06-29] Replaced Crystal Forge and Solar Array backgrounds with similar scene images that move the horizon/vanishing point to the upper-middle of the portrait frame.
