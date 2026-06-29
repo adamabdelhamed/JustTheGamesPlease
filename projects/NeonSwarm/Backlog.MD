@@ -68,7 +68,6 @@ Last Audit commit hash: NONE
 
 Adding a family is a big deal. These are ideas and need to be authored as full specs that define the family behavior, members, their unique character, sound effects, consideration of how they work alongside other families. When we decide to prioritize any of these a new section should be added to the backlog that is dedicated to the full spec. At that point the entry can be removed from this section.
 
-- [Idea -> Spec Needed] Lightning Family: Should bring unique ability to hit an enemy and have the lightning branch and effect nearby enemies. Branches can decay so that a child bolt spawns fewer child bolts than the main bolt. More powerful levels / variants can branch with more depth, span more rows, etc. We need to decide if its worth having multiple members of the family, but only if there is meaningful differentiation besides color and strength. This backlog item would need to be spec'd out in a dedicated thread before being implemented. We already have an 'energy' feature in the neon factory shape system. It kind of looks like lightning, but it's not great. One goal of this work would be to make the energy feature look more like lightning and then build the lightning weapons using neon factory line segments that use the updated energy feature.
   - Spec should decide: family members, branch rules, level scaling, visuals, sounds, track placement, and how it avoids feeling like just another gun.
 - [Idea -> Spec Needed] Explosives Family: We already have a cool explosion primitive. This family should use it, expand it, or whatever else is needed to make it work for its members. One idea to make this family unique is that maybe you bank explosives and trigger it with a new input gesture. Maybe a bank at the top of the screen that you tap. We can have grenades for near enemies, rockets for far, and maybe a few other variations. Let's keep this low risk at first by standardizing on the existing neon factory explosion primitive for the visual. But it supports lots of options and we can spawn a bunch at a time (hopefully without killing perf).
   - Spec should decide: whether explosives are passive, banked, or manually triggered; how input works; member identities; sound ids; and perf limits for stacked explosions.
@@ -82,30 +81,284 @@ Adding a family is a big deal. These are ideas and need to be authored as full s
 
 ## Track Family Design and Balance
 
-- [Audit / Cleanup] We have done a decent job of automating a lot of the design of the track families. But I don't think we have the grammar optimized for automated work and we still have a bunch of loose track files around that are small and noisy.
+- [Audit / Cleanup] We have done a decent job of automating a lot of the design of the track families, but the current composer/generated track split still feels noisy. The grammar may also be too close to literal layout generation instead of authored design intent.
   - First useful slice: inspect the current composer/generated track split and propose a small cleanup that reduces noise without hiding useful authored data.
-- [Spec Task] Some grammar ideas that should help.
+  - Preserve old hardcoded / authored tracks if they contain useful design information, but move noisy generated row data behind a clearer generated/composer boundary.
+  - Prefer keeping authored intent, catalog metadata, tuning, and recipes in source control. Avoid keeping large generated layouts as standalone source files unless there is a clear reason.
+  - Do not break the existing track definition format. The old format should continue to work beside the composer-generated tracks.
+
+- [Spec Task] Improve the track family composer grammar so it can generate compelling track families and tracks dynamically from the catalog, available weapons, pickups, enemy types, balance data, and any existing game concepts discovered in the codebase.
+  - Treat the interfaces below as design direction, not a rigid required shape. Adapt names, types, and boundaries to fit the existing code.
+  - Prefer reusing existing primitives, item definitions, enemy definitions, balance structures, weapon tuning values, and track definitions instead of inventing parallel concepts.
+  - The composer should be deterministic when given a seed so generated tracks are reproducible.
+  - The composer should be able to react reasonably when new weapons, pickups, enemies, or balance values are added later.
+
+- User Journey Grammar
+  - The layer most responsible for the player’s experience should use a simple, human-readable grammar.
+  - This should be the safest place for a future human or coding agent to make design adjustments.
+  - This layer should describe the journey in plain design concepts, not low-level row placement.
+  - Editing this layer should not require understanding every detail of enemy placement, weapon math, or layout compilation.
+  - Small edits here should have bounded effects on balance.
+    - Example: increasing a pressure segment from `"medium"` to `"high"` should stay within the tier’s allowed threat envelope.
+    - Example: adding a rebuild beat should create a controlled recovery window, not accidentally flood the player with overpowered items.
+    - Example: adding a multiplier payoff should automatically imply stronger follow-up pressure.
+  - Prefer readable track journey terms such as:
+    - `intro`
+    - `ramp`
+    - `lesson`
+    - `check`
+    - `pressure`
+    - `rebuild`
+    - `spike`
+    - `payoff`
+    - `finale`
+  - Avoid making this top-level layer expose fragile controls like exact rows, columns, speed multipliers, raw threat scores, or enemy counts unless there is a clear reason.
+  - The journey grammar should compile into lower-level beat primitives, and those primitives should compile into the existing track definition.
+
 - Composer
   - Track Family: Defines the theme for a track progression that is presented on the main tracks screen.
-    - Color (feeds into tracks to modify enemy colors, player color, but probably not item or weapon color since those should be consistent across the whole game).
-    - Background Image is the same across the entire family.
-      - P2 idea: Currently background images don't move with the camera when the player shifts lanes. First stage of the idea would be to create a scheme where it shifts a little bit (might require new image size standard?). A way to take this even further is to define background layers (e.g. BG, FG) where the lane shift create a parallax effect where the FG layer(s) shift more dramatically on lane shift compared to BG layers. Maybe each layer has a distance property somewhere that defines the effect. I'm not sure it's worth it, but if you are asked to do some polish work you should be able to look at the existing images and use imagegen to build this.
-      - Parallax implementation pattern for future scenes:
-        - Use the base scene file as `<sceneId>.png`, then add optional foreground layers as `<sceneId>.medium.png`, `<sceneId>.close.png`, or similarly named suffixes in `projects/NeonSwarm/public/scenes`.
-        - Foreground/parallax overlay layers must be real alpha PNGs, not green/black/solid matte images. If imagegen is used, generate the source on a clean chroma-key color, remove the matte, and verify alpha before wiring it into the game.
-        - Add the scene-specific layer list in `src/sceneEnvironment.ts` under `parallaxSceneBackgroundLayers`. Keep the far/base layer shift lowest and increase `laneShiftPercent` for closer layers. Use a little extra `zoomPercent` on foreground layers so lane movement has enough bleed.
-        - Keep the central gameplay lane readable. Put large close objects near edges/corners, and avoid top-bar obstruction.
-        - Verification should include checking the actual track viewport while switching lanes; closer layers should visibly move more than distant layers without exposing edges.
-      - [Done 2026-06-29] Added a first parallax scene prototype for Neon Hall.
-        - Neon Hall now uses an outer-space base image plus medium and close planet foreground PNGs with true alpha transparency. The parallax layer config shifts the base least, the medium layer more, and the close layer most during lane movement.
-      - [Done 2026-06-29] Added first-pass lane-based background pan.
-        - Final tuning: background zoom 108%, lane shift 30%, vertical position 50%. The background shifts horizontally from the smoothed squad lane position, and the temporary tuning overlay was removed after tuning.
-      - [Done 2026-06-29] Replaced Crystal Forge and Solar Array backgrounds with similar scene images that move the horizon/vanishing point to the upper-middle of the portrait frame.
-        - Verification: Visual check in the actual game viewport on the affected track families; root `npm run build`.
-    - P2: Optionally define overrides for player hp, enemy speed, or other balance values. Should reuse the lowest level primitives rather than invent something new.
-    - Soundtrack to match the theme (set of mp3s to rotate, maybe each track picks a different first track).
+    - Color / accent feeds into tracks to modify enemy colors, player color, and family UI treatment.
+      - Do not recolor items or weapon visuals unless the existing code already supports that safely. Item and weapon colors should generally remain consistent across the whole game.
+    - Background image / scene is shared across the family.
+    - Soundtrack should match the theme.
+      - Use whatever soundtrack or audio concepts already exist in the code.
+      - Desired model: a family can define a set of tracks/mp3s to rotate, and each track may choose a different first song.
+    - Content palette / bias:
+      - The family should be able to prefer, allow, or avoid certain weapons, pickups, enemy types, node shapes, or mechanics.
+      - Example: a shield/sword family should bias toward shields, blades, close-range cleanup, and enemies that make those tools relevant.
+      - Example: a gun school family should bias toward firearm choices and clear ranged pressure.
+    - P2: Optionally define overrides for player hp, enemy speed, enemy hp, or other balance values.
+      - Reuse the lowest-level balance primitives already present in the code.
+      - Do not create a separate balance system unless the current one cannot support the composer.
+
+  - Track: A choreographed arrangement of beats designed to provide a specific type of experience.
+    - Track data should express design intent more than literal row data.
+    - Useful track-level concepts:
+      - tier / difficulty
+      - seed
+      - family id
+      - design goals
+      - rough duration / row target
+      - pressure curve
+      - allowed or preferred content
+      - balance overrides, if needed
+    - Example track goals:
+      - teach basic lane reading
+      - teach choice between pickups
+      - teach shield rebuild
+      - teach sword / close-range cleanup
+      - test sustained pressure
+      - test mirrored reads
+      - test tank break
+      - test multiplier payoff
+      - test squad recovery
+    - Example track shape:
+      - Ramp: Set the tone by deciding which weapons/items the player starts with or receives early.
+      - Lesson: Introduce a tool or threat pattern in a forgiving way.
+      - Check: Give a small, readable test that confirms the player can use the new tool or pattern.
+      - Pressure: Make the player prove they can handle an attack designed to be beatable with the ramp items.
+      - Rebuild: Brief recovery with intentional pickups or choices.
+      - Challenge: A meaningful increase in pressure after the player has been given tools.
+      - Spike: A scary but fair difficulty peak, ideally telegraphed.
+      - Payoff: A segment where a recent upgrade, multiplier, shield, sword, squad growth, or weapon choice feels powerful.
+      - Finale: A final sustained read that combines the track’s main ideas.
+    - Rest should be brief and intentional.
+      - The current code appears to give too much rest.
+      - Rest should often become “rebuild” instead of empty space.
+      - Be very intentional with multiplier upgrades because they dramatically increase the player’s ability to fight.
+      - Upgrades should usually be followed by a meaningful increase in pressure.
+
+  - Tier / Difficulty Profile:
+    - The existing `tier: 1 | 2 | 3` is useful, but the composer needs a concrete interpretation of what each tier means.
+    - Inspect the current balance model and define tier profiles using existing concepts where possible.
+    - Useful tier profile values may include:
+      - target duration / rows
+      - total threat budget
+      - max threat spike
+      - pickup budget
+      - upgrade budget
+      - max simultaneous pressure
+      - min/max rest or rebuild spacing
+      - enemy hp multiplier
+      - enemy speed multiplier
+      - allowed pattern complexity
+    - Tier 1 should teach and feel readable.
+    - Tier 2 should combine ideas and apply more sustained pressure.
+    - Tier 3 should test mastery with longer pressure, stronger enemies, and fewer safety nets.
+    - The user-journey grammar should map simple labels like `"low"`, `"medium"`, `"high"`, and `"peak"` into tier-relative threat values.
+      - A tier 1 `"high"` pressure segment should not mean the same raw threat as a tier 3 `"high"` segment.
+      - This keeps the authored journey easy to read while preserving balance.
+
+  - Player Power Model:
+    - The composer needs a lightweight way to estimate how strong the player is after pickups and upgrades.
+    - This does not need to be a full simulation.
+    - Inspect existing weapon, pickup, shield, squad, multiplier, and player systems to find the best way to estimate power.
+    - Weapons already have power tunings in their definitions. Codex should leverage those existing values instead of creating a disconnected power model.
+    - Useful power dimensions may include:
+      - ranged power
+      - close-range power
+      - burst power
+      - shield strength
+      - lane coverage
+      - squad size / follower count
+      - multiplier strength
+      - recovery / safety
+    - Pickups and upgrades should influence this model.
+    - Pressure should be generated relative to current estimated player power.
+    - This should help avoid tracks that give weak tools before impossible pressure or huge multipliers followed by trivial pressure.
+    - If existing weapon tuning already captures power, range, rate, cooldown, target count, family, or role, use those values directly or derive from them.
+    - Avoid duplicating weapon balance numbers in the composer.
+
+  - Threat Model:
+    - Pressure should be budgeted by estimated threat, not only by enemy count.
+    - Inspect existing enemy definitions for hp, speed, behavior, lane/column impact, and special properties.
+    - Define or derive a simple threat score per enemy type.
+    - Useful threat factors may include:
+      - enemy hp
+      - enemy speed
+      - column/lane pressure
+      - special behavior
+      - close-range danger
+      - density and spacing
+    - The composer should be able to request “about N threat” and let the generator choose concrete enemy placements that fit the family, tier, and player power state.
+
+  - Beat Primitive: a well-defined pattern of incoming traffic or pickups.
+    - Pickup: A single pickup item.
+    - Choice: Two or more pickup items in the same row but in different lanes/positions, where the player cannot trivially take everything.
+    - Pressure: A run of enemy placements with options for lane, columns, enemy type, count, density, gaps, mirroring, alternation, and threat budget.
+    - Rest: Blank rows that give the player a short recovery beat.
+    - Rebuild: A short recovery beat that includes useful pickups or choices.
+    - Upgrade: A pickup or choice that significantly changes player power.
+      - Multipliers should be treated as major upgrades.
+    - Warning / Telegraph: Space or setup before a dangerous pattern so the player can read what is coming.
+    - Check: A small test after introducing a tool.
+      - Example: after giving a shield, create pressure that makes shield contact useful but not mandatory.
+      - Example: after giving a sword, create close-range cleanup opportunities.
+    - Spike: A short, deliberate difficulty peak with recovery/relief afterward.
+    - Payoff: A segment designed to make a recent upgrade feel good.
+
+  - Composite Beats: arrays of beat primitives designed to work together.
+    - Alternating Pressure:
+      - Two or more pressure primitives that run in parallel or sequence.
+      - Supports dense waves and strategically placed gaps.
+      - Example: left pressure with right gap, then right pressure with left gap, repeated.
+    - Challenge:
+      - Some number of pickups or choices followed by an increase in pressure.
+      - Should be tunable by threat budget and density.
+    - Ramp:
+      - Initial exposure to items designed to get the user started, followed by an initial fair wave of pressure.
+    - Rebuild:
+      - Short recovery, usually with a controlled pickup/choice, followed by renewed pressure.
+    - Spike:
+      - Telegraph, scary pressure, then brief relief or rebuild.
+    - Payoff:
+      - Give or assume a specific power source, then create pressure that lets it shine.
+    - Finale:
+      - Combines the track’s main ideas into a readable final test.
+
 - Track Definition
-  - The existing track definition is pretty good and should be good enough for the composer and its grammar to effectively manage, but if anything is needed by the composer it can be plumbed here as needed.
+  - The existing track definition is pretty good and should be good enough for the composer and its grammar to manage.
+  - If the composer needs additional information, plumb it into the existing track definition carefully.
+  - Avoid replacing the current track definition unless there is a strong reason.
+  - The composer should compile down to the existing track format wherever possible.
+  - Preserve compatibility with existing authored tracks.
+
+- Catalog Integration
+  - The current catalog is useful and should remain the main authored source for family/track identity.
+  - The catalog should describe:
+    - family id
+    - family label
+    - family description
+    - scene/background
+    - accent color
+    - theme
+    - track ids
+    - track label
+    - track description
+    - tier
+  - Reduce duplication where possible.
+    - For example, `trackFamiliesFromCatalog` should probably be derived from `trackFamilyCatalog` instead of manually repeated.
+  - The catalog should not need to contain literal layout rows.
+  - Add recipe/design metadata near the catalog only where it represents meaningful authored intent.
+
+- Dynamic Generation
+  - The composer should take the catalog/family/track recipe and dynamically create the layout using available weapons, items, enemy types, balance values, weapon power tuning, and discovered game systems.
+  - Generation should be deterministic from a seed.
+  - A reasonable default seed could include track id, balance version, and content catalog version if those concepts exist or can be added cheaply.
+  - If new weapons, items, enemies, or balance values are added, the composer should be able to include them when appropriate without making tracks wildly unbalanced.
+  - The composer should first select a content pool for the track/family, then generate beats from that pool.
+    - Avoid selecting totally random content row by row.
+    - Tracks should feel authored and thematically coherent.
+  - The high-level journey grammar should remain stable even as lower-level generation improves.
+    - Future agents should be able to tune the experience by editing the journey without needing to rewrite primitive generation.
+
+- Debuggability
+  - Add composer debug output that can be used during development.
+  - Useful debug info:
+    - seed
+    - family id
+    - track id
+    - tier
+    - selected weapons
+    - selected pickups
+    - selected enemy types
+    - generated row count
+    - threat estimate by segment
+    - player power estimate by segment
+    - weapon power values used from existing definitions
+    - warnings when generation had to compromise
+  - Debug data does not need to ship to runtime unless useful.
+  - The goal is to make generated tracks inspectable instead of magic.
+
+- Suggested First Implementation Slice
+  - Inspect the current track files, generated files, composer code, catalog code, item definitions, weapon definitions, enemy definitions, and balance definitions.
+  - Propose and implement a small cleanup of the composer/generated/authored split.
+  - Keep the old track format working.
+  - Add or adapt recipe types for:
+    - track family recipe
+    - track recipe
+    - tier profile
+    - user journey grammar
+    - beat primitives
+    - composite beats
+    - simple player power estimate based on existing weapon/item tuning
+    - simple threat estimate
+  - Implement deterministic seeded generation.
+  - Start with a small grammar:
+    - intro
+    - ramp
+    - lesson
+    - pressure
+    - rest
+    - rebuild
+    - challenge
+    - finale
+  - Add spike/payoff/check/telegraph only if they fit naturally into the existing code after inspection.
+  - Convert one existing family to the new recipe/composer path first.
+  - Verify the old authored tracks still work.
+  - Add debug output so generated tracks can be evaluated.
+  - Include at least one example track journey that is easy for a human to read and safely adjust.
+
+- Design Goal
+  - The composer should not become a purely random procedural generator.
+  - It should act like a constrained design assistant.
+  - Authored data should describe intent:
+    - family theme
+    - available/preferred content
+    - track tier
+    - design goals
+    - pressure arc
+    - balance constraints
+    - player journey
+  - The most user-experience-critical layer should be readable, stable, and safe to edit.
+  - Lower-level systems should absorb complexity:
+    - translating journey labels into tier-relative threat budgets
+    - using existing weapon tuning to estimate player power
+    - selecting fair pickups
+    - compiling pressure into concrete rows
+    - enforcing balance boundaries
+  - The composer should produce a deterministic playable track layout that satisfies the authored intent using the current game content.
+  - This should reduce noisy track files while preserving the parts humans actually care about: theme, progression, tuning, and authored experience.
 
 ## Test Discipline
 
