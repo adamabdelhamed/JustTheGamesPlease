@@ -1,5 +1,6 @@
 import type { LaneRunnerSceneId } from "@just-the-games-please/neon-factory";
 import { gunFamily } from "./GunFamily";
+import { lightningFamily } from "./LightningFamily";
 import { multiplierFamily } from "./MultiplierFamily";
 import { orbFamily } from "./OrbFamily";
 import { shieldFamily } from "./ShieldFamily";
@@ -212,6 +213,7 @@ const weaponPrefixes: Readonly<Record<string, string>> = {
   gun: "pickup.weapon.gun.",
   shield: "pickup.weapon.shield.",
   sword: "pickup.weapon.sword.",
+  lightning: "pickup.weapon.lightning.",
 };
 const pickupAliases: Readonly<Record<string, string>> = {
   "unitMultiplier.2x": "pickup.unitMultiplier.2x",
@@ -233,6 +235,8 @@ const preferredSymbols: Readonly<Record<string, string>> = {
   "pickup.weapon.shield.hexGuard": "X",
   "pickup.weapon.sword.arcBlade": "a",
   "pickup.weapon.sword.cleaver": "c",
+  "pickup.weapon.lightning.chainSpark": "L",
+  "pickup.weapon.lightning.forkCapacitor": "F",
   "pickup.unitMultiplier.2x": "2",
 };
 const fallbackSymbols = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz23456789!#$%&*+,-/:;<=>?@^_~".split("")
@@ -290,6 +294,7 @@ function validateCanonicalId(id: string): void {
     ["pickup.weapon.gun.", gunFamily.members, "gun"],
     ["pickup.weapon.shield.", shieldFamily.members, "shield"],
     ["pickup.weapon.sword.", swordFamily.members, "sword"],
+    ["pickup.weapon.lightning.", lightningFamily.members, "lightning"],
   ];
   for (const [prefix, members, label] of validators) {
     if (!id.startsWith(prefix)) continue;

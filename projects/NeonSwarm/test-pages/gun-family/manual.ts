@@ -1,7 +1,8 @@
-import { gunFamily, multiplierFamily, orbFamily, type GunId, type OrbId } from "../../CombatDefinition";
+import { gunFamily, orbFamily, type GunId } from "../../CombatDefinition";
 import { bindSquadInput } from "../../src/input";
 import { NeonSwarmSimulation } from "../../src/simulation/NeonSwarmSimulation";
 import { applyPortraitStage, laneRunnerViewport } from "../../src/viewport";
+import { bindFamilyLabControls } from "../family-lab-controls";
 
 const canvas = document.querySelector<HTMLCanvasElement>("#game-canvas")!;
 const error = document.querySelector<HTMLElement>("#error")!;
@@ -11,8 +12,6 @@ const enemySelect = document.querySelector<HTMLSelectElement>("#enemy-select")!;
 const weaponReadout = document.querySelector<HTMLElement>("#weapon-readout")!;
 const scoreReadout = document.querySelector<HTMLElement>("#score-readout")!;
 const specReadout = document.querySelector<HTMLElement>("#spec-readout")!;
-const formationSize = document.querySelector<HTMLInputElement>("#formation-size")!;
-const formationRows = document.querySelector<HTMLSelectElement>("#formation-rows")!;
 const gameElement = document.querySelector<HTMLElement>("#game")!;
 const audioId = (id: string): string => `../../../../audio/${id}`;
 
@@ -30,13 +29,10 @@ try {
   });
 
   for (const [id, gun] of Object.entries(gunFamily.members)) gunSelect.add(new Option(gun.label, id));
-  for (const [id, enemy] of Object.entries(orbFamily.members)) enemySelect.add(new Option(enemy.label, id));
   gunSelect.value = "pulsePistol";
-  enemySelect.value = "basicOrb";
 
   const selectedGun = (): GunId => gunSelect.value as GunId;
   const selectedLevel = (): number => Number(levelSelect.value);
-  const selectedEnemy = (): OrbId => enemySelect.value as OrbId;
   const syncLevelOptions = (): void => {
     const previousLevel = selectedLevel();
     const gun = gunFamily.members[selectedGun()];
@@ -75,43 +71,15 @@ try {
     sim.equipGun(selectedGun(), selectedLevel());
     updateReadout();
   };
-  const spawnEnemy = (lane: 0 | 1, x = sim.laneX(lane), y = 105, rowId?: number): void => {
-    sim.spawnEnemy({ enemyId: selectedEnemy(), lane, x, y, rowId });
-  };
-
-  document.querySelectorAll<HTMLButtonElement>("[data-spawn-enemy]").forEach(button => {
-    button.addEventListener("click", () => spawnEnemy(Number(button.dataset.spawnEnemy) as 0 | 1));
+  const labControls = bindFamilyLabControls({
+    sim,
+    enemySelect,
+    selectedWeapon: selectedGun,
+    spawnWeaponPickup: ({ weaponId, lane }) => sim.spawnGunPickup({ gunId: weaponId, lane }),
+    onChange: updateReadout,
   });
-  document.querySelectorAll<HTMLButtonElement>("[data-spawn-pickup]").forEach(button => {
-    button.addEventListener("click", () => sim.spawnGunPickup({ gunId: selectedGun(), lane: Number(button.dataset.spawnPickup) as 0 | 1 }));
-  });
-  document.querySelectorAll<HTMLButtonElement>("[data-spawn-formation]").forEach(button => {
-    button.addEventListener("click", () => {
-      const lane = Number(button.dataset.spawnFormation) as 0 | 1;
-      const count = Number(formationSize.value);
-      const rows = Number(formationRows.value);
-      const perRow = Math.ceil(count / rows);
-      let remaining = count;
-      for (let row = 0; row < rows; row++) {
-        const rowId = performance.now() + row;
-        const rowCount = Math.min(perRow, remaining);
-        for (let column = 0; column < rowCount; column++) {
-          spawnEnemy(lane, sim.laneX(lane) + (column - (rowCount - 1) / 2) * 15, 105 - row * 24, rowId);
-        }
-        remaining -= rowCount;
-      }
-    });
-  });
-  document.querySelectorAll<HTMLButtonElement>("[data-spawn-multiplier]").forEach(button => {
-    button.addEventListener("click", () => sim.spawnMultiplierPickup({ lane: Number(button.dataset.spawnMultiplier) as 0 | 1, multiplierId: "squadPlusOne" }));
-  });
-  document.querySelector<HTMLButtonElement>("#spawn-wave")!.addEventListener("click", () => {
-    spawnEnemy(0);
-    spawnEnemy(1);
-    window.setTimeout(() => spawnEnemy(0), 450);
-    window.setTimeout(() => spawnEnemy(1), 700);
-  });
-  document.querySelector<HTMLButtonElement>("#clear-stage")!.addEventListener("click", () => sim.clearStage());
+  const selectedEnemy = labControls.selectedEnemy;
+  const spawnEnemy = labControls.spawnEnemy;
   gunSelect.addEventListener("change", () => {
     syncLevelOptions();
     equip();

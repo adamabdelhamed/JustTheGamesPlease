@@ -5,6 +5,7 @@ import {
   type NeonTopDownShape,
 } from "@just-the-games-please/neon-factory";
 import type { TrackFamilyDefinition, TrackFamilyId, TrackFamilyMember, TrackId } from "../CombatDefinition";
+import { trackCatalog, trackFamilyCatalog, trackThemeCatalog } from "../CombatDefinition/tracks";
 import { trackMenuTuning as tune } from "./trackMenuTuning";
 
 type TrackRoute = (trackId: TrackId) => string;
@@ -22,6 +23,7 @@ interface TrackFamilyVisual {
   familyId: TrackFamilyId;
   label: string;
   accent: string;
+  themeShapeIds: readonly string[];
   y: number;
   unlocked: boolean;
   tracks: TrackVisual[];
@@ -37,7 +39,6 @@ interface TrackVisual {
 }
 
 const accents = ["#ff3bd5", "#20eaff", "#9b42ff", "#4b86ff", "#ffb23a", "#70ffd0"] as const;
-const trackShapeIds = ["hunter-eye", "bruiser-prism", "elite-star", "trick-vortex", "tank-reactor", "spike-lance"] as const;
 
 const requiredShape = (id: string) => {
   const shape = getNeonShape(id);
@@ -147,11 +148,15 @@ export class TrackMenuRenderer {
     return (Object.entries(this.#trackFamily.families) as [TrackFamilyId, TrackFamilyMember<TrackId>][])
       .map(([familyId, family], familyIndex) => {
         const y = tune.heroHeight + familyIndex * (tune.familyHeight + tune.familyGap);
-        const accent = accents[familyIndex % accents.length];
+        const familyCatalog = trackFamilyCatalog[familyId];
+        const firstTrackId = family.trackIds[0];
+        const theme = firstTrackId ? trackCatalog[firstTrackId].theme : "gunSchool";
+        const accent = familyCatalog?.accent ?? accents[familyIndex % accents.length];
         return {
           familyId,
           label: family.label,
           accent,
+          themeShapeIds: trackThemeCatalog[theme].nodeShapeIds,
           y,
           unlocked: true,
           tracks: family.trackIds.map((trackId, trackIndex) => ({
@@ -332,7 +337,7 @@ export class TrackMenuRenderer {
       rotation: Math.PI / 4 + wob.rotation,
     });
     shapes.push({
-      shape: requiredShape(trackShapeIds[(track.index + this.#families.indexOf(family)) % trackShapeIds.length]),
+      shape: requiredShape(family.themeShapeIds[track.index % family.themeShapeIds.length]),
       x: track.x + wob.x,
       y: track.y + wob.y,
       size: tune.trackNodeSize * .72 * wob.scale,

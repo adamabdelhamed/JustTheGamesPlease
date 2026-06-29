@@ -11,12 +11,14 @@ import {
 import {
   combatTuning,
   gunFamily,
+  lightningFamily,
   multiplierFamily,
   orbFamily,
   parseTrackDefinition,
   shieldFamily,
   swordFamily,
   type GunId,
+  type LightningId,
   type MultiplierId,
   type OrbId,
   type ParsedTrackEntity,
@@ -29,12 +31,13 @@ import {
 import { selectAutoAimOffset } from "../autoAim";
 import { GunSimulation } from "../combat/gunSimulation";
 import { advanceCooldownSlots, selectBestUnclaimed, syncSlotArray } from "../combat/independentWeaponSlots";
+import { LightningState, tickLightning } from "../combat/lightningEvaluator";
 import { queryNearbyThreats } from "../combat/nearbyThreatQuery";
 import { resolveShieldContact, ShieldState, tickShield } from "../combat/shieldEvaluator";
 import { SwordState, tickSword } from "../combat/swordEvaluator";
 import { createEnemyActor, defeatEnemy, enemyDefinitionFromTrackId, projectedEnemyHealthBarPrimitives, resolveEnemyDamage } from "../enemyCatalog";
 import { enemyExitCloud, updateEnemyExitEffects, type ActiveEnemyExitEffect, type EnemyVisualType } from "../enemyExitVisuals";
-import { shieldPickupVisual, shieldVisuals, swordPickupVisual, swordVisualDurationMs, swordVisuals } from "../familyVisuals";
+import { lightningPickupVisual, lightningVisuals, shieldPickupVisual, shieldVisuals, swordPickupVisual, swordVisualDurationMs, swordVisuals } from "../familyVisuals";
 import type { SwordVisualTuning } from "../familyVisuals";
 import { billboardOrientation, enemyOrientation, helicopterViewportFor, playerOrientation } from "../renderOrientation";
 import {
@@ -57,8 +60,8 @@ import {
 } from "../viewport";
 
 type Lane = 0 | 1;
-type LevelWeaponFamily = "gun" | "shield" | "sword";
-type LevelWeaponId = GunId | ShieldId | SwordId;
+type LevelWeaponFamily = "gun" | "shield" | "sword" | "lightning";
+type LevelWeaponId = GunId | ShieldId | SwordId | LightningId;
 
 export type NeonSwarmSimulationMode = "game" | "lab";
 
@@ -103,12 +106,14 @@ export interface NeonSwarmSnapshot {
     shield: ShieldId | null;
     shieldLevel: number | null;
     sword: { id: SwordId; level: number } | null;
+    lightning: { id: LightningId; level: number } | null;
   };
   enemies: Array<{ id: number; enemyId: OrbId; lane: Lane; x: number; y: number; health: number; maxHealth: number; dying: boolean }>;
   pickups: {
     guns: number;
     shields: number;
     swords: number;
+    lightnings: number;
     multipliers: number;
   };
   kills: number;
@@ -165,6 +170,15 @@ interface SwordPickup {
   speedMultiplier: number;
 }
 
+interface LightningPickup {
+  lane: Lane;
+  x: number;
+  y: number;
+  lightningId: LightningId;
+  requestedLevel?: number;
+  speedMultiplier: number;
+}
+
 interface MultiplierPickup {
   lane: Lane;
   x: number;
@@ -194,6 +208,11 @@ const swordImpactSoundIds: Record<SwordId, string> = {
   cleaver: "SwordCleaverImpact",
 };
 
+const lightningFireSoundIds: Record<LightningId, string> = {
+  chainSpark: "Lightning",
+  forkCapacitor: "Lightning",
+};
+
 const soundAlternativeCounts: Partial<Record<string, number>> = {
   Primary: 3,
   EnemyDestroyed: 2,
@@ -201,6 +220,7 @@ const soundAlternativeCounts: Partial<Record<string, number>> = {
   EnemySpawn: 2,
   Boss: 1,
   ProjectileHit: 2,
+  Lightning: 2,
 };
 const maxTrackSpawnLeadSeconds = 18;
 const firstTrackRowArrivalSeconds = 2 * combatTuning.globalSpeedMultiplier;
@@ -236,6 +256,7 @@ export class NeonSwarmSimulation {
   private gunPickups: GunPickup[] = [];
   private shieldPickups: ShieldPickup[] = [];
   private swordPickups: SwordPickup[] = [];
+  private lightningPickups: LightningPickup[] = [];
   private collectedWeaponLevels = new Map<string, number>();
   private multipliers: MultiplierPickup[] = [];
   private enemyExitEffects: ActiveEnemyExitEffect[] = [];
@@ -258,10 +279,12 @@ export class NeonSwarmSimulation {
     gun: { id: GunId; level: number } | null;
     shield: ShieldState | null;
     sword: SwordState | null;
+    lightning: LightningState | null;
   } = {
     gun: null,
     shield: null,
     sword: null,
+    lightning: null,
   };
 
   private constructor(renderer: NeonTopDownSceneRenderer, options: NeonSwarmSimulationOptions) {
@@ -318,6 +341,7 @@ export class NeonSwarmSimulation {
     this.activeByFamily.gun = null;
     this.activeByFamily.shield = null;
     this.activeByFamily.sword = null;
+    this.activeByFamily.lightning = null;
     this.collectedWeaponLevels.clear();
     this.squad.count = 1;
     this.squad.aimOffset = 0;
@@ -339,6 +363,7 @@ export class NeonSwarmSimulation {
     this.gunPickups = [];
     this.shieldPickups = [];
     this.swordPickups = [];
+    this.lightningPickups = [];
     this.multipliers = [];
     this.enemyExitEffects = [];
     this.explodingPlayers = [];
@@ -360,6 +385,7 @@ export class NeonSwarmSimulation {
     this.activeByFamily.gun = null;
     this.activeByFamily.shield = null;
     this.activeByFamily.sword = null;
+    this.activeByFamily.lightning = null;
     this.collectedWeaponLevels.clear();
     this.cooldown = 0;
     this.gunCooldowns = [];
@@ -413,6 +439,14 @@ export class NeonSwarmSimulation {
     this.recordWeaponLevel("sword", swordId, level);
     this.activeByFamily.sword = new SwordState(swordId, level);
     this.playPickup("PickupSword");
+    this.play("WeaponReady");
+  }
+
+  equipLightning(lightningId: LightningId, level = 1): void {
+    const normalizedLevel = this.normalizeWeaponLevel("lightning", lightningId, level);
+    this.recordWeaponLevel("lightning", lightningId, normalizedLevel);
+    this.activeByFamily.lightning = new LightningState(lightningId, normalizedLevel);
+    this.playPickup("PickupGun");
     this.play("WeaponReady");
   }
 
@@ -492,6 +526,17 @@ export class NeonSwarmSimulation {
     });
   }
 
+  spawnLightningPickup(options: { lightningId: LightningId; lane: Lane; level?: number; x?: number; y?: number; speedMultiplier?: number }): void {
+    this.lightningPickups.push({
+      lane: options.lane,
+      x: options.x ?? this.laneX(options.lane),
+      y: options.y ?? 135 * this.scale(),
+      lightningId: options.lightningId,
+      requestedLevel: options.level === undefined ? undefined : this.normalizeWeaponLevel("lightning", options.lightningId, options.level),
+      speedMultiplier: options.speedMultiplier ?? 1,
+    });
+  }
+
   spawnMultiplierPickup(options: { lane: Lane; x?: number; y?: number; speedMultiplier?: number; multiplierId?: MultiplierId }): void {
     const multiplierId = options.multiplierId ?? "squadPlusOne";
     this.multipliers.push({
@@ -557,6 +602,7 @@ export class NeonSwarmSimulation {
       if (this.gunSimulation.updateFiring(this.combatNow) > 0) this.playGunFire(this.activeByFamily.gun.id);
     }
 
+    this.updateLightning(delta);
     this.updateProjectiles(delta);
     this.updateNearPlayerEffects(delta, shieldDef, swordDef);
     this.updateEnemies(delta, shieldDef);
@@ -589,6 +635,7 @@ export class NeonSwarmSimulation {
     }
 
     primitives.push(...this.gunSimulation.projectilePrimitives());
+    if (this.activeByFamily.lightning) primitives.push(...lightningVisuals(this.activeByFamily.lightning.activeChains, now));
     if (this.victory) primitives.push(...this.victory.primitives(now));
 
     const shapeInstances: NeonTopDownShape[] = [];
@@ -658,6 +705,20 @@ export class NeonSwarmSimulation {
         label: shapeLabel(`${definition.label}: L${level}`, "above", 10, 7),
       });
     }
+    for (const pickup of this.lightningPickups) {
+      const definition = lightningFamily.members[pickup.lightningId];
+      const level = this.pickupGrantLevel("lightning", pickup.lightningId, pickup.requestedLevel);
+      shapeInstances.push({
+        ...lightningPickupVisual({
+        x: pickup.x,
+        y: pickup.y,
+        color: neonPalette[definition.visualIdentity.color],
+        now,
+        scale: s,
+        }),
+        label: shapeLabel(`${definition.label}: L${level}`, "above", 10, 7),
+      });
+    }
 
     const playerSize = 14;
     for (const [index, point] of playerPoints.entries()) {
@@ -712,6 +773,7 @@ export class NeonSwarmSimulation {
         shield: this.activeByFamily.shield?.shieldId ?? null,
         shieldLevel: this.activeByFamily.shield?.level ?? null,
         sword: this.activeByFamily.sword ? { id: this.activeByFamily.sword.swordId, level: this.activeByFamily.sword.level } : null,
+        lightning: this.activeByFamily.lightning ? { id: this.activeByFamily.lightning.lightningId, level: this.activeByFamily.lightning.level } : null,
       },
       enemies: this.enemies.map(enemy => ({
         id: enemy.id,
@@ -727,6 +789,7 @@ export class NeonSwarmSimulation {
         guns: this.gunPickups.length,
         shields: this.shieldPickups.length,
         swords: this.swordPickups.length,
+        lightnings: this.lightningPickups.length,
         multipliers: this.multipliers.length,
       },
       kills: this.kills,
@@ -776,6 +839,10 @@ export class NeonSwarmSimulation {
         const candidate = entity.id.slice("pickup.weapon.sword.".length);
         if (!(candidate in swordFamily.members)) throw new Error(`Track uses unknown sword id "${entity.id}".`);
         this.spawnSwordPickup({ lane, x: this.entityX(entity), y: this.pickupSpawnY(entity), swordId: candidate as SwordId, speedMultiplier: entity.speedMultiplier });
+      } else if (entity.id.startsWith("pickup.weapon.lightning.")) {
+        const candidate = entity.id.slice("pickup.weapon.lightning.".length);
+        if (!(candidate in lightningFamily.members)) throw new Error(`Track uses unknown lightning id "${entity.id}".`);
+        this.spawnLightningPickup({ lane, x: this.entityX(entity), y: this.pickupSpawnY(entity), lightningId: candidate as LightningId, speedMultiplier: entity.speedMultiplier });
       } else if (entity.id === "pickup.unitMultiplier.2x") {
         this.spawnMultiplierPickup({ lane, x: this.entityX(entity), y: this.pickupSpawnY(entity), speedMultiplier: entity.speedMultiplier });
       } else {
@@ -790,6 +857,7 @@ export class NeonSwarmSimulation {
       && this.gunPickups.length === 0
       && this.shieldPickups.length === 0
       && this.swordPickups.length === 0
+      && this.lightningPickups.length === 0
       && this.multipliers.length === 0;
   }
 
@@ -883,6 +951,38 @@ export class NeonSwarmSimulation {
         this.play("EnemyHit");
       }
     });
+  }
+
+  private updateLightning(delta: number): void {
+    const state = this.activeByFamily.lightning;
+    if (!state) return;
+    const member = lightningFamily.members[state.lightningId];
+    const level = member.levels.find(item => item.level === state.level) ?? member.levels[0];
+    const result = tickLightning(state, member, level, this.enemies, {
+      x: this.squad.x,
+      y: this.playerY() - 22 * this.scale(),
+      lane: this.playerLane,
+    }, this.combatNow, delta);
+    if (!result.triggered) return;
+    this.play(lightningFireSoundIds[state.lightningId]);
+    let impacted = false;
+    for (const hit of result.hits) {
+      const enemy = this.enemies.find(item => item.id === hit.enemyId);
+      if (!enemy || enemy.dying) continue;
+      impacted = true;
+      const resolved = resolveEnemyDamage({
+        enemy,
+        effects: this.enemyExitEffects,
+        damage: hit.damage,
+        impactMagnitude: hit.damage,
+        color: neonPalette[member.visualIdentity.color],
+      });
+      if (resolved.killed) {
+        this.kills++;
+        this.play(resolved.definition.deathSound);
+      }
+    }
+    if (impacted) this.play("EnemyHit");
   }
 
   private updateNearPlayerEffects(delta: number, shieldDef: (typeof shieldFamily.members)[ShieldId] | null, swordDef: SwordMember | null): void {
@@ -1114,6 +1214,18 @@ export class NeonSwarmSimulation {
       } else if (pickup.y > this.canvas.height) this.swordPickups.splice(this.swordPickups.indexOf(pickup), 1);
     }
 
+    for (const pickup of [...this.lightningPickups]) {
+      pickup.y += 72 * pickup.speedMultiplier * this.scale() * delta;
+      if (pickup.y >= this.playerY() - 15 * this.scale() && pickup.lane === this.playerLane) {
+        const level = this.pickupGrantLevel("lightning", pickup.lightningId, pickup.requestedLevel);
+        this.recordWeaponLevel("lightning", pickup.lightningId, level);
+        this.activeByFamily.lightning = new LightningState(pickup.lightningId, level);
+        this.lightningPickups.splice(this.lightningPickups.indexOf(pickup), 1);
+        this.playPickup("PickupGun");
+        this.play("WeaponReady");
+      } else if (pickup.y > this.canvas.height) this.lightningPickups.splice(this.lightningPickups.indexOf(pickup), 1);
+    }
+
     for (const pickup of [...this.multipliers]) {
       pickup.actor.update(delta);
       pickup.y += 72 * pickup.speedMultiplier * this.scale() * delta;
@@ -1155,7 +1267,7 @@ export class NeonSwarmSimulation {
     const items: NeonTopDownShape[] = [];
     const hudScale = scale * this.weaponHudTuning.iconScale;
     const spacing = this.weaponHudTuning.spacing * scale;
-    const entries: Array<{ label: string; color: string; kind: "gun" | "shield" | "sword" }> = [];
+    const entries: Array<{ label: string; color: string; kind: "gun" | "shield" | "sword" | "lightning" }> = [];
     if (this.activeByFamily.gun) {
       const gun = gunFamily.members[this.activeByFamily.gun.id];
       entries.push({ label: `L: ${this.activeByFamily.gun.level}`, color: neonPalette[gun.visualIdentity.projectileColor], kind: "gun" });
@@ -1167,6 +1279,10 @@ export class NeonSwarmSimulation {
     if (this.activeByFamily.sword) {
       const sword = swordFamily.members[this.activeByFamily.sword.swordId];
       entries.push({ label: `L: ${this.activeByFamily.sword.level}`, color: neonPalette[sword.color], kind: "sword" });
+    }
+    if (this.activeByFamily.lightning) {
+      const lightning = lightningFamily.members[this.activeByFamily.lightning.lightningId];
+      entries.push({ label: `L: ${this.activeByFamily.lightning.level}`, color: neonPalette[lightning.visualIdentity.color], kind: "lightning" });
     }
     const playerScreen = projectHelicopterPoint(this.laneX(this.playerLane), this.playerY(), this.cameraSettings, helicopterViewport);
     const centerScreenX = this.weaponHudScreenX ?? this.weaponHudTargetScreenX(this.playerLane);
@@ -1180,7 +1296,9 @@ export class NeonSwarmSimulation {
         ? shieldPickupVisual(common)
         : entry.kind === "sword"
           ? swordPickupVisual(common)
-          : actorInTopDownScene(new NeonShapeActor({ shape: swarmShapes.gunPickup }), x, y, this.weaponHudTuning.iconScale * 20 * scale);
+          : entry.kind === "lightning"
+            ? lightningPickupVisual(common)
+            : actorInTopDownScene(new NeonShapeActor({ shape: swarmShapes.gunPickup }), x, y, this.weaponHudTuning.iconScale * 20 * scale);
       items.push({
         ...shape,
         color: entry.color,

@@ -10,6 +10,9 @@ export {
 } from "./geometric-shapes";
 export {
   NeonGeometricShapeRenderer,
+  neonShapeEnergyInternalTuning,
+  setNeonShapeEnergyInternalTuning,
+  type NeonShapeEnergyInternalTuning,
   type NeonShapeInstance,
   type NeonShapeLabel,
   type NeonShapeLabelPosition,
@@ -22,6 +25,14 @@ export {
   type NeonShapeVector,
 } from "./geometric-shape-actor";
 export { NeonTopDownSceneRenderer, type NeonTopDownScene, type NeonTopDownShape } from "./top-down-scene";
+export {
+  defaultNeonLightningTuning,
+  neonLightningPrimitives,
+  resolveNeonLightningChain,
+  type NeonLightningPoint,
+  type NeonLightningSegment,
+  type NeonLightningTuning,
+} from "./lightning";
 export {
   createLaneRunnerScene,
   getLaneRunnerSceneName,

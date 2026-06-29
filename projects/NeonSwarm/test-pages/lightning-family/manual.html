@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+  <title>Neon Swarm - Lightning Family Test</title>
+  <meta name="theme-color" content="#05071c">
+  <script src="../../../lib/url-options.js"></script>
+  <script src="../../../lib/analytics.js"></script>
+  <link rel="stylesheet" href="../../../lib/top-bar/top-bar.css">
+  <link rel="stylesheet" href="manual.css">
+</head>
+<body>
+  <main id="game" aria-label="Lightning family lane runner test page">
+      <canvas id="game-canvas"></canvas>
+      <header data-game-topbar data-contained>
+        <div class="game-topbar__identity">
+          <h1>LIGHTNING FAMILY <b>LAB</b></h1>
+          <p class="game-topbar__instructions" id="status">Tap left or right to switch lanes.</p>
+        </div>
+        <div class="game-topbar__right">
+          <div class="game-topbar__controls">
+            <span id="weapon-readout">Loading specs...</span>
+            <span id="score-readout">Kills 0</span>
+          </div>
+          <div class="game-topbar__utilities" data-game-topbar-utilities></div>
+        </div>
+      </header>
+    <aside class="lab-panel" aria-label="Manual test controls">
+      <h2>Manual controls</h2>
+      <label>Lightning pickup
+        <select id="lightning-select"></select>
+      </label>
+      <label>Level
+        <select id="level-select"></select>
+      </label>
+      <label>Enemy type
+        <select id="enemy-select"></select>
+      </label>
+      <div class="button-row">
+        <button type="button" data-spawn-pickup="0">Pickup left</button>
+        <button type="button" data-spawn-pickup="1">Pickup right</button>
+      </div>
+      <div class="button-row">
+        <button type="button" data-spawn-enemy="0">Enemy left</button>
+        <button type="button" data-spawn-enemy="1">Enemy right</button>
+      </div>
+      <label>Formation size
+        <input id="formation-size" type="range" min="1" max="10" value="5">
+      </label>
+      <label>Rows
+        <select id="formation-rows"><option>1</option><option>2</option></select>
+      </label>
+      <div class="button-row">
+        <button type="button" data-spawn-formation="0">Formation left</button>
+        <button type="button" data-spawn-formation="1">Formation right</button>
+      </div>
+      <div class="button-row">
+        <button type="button" data-spawn-multiplier="0">+1 left</button>
+        <button type="button" data-spawn-multiplier="1">+1 right</button>
+      </div>
+      <div class="button-row">
+        <button type="button" id="spawn-cluster">Cluster</button>
+        <button type="button" id="spawn-wall">Wall</button>
+      </div>
+      <button type="button" id="spawn-wave">Spawn wave</button>
+      <button type="button" id="clear-stage">Clear stage</button>
+      <dl id="spec-readout"></dl>
+      <p class="spec-note">Balance comes from the typed <code>LightningFamily.ts</code> and <code>OrbFamily.ts</code> public APIs.</p>
+    </aside>
+    <section id="error" role="alert" hidden></section>
+  </main>
+  <script src="../../../lib/top-bar/top-bar.js"></script>
+  <script src="../../../lib/audio/audio.js"></script>
+  <script>
+    gameAudio.preload([
+      '../../../../audio/Lightning',
+      '../../../../audio/Lightning_Alt1',
+      '../../../../audio/Lightning_Alt2',
+      '../../../../audio/Pickup',
+      '../../../../audio/Hit',
+      '../../../../audio/EnemyDestroyed'
+    ]);
+  </script>
+  <script type="module" src="manual.js"></script>
+</body>
+</html>

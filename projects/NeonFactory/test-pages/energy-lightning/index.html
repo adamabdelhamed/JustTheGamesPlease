@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>NeonFactory Energy Lightning Lab</title>
+  <link rel="stylesheet" href="energy-lightning.css">
+</head>
+<body>
+  <main>
+    <section class="stage-panel">
+      <canvas id="stage"></canvas>
+      <div id="error" hidden></div>
+      <output id="test-status"></output>
+    </section>
+    <aside>
+      <header>
+        <a href="../index.html">NEONFACTORY</a>
+        <h1>Energy Lightning Lab</h1>
+        <output id="readout"></output>
+      </header>
+
+      <section>
+        <h2>Energy Shape</h2>
+        <label>Shape <select id="shape"></select></label>
+        <label>Intensity <input id="energy-intensity" type="range" min="0" max="400" value="113"></label>
+        <label>Coverage <input id="energy-coverage" type="range" min="0" max="130" value="52"></label>
+        <label>Speed <input id="energy-speed" type="range" min="0" max="600" value="242"></label>
+        <label>Bleed <input id="energy-bleed" type="range" min="0" max="220" value="0"></label>
+      </section>
+
+      <section>
+        <h2>Energy Internals</h2>
+        <label>Cycle <input id="branch-cycle-rate" type="range" min="50" max="800" value="263"></label>
+        <label>Chance <input id="branch-chance-scale" type="range" min="0" max="160" value="44"></label>
+        <label>Active Min <input id="active-duration-min" type="range" min="1" max="50" value="10"></label>
+        <label>Active Max <input id="active-duration-max" type="range" min="1" max="120" value="66"></label>
+        <label>Haze Min <input id="haze-duration-min" type="range" min="1" max="120" value="20"></label>
+        <label>Haze Max <input id="haze-duration-max" type="range" min="1" max="160" value="100"></label>
+        <label>Length Min <input id="branch-length-min" type="range" min="1" max="45" value="6"></label>
+        <label>Length Max <input id="branch-length-max" type="range" min="1" max="80" value="39"></label>
+        <label>Segments Min <input id="branch-segments-min" type="range" min="1" max="8" value="2"></label>
+        <label>Segments Max <input id="branch-segments-max" type="range" min="1" max="14" value="9"></label>
+        <label>Turn Min <input id="branch-turn-min-degrees" type="range" min="0" max="90" value="10"></label>
+        <label>Turn Max <input id="branch-turn-max-degrees" type="range" min="0" max="160" value="94"></label>
+        <label>Normal Jitter <input id="branch-normal-jitter-degrees" type="range" min="0" max="90" value="20"></label>
+        <label>Branch Width <input id="branch-width-scale" type="range" min="5" max="200" value="74"></label>
+        <label>Haze Width <input id="haze-width-scale" type="range" min="0" max="320" value="37"></label>
+        <label>Haze Opacity <input id="haze-opacity" type="range" min="0" max="160" value="100"></label>
+        <label>Haze Drift <input id="haze-drift" type="range" min="0" max="40" value="0"></label>
+      </section>
+
+      <section>
+        <h2>Lightning Chain</h2>
+        <label>Range <input id="chain-range" type="range" min="20" max="640" value="520"></label>
+        <label>Max Jumps <input id="max-jumps" type="range" min="1" max="36" value="24"></label>
+        <label>Fanout <input id="branch-fanout" type="range" min="1" max="5" value="1"></label>
+        <label>Max Depth <input id="max-depth" type="range" min="1" max="5" value="2"></label>
+        <label>Decay <input id="branch-decay" type="range" min="20" max="100" value="68"></label>
+        <label>Jaggedness <input id="jaggedness" type="range" min="0" max="120" value="45"></label>
+        <label>Segments <input id="segments" type="range" min="2" max="28" value="10"></label>
+        <label>Movement <input id="movement" type="range" min="0" max="200" value="55"></label>
+        <label>Bolt Width <input id="bolt-width" type="range" min="1" max="100" value="1"></label>
+        <label>Halo Width <input id="halo-width" type="range" min="1" max="160" value="80"></label>
+        <label>Intensity <input id="lightning-intensity" type="range" min="10" max="520" value="307"></label>
+        <label>Glow <input id="lightning-glow" type="range" min="10" max="900" value="620"></label>
+        <label>Duration <input id="duration-ms" type="range" min="40" max="1100" value="529"></label>
+      </section>
+
+      <section>
+        <h2>Lightning Sparks</h2>
+        <label>Branch Sparks <input id="branch-sparks" type="range" min="0" max="100" value="11"></label>
+        <label>Spark Velocity <input id="spark-velocity" type="range" min="0" max="260" value="150"></label>
+        <label>Velocity Spread <input id="spark-velocity-spread" type="range" min="0" max="160" value="55"></label>
+        <label>Ease Power <input id="spark-ease-power" type="range" min="20" max="400" value="44"></label>
+        <label>Dim Power <input id="spark-dim-power" type="range" min="20" max="500" value="60"></label>
+        <label>Spark Length <input id="spark-length" type="range" min="1" max="40" value="6"></label>
+        <label>Spark Width <input id="spark-width" type="range" min="1" max="18" value="7"></label>
+        <label>Impact Sparks <input id="impact-sparks" type="range" min="0" max="100" value="26"></label>
+        <label>Impact Velocity <input id="impact-spark-velocity" type="range" min="0" max="280" value="154"></label>
+        <label>Impact Radius <input id="impact-spark-radius" type="range" min="0" max="80" value="10"></label>
+      </section>
+
+      <section class="actions">
+        <button id="strike">Strike</button>
+        <button id="add-target">Add Target</button>
+        <button id="reset-targets">Reset Targets</button>
+      </section>
+
+      <section>
+        <h2>Export</h2>
+        <div class="actions">
+          <button id="copy-tunings">Copy Tunings</button>
+          <button id="refresh-export">Refresh</button>
+        </div>
+        <textarea id="export-output" spellcheck="false"></textarea>
+      </section>
+    </aside>
+  </main>
+  <script type="module" src="energy-lightning.js"></script>
+</body>
+</html>

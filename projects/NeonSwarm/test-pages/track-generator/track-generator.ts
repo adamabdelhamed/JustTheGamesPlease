@@ -1,5 +1,6 @@
 import {
   gunFamily,
+  lightningFamily,
   shieldFamily,
   swordFamily,
   multiplierFamily,
@@ -63,8 +64,20 @@ function generateItemsDocumentation(): string {
   });
   doc += "\n";
 
-  // 5. Squad Multipliers & Items
-  doc += "### 5. Squad Multipliers & Special Items\n\n";
+  // 5. Lightning
+  doc += "### 5. Lightning (Weapon Family)\n\n";
+  doc += "| ID | Label | Editor Symbol | Targeting Mode | Chain Range | Power Level / Rarity |\n";
+  doc += "| :--- | :--- | :---: | :--- | :---: | :--- |\n";
+  Object.entries(lightningFamily.members).forEach(([id, lightning], index) => {
+    const symbol = "LF"[index] || "L";
+    const peakLevel = lightning.levels[lightning.levels.length - 1];
+    const power = lightning.rarity === "uncommon" ? "Medium-High (Uncommon)" : "High (Rare)";
+    doc += `| \`pickup.weapon.lightning.${id}\` | ${lightning.label} | \`${symbol}\` | ${lightning.targetingMode} | ${peakLevel.chainRange}px | ${power} |\n`;
+  });
+  doc += "\n";
+
+  // 6. Squad Multipliers & Items
+  doc += "### 6. Squad Multipliers & Special Items\n\n";
   doc += "| ID | Label | Editor Symbol | Capabilities | Power Level |\n";
   doc += "| :--- | :--- | :---: | :--- | :--- |\n";
   doc += "| `pickup.unitMultiplier.2x` | 2x Squad (+1 Wingmate) | `2` | Adds an additional player wingmate to the squad. Caps at 10 total. | High |\n";
@@ -104,7 +117,7 @@ ${reqText}
 
 ---
 
-## 3. AVAILABLE WEAPONS, SHIELDS, SWORDS & ITEMS
+## 3. AVAILABLE WEAPONS, SHIELDS, SWORDS, LIGHTNING & ITEMS
 Here is a list of all validated items and their corresponding IDs, editor symbols, and capabilities:
 
 ${itemsDoc}
@@ -159,6 +172,7 @@ export const generatedTrack: TrackMember = {
       "G": { id: "pickup.weapon.gun.pulsePistol", speed: 0.8 },
       "S": { id: "pickup.weapon.shield.lightGuard", speed: 0.8 },
       "a": { id: "pickup.weapon.sword.arcBlade", speed: 0.8 },
+      "L": { id: "pickup.weapon.lightning.chainSpark", speed: 0.8 },
     },
     balance: {
       enemyHp: ${enemyHp},

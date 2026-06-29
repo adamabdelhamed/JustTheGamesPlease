@@ -1,10 +1,12 @@
 import {
   getNeonShape,
+  neonLightningPrimitives,
   neonPalette,
   type NeonPrimitive,
   type NeonTopDownShape,
 } from "@just-the-games-please/neon-factory";
 import type { ShieldMember, SwordMember } from "../CombatDefinition";
+import type { ActiveLightningChain } from "./combat/lightningEvaluator";
 import type { ActiveSlashAnimation } from "./combat/swordEvaluator";
 
 export interface FamilyVisualScene {
@@ -394,3 +396,31 @@ export const shieldPickupVisual = (options: FamilyPickupVisualOptions): NeonTopD
 
 export const swordPickupVisual = (options: FamilyPickupVisualOptions): NeonTopDownShape =>
   pickupShape("sword-needle-sabre", options);
+
+export function lightningVisuals(chains: readonly ActiveLightningChain[], now: number): NeonPrimitive[] {
+  return chains.flatMap(chain => neonLightningPrimitives(chain.segments, now - chain.startedAt, {
+    durationMs: chain.durationMs,
+    color: chain.color,
+    secondaryColor: chain.secondaryColor,
+    jaggedness: chain.jaggedness,
+    segments: chain.visualSegments,
+    movement: chain.movement,
+    boltWidth: chain.boltWidth,
+    haloWidth: chain.haloWidth,
+    intensity: chain.intensity,
+    glow: chain.glow,
+    branchSparks: chain.branchSparks,
+    sparkVelocity: chain.sparkVelocity,
+    sparkVelocitySpread: chain.sparkVelocitySpread,
+    sparkEasePower: chain.sparkEasePower,
+    sparkDimPower: chain.sparkDimPower,
+    sparkLength: chain.sparkLength,
+    sparkWidth: chain.sparkWidth,
+    impactSparks: chain.impactSparks,
+    impactSparkVelocity: chain.impactSparkVelocity,
+    impactSparkRadius: chain.impactSparkRadius,
+  }));
+}
+
+export const lightningPickupVisual = (options: FamilyPickupVisualOptions): NeonTopDownShape =>
+  pickupShape("hunter-bolt", options);

@@ -67,11 +67,18 @@ export {
   solarArrayTrack1,
   solarArrayTrack2,
   solarArrayTrack3,
+  trackCatalog,
   trackFamilies,
+  trackFamilyCatalog,
+  trackThemeCatalog,
   tracks,
   voidGardenTrack1,
   voidGardenTrack2,
   voidGardenTrack3,
+  type TrackCatalogId,
+  type TrackFamilyCatalogId,
+  type TrackThemeId,
+  type TrackTier,
 } from "./tracks";
 export {
   multiplierFamily,
@@ -94,3 +101,12 @@ export {
   type SwordMember,
   type SwordTargetingMode,
 } from "./SwordFamily";
+export {
+  lightningFamily,
+  LightningFamilyDefinition,
+  type LightningId,
+  type LightningLevel,
+  type LightningMember,
+  type LightningTargetingMode,
+  type LightningVisualIdentity,
+} from "./LightningFamily";

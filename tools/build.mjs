@@ -40,7 +40,11 @@ await Promise.all([
 await mkdir(resolve(docs, "lib/neonfactory-tests/shapes"), { recursive: true });
 await mkdir(resolve(docs, "lib/neonfactory-tests/clouds"), { recursive: true });
 await mkdir(resolve(docs, "lib/neonfactory-tests/projectiles"), { recursive: true });
+await mkdir(resolve(docs, "lib/neonfactory-tests/energy-lightning"), { recursive: true });
 await Promise.all([
+  build({entryPoints:[resolve(root,"projects/NeonFactory/test-pages/energy-lightning/energy-lightning.ts")],outfile:resolve(docs,"lib/neonfactory-tests/energy-lightning/energy-lightning.js"),bundle:true,format:"esm",platform:"browser",target:"es2022",sourcemap:"inline"}),
+  cp(resolve(root,"projects/NeonFactory/test-pages/energy-lightning/index.html"),resolve(docs,"lib/neonfactory-tests/energy-lightning/index.html")),
+  cp(resolve(root,"projects/NeonFactory/test-pages/energy-lightning/energy-lightning.css"),resolve(docs,"lib/neonfactory-tests/energy-lightning/energy-lightning.css")),
   build({entryPoints:[resolve(root,"projects/NeonFactory/test-pages/projectiles/projectiles.ts")],outfile:resolve(docs,"lib/neonfactory-tests/projectiles/projectiles.js"),bundle:true,format:"esm",platform:"browser",target:"es2022",sourcemap:"inline"}),
   cp(resolve(root,"projects/NeonFactory/test-pages/projectiles/index.html"),resolve(docs,"lib/neonfactory-tests/projectiles/index.html")),
   cp(resolve(root,"projects/NeonFactory/test-pages/projectiles/projectiles.css"),resolve(docs,"lib/neonfactory-tests/projectiles/projectiles.css")),
@@ -95,6 +99,8 @@ await mkdir(resolve(docs, "NeonSwarm/tests/gun-family"), { recursive: true });
 await mkdir(resolve(docs, "NeonSwarm/tests/gun-family/manual/audio"), { recursive: true });
 await mkdir(resolve(docs, "NeonSwarm/tests/shield-family"), { recursive: true });
 await mkdir(resolve(docs, "NeonSwarm/tests/sword-family"), { recursive: true });
+await mkdir(resolve(docs, "NeonSwarm/tests/lightning-family"), { recursive: true });
+await mkdir(resolve(docs, "NeonSwarm/tests/lightning-family/manual/audio"), { recursive: true });
 await mkdir(resolve(docs, "NeonSwarm/tests/multiplier-family"), { recursive: true });
 await mkdir(resolve(docs, "NeonSwarm/tests/enemy-exit"), { recursive: true });
 await mkdir(resolve(docs, "NeonSwarm/tests/auto-aim"), { recursive: true });
@@ -121,6 +127,9 @@ await Promise.all([
   cp(resolve(root, "projects/NeonSwarm/test-pages/sword-family/manual.html"), resolve(docs, "NeonSwarm/tests/sword-family/manual.html")),
   cp(resolve(root, "projects/NeonSwarm/test-pages/sword-family/manual.css"), resolve(docs, "NeonSwarm/tests/sword-family/manual.css")),
   cp(resolve(root, "projects/NeonSwarm/test-pages/sword-family/smoke.html"), resolve(docs, "NeonSwarm/tests/sword-family/smoke.html")),
+  cp(resolve(root, "projects/NeonSwarm/test-pages/lightning-family/manual.html"), resolve(docs, "NeonSwarm/tests/lightning-family/manual.html")),
+  cp(resolve(root, "projects/NeonSwarm/test-pages/lightning-family/manual.css"), resolve(docs, "NeonSwarm/tests/lightning-family/manual.css")),
+  cp(resolve(root, "projects/NeonSwarm/test-pages/lightning-family/smoke.html"), resolve(docs, "NeonSwarm/tests/lightning-family/smoke.html")),
   cp(resolve(root, "projects/NeonSwarm/test-pages/multiplier-family/smoke.html"), resolve(docs, "NeonSwarm/tests/multiplier-family/smoke.html")),
   cp(resolve(root, "projects/NeonSwarm/test-pages/enemy-exit/manual.html"), resolve(docs, "NeonSwarm/tests/enemy-exit/manual.html")),
   cp(resolve(root, "projects/NeonSwarm/test-pages/enemy-exit/manual.css"), resolve(docs, "NeonSwarm/tests/enemy-exit/manual.css")),
@@ -130,6 +139,8 @@ await Promise.all([
   cp(resolve(root, "projects/NeonSwarm/test-pages/track-generator/index.html"), resolve(docs, "NeonSwarm/tests/track-generator/index.html")),
   cp(resolve(root, "projects/NeonSwarm/test-pages/track-generator/track-generator.css"), resolve(docs, "NeonSwarm/tests/track-generator/track-generator.css")),
 ]);
+
+await cp(resolve(docs, "NeonSwarm/audio"), resolve(docs, "NeonSwarm/tests/lightning-family/manual/audio"), { recursive: true });
 
 await Promise.all([
   build({
@@ -160,6 +171,16 @@ await Promise.all([
   build({
     entryPoints: [resolve(root, "projects/NeonSwarm/test-pages/sword-family/smoke.ts")],
     outfile: resolve(docs, "NeonSwarm/tests/sword-family/smoke.js"),
+    bundle: true, format: "esm", platform: "browser", target: "es2022", sourcemap: "inline",
+  }),
+  build({
+    entryPoints: [resolve(root, "projects/NeonSwarm/test-pages/lightning-family/manual.ts")],
+    outfile: resolve(docs, "NeonSwarm/tests/lightning-family/manual.js"),
+    bundle: true, format: "esm", platform: "browser", target: "es2022", sourcemap: "inline",
+  }),
+  build({
+    entryPoints: [resolve(root, "projects/NeonSwarm/test-pages/lightning-family/smoke.ts")],
+    outfile: resolve(docs, "NeonSwarm/tests/lightning-family/smoke.js"),
     bundle: true, format: "esm", platform: "browser", target: "es2022", sourcemap: "inline",
   }),
   build({

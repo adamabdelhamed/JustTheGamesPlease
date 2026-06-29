@@ -37,6 +37,50 @@ export interface NeonShapeInstance {
   label?: NeonShapeLabel;
 }
 
+export interface NeonShapeEnergyInternalTuning {
+  branchCycleRate: number;
+  branchChanceScale: number;
+  activeDurationMin: number;
+  activeDurationMax: number;
+  hazeDurationMin: number;
+  hazeDurationMax: number;
+  branchLengthMin: number;
+  branchLengthMax: number;
+  branchSegmentsMin: number;
+  branchSegmentsMax: number;
+  branchTurnMinDegrees: number;
+  branchTurnMaxDegrees: number;
+  branchNormalJitterDegrees: number;
+  branchWidthScale: number;
+  hazeWidthScale: number;
+  hazeOpacity: number;
+  hazeDrift: number;
+}
+
+export const neonShapeEnergyInternalTuning: NeonShapeEnergyInternalTuning = {
+  branchCycleRate: 2.63,
+  branchChanceScale: .44,
+  activeDurationMin: .1,
+  activeDurationMax: .66,
+  hazeDurationMin: .2,
+  hazeDurationMax: 1,
+  branchLengthMin: .06,
+  branchLengthMax: .39,
+  branchSegmentsMin: 2,
+  branchSegmentsMax: 9,
+  branchTurnMinDegrees: 10,
+  branchTurnMaxDegrees: 94,
+  branchNormalJitterDegrees: 20,
+  branchWidthScale: .74,
+  hazeWidthScale: .37,
+  hazeOpacity: 1,
+  hazeDrift: 0,
+};
+
+export function setNeonShapeEnergyInternalTuning(tuning: Partial<NeonShapeEnergyInternalTuning>): void {
+  Object.assign(neonShapeEnergyInternalTuning, tuning);
+}
+
 type V3 = [number, number, number];
 type Vertex = {
   p: V3; n: V3; color: [number, number, number]; glow: number;
@@ -99,9 +143,9 @@ struct Output {
   let halo = 1.0 - smoothstep(.12, 1.0, across);
   let surge = electricity * intensity;
   let pulse = .78 + sin(scene.time * speed * 2.1 + phase) * .13 + electricity * .24;
-  let cloud = halo * (.13 + surge * .52);
+  let cloud = halo * (.1 + surge * (.42 + bleed * .44));
   let hot = input.color * (pulse + cloud * 2.1) * input.glow + vec3f(core * surge * 1.35);
-  let alpha = (core * (.72 + pulse * .2) + cloud + (1.0 - across) * bleed * electricity * .24) * input.glow;
+  let alpha = (core * (.72 + pulse * .2) + cloud + halo * bleed * (.18 + electricity * .62)) * input.glow;
   return vec4f(hot, clamp(alpha, 0.0, 1.0));
 }`;
 
@@ -224,6 +268,7 @@ function edgeMesh(instance: NeonShapeInstance): Vertex[] {
     addLoop(hole, -depth / 2 - .002, 5.2 + index);
   });
   shape.points.forEach((point, index) => addLine(move(point, -depth / 2), move(point, depth / 2), 6.1 + index));
+  const tuning = neonShapeEnergyInternalTuning;
   const time = performance.now() / 1000 * (instance.energySpeed ?? 1);
   const branchStrength = (instance.energyIntensity ?? 1) * (instance.energyCoverage ?? .32);
   const random = (seed: number) => {
@@ -235,44 +280,44 @@ function edgeMesh(instance: NeonShapeInstance): Vertex[] {
     x * Math.sin(radians) + y * Math.cos(radians),
   ];
   shape.points.forEach((point, index) => {
-    const cycle = Math.floor(time * 2.35 + index * .61);
-    const age = time * 2.35 + index * .61 - cycle;
+    const cycle = Math.floor(time * tuning.branchCycleRate + index * .61);
+    const age = time * tuning.branchCycleRate + index * .61 - cycle;
     const seed = cycle * 37.1 + index * 11.7;
-    const activeDuration = .18 + random(seed + 1) * .25;
-    const hazeDuration = Math.min(1, activeDuration + .28 + random(seed + 2) * .22);
+    const activeDuration = tuning.activeDurationMin + random(seed + 1) * Math.max(0, tuning.activeDurationMax - tuning.activeDurationMin);
+    const hazeDuration = Math.min(1, activeDuration + tuning.hazeDurationMin + random(seed + 2) * Math.max(0, tuning.hazeDurationMax - tuning.hazeDurationMin));
     const branchActive = age < activeDuration;
     const hazeActive = age < hazeDuration;
-    if ((!branchActive && !hazeActive) || random(seed + 3) > Math.min(.78, branchStrength * .5)) return;
+    if ((!branchActive && !hazeActive) || random(seed + 3) > Math.min(.9, branchStrength * tuning.branchChanceScale)) return;
     const next = shape.points[(index + 1) % shape.points.length];
     const t = .16 + random(seed + 4) * .68;
     const base: NeonPoint = [point[0] + (next[0] - point[0]) * t, point[1] + (next[1] - point[1]) * t];
     const tx = next[0] - point[0], ty = next[1] - point[1], tl = Math.hypot(tx, ty) || 1;
     const direction = random(seed + 5) > .5 ? 1 : -1;
     const perpendicular: NeonPoint = [-ty / tl * direction, tx / tl * direction];
-    const firstJitter = (10 + random(seed + 6) * 10) * Math.PI / 180 * (random(seed + 7) > .5 ? 1 : -1);
+    const firstJitter = (random(seed + 6) * tuning.branchNormalJitterDegrees) * Math.PI / 180 * (random(seed + 7) > .5 ? 1 : -1);
     let heading = rotated(perpendicular[0], perpendicular[1], firstJitter);
-    const segmentCount = 1 + Math.floor(random(seed + 8) * 3);
+    const segmentCount = Math.max(1, Math.round(tuning.branchSegmentsMin + random(seed + 8) * Math.max(0, tuning.branchSegmentsMax - tuning.branchSegmentsMin)));
     const points: NeonPoint[] = [base];
     for (let segment = 0; segment < segmentCount; segment++) {
-      const length = .055 + random(seed + 10 + segment) * .095;
+      const length = tuning.branchLengthMin + random(seed + 10 + segment) * Math.max(0, tuning.branchLengthMax - tuning.branchLengthMin);
       const previous = points[points.length - 1];
       points.push([previous[0] + heading[0] * length, previous[1] + heading[1] * length]);
-      const offset = (20 + random(seed + 20 + segment) * 40) * Math.PI / 180;
+      const offset = (tuning.branchTurnMinDegrees + random(seed + 20 + segment) * Math.max(0, tuning.branchTurnMaxDegrees - tuning.branchTurnMinDegrees)) * Math.PI / 180;
       heading = rotated(heading[0], heading[1], offset * (random(seed + 30 + segment) > .5 ? 1 : -1));
     }
     if (hazeActive) {
       const fade = 1 - Math.max(0, age - activeDuration) / Math.max(.001, hazeDuration - activeDuration);
-      const drift = Math.max(0, age - activeDuration) * .035;
+      const drift = Math.max(0, age - activeDuration) * tuning.hazeDrift;
       points.slice(0, -1).forEach((start, segment) => {
         const end = points[segment + 1];
         const hazeStart: NeonPoint = [start[0] + perpendicular[0] * drift, start[1] + perpendicular[1] * drift];
         const hazeEnd: NeonPoint = [end[0] + perpendicular[0] * drift, end[1] + perpendicular[1] * drift];
-        addLine(move(hazeStart, depth / 2 + .002), move(hazeEnd, depth / 2 + .002), 31 + seed + segment, 1.45 + fade * .55, fade * .34);
+        addLine(move(hazeStart, depth / 2 + .002), move(hazeEnd, depth / 2 + .002), 31 + seed + segment, tuning.hazeWidthScale, fade * tuning.hazeOpacity);
       });
     }
     if (branchActive) {
       points.slice(0, -1).forEach((start, segment) => {
-        addLine(move(start, depth / 2 + .006), move(points[segment + 1], depth / 2 + .006), 11 + seed + segment, .42);
+        addLine(move(start, depth / 2 + .006), move(points[segment + 1], depth / 2 + .006), 11 + seed + segment, tuning.branchWidthScale);
       });
     }
   });
