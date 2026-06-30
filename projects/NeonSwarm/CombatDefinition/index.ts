@@ -121,3 +121,16 @@ export {
   type LightningTargetingMode,
   type LightningVisualIdentity,
 } from "./LightningFamily";
+export {
+  showstopperFamily,
+  ShowstopperFamilyDefinition,
+  startingShowstopperId,
+  type ShowstopperAttackDefinition,
+  type ShowstopperBankBehavior,
+  type ShowstopperCameraPose,
+  type ShowstopperEasing,
+  type ShowstopperId,
+  type ShowstopperMember,
+  type ShowstopperTargetingMode,
+  type ShowstopperTimeWarpPoint,
+} from "./ShowstopperFamily";

@@ -1,6 +1,7 @@
-import { trackFamily, type TrackFamilyId, type TrackId } from "../CombatDefinition";
+import { startingShowstopperId, trackFamily, type TrackFamilyId, type TrackId } from "../CombatDefinition";
 import { bindSquadInput } from "./input";
 import { NeonSwarmSimulation } from "./simulation/NeonSwarmSimulation";
+import { syncShowstopperTriggerUi } from "./showstopperTriggerUi";
 import { TrackMenuRenderer } from "./trackMenuRenderer";
 import { applyPortraitStage, defaultHelicopterCameraSettings, laneRunnerViewport, type HelicopterCameraSettings } from "./viewport";
 
@@ -11,6 +12,7 @@ const trackList = document.querySelector<HTMLElement>("#track-list")!;
 const trackMenuLabels = document.querySelector<HTMLElement>("#track-menu-labels")!;
 const status = document.querySelector<HTMLElement>("#status")!;
 const runStatus = document.querySelector<HTMLElement>("#run-status")!;
+const showstopperTrigger = document.querySelector<HTMLButtonElement>("#showstopper-trigger")!;
 const result = document.querySelector<HTMLElement>("#result")!;
 const resultTitle = document.querySelector<HTMLElement>("#result-title")!;
 const resultDetail = document.querySelector<HTMLElement>("#result-detail")!;
@@ -70,6 +72,7 @@ try {
     cameraSettings,
     sound: window.gameAudio,
     sceneId: defaultTrackSceneId,
+    initialShowstopperBank: startingShowstopperId,
     onRunStatus: value => {
       runStatus.textContent = value;
     },
@@ -89,6 +92,26 @@ try {
     musicStarted = true;
     const audio = window.gameAudio as (typeof window.gameAudio & { playSharedMusic?: (ids: string[]) => void });
     audio?.playSharedMusic?.(["Music"]);
+  };
+  const syncShowstopperUi = (): void => {
+    const snapshot = sim.snapshot();
+    const activeId = snapshot.active.showstopper;
+    const hasTrack = snapshot.activeTrack;
+    syncShowstopperTriggerUi({
+      triggerButton: showstopperTrigger,
+    }, {
+      id: activeId,
+      count: snapshot.active.showstopperCount,
+      active: sim.isLaneInputLocked(),
+      hidden: !hasTrack || !activeId,
+      disabled: !hasTrack || sim.isLaneInputLocked(),
+    });
+  };
+  const triggerShowstopper = (): void => {
+    if (sim.triggerBankedShowstopper()) {
+      status.textContent = "Dragon's Breath!";
+      syncShowstopperUi();
+    }
   };
   const navigateToTracks = (): void => {
     if (location.hash === "#tracks") {
@@ -122,6 +145,7 @@ try {
     trackSelect.hidden = false;
     status.textContent = "Choose a track family, then pick a run.";
     runStatus.textContent = "";
+    syncShowstopperUi();
   };
 
   const prepareTrackStart = (trackId: TrackId): void => {
@@ -135,6 +159,7 @@ try {
     sim.setScene(track.environment.sceneId);
     status.textContent = "Ready?";
     runStatus.textContent = "";
+    syncShowstopperUi();
     startDialogFamily.textContent = family ? family.label : "Track";
     startDialogTitle.textContent = track.label;
     startDialogDetail.textContent = "Tap left or right to switch lanes.";
@@ -150,6 +175,7 @@ try {
     result.hidden = true;
     status.textContent = "Tap left or right to switch lanes.";
     sim.startTrack(trackFamily.members[trackId]);
+    syncShowstopperUi();
   };
 
   const handleRoute = (): void => {
@@ -171,10 +197,24 @@ try {
 
   bindSquadInput(gameElement, {
     lane: () => sim.snapshot().squad.lane,
-    setLane: lane => sim.setSquadLane(lane, { requireActiveTrack: true }),
+    setLane: lane => {
+      if (!sim.isLaneInputLocked()) sim.setSquadLane(lane, { requireActiveTrack: true });
+    },
+  });
+  showstopperTrigger.addEventListener("click", () => {
+    startAudioForGesture();
+    triggerShowstopper();
+  });
+  addEventListener("keydown", event => {
+    if (event.key !== " " && event.key !== "Enter") return;
+    if (sim.snapshot().activeTrack && sim.snapshot().active.showstopper && !sim.isLaneInputLocked()) {
+      triggerShowstopper();
+      event.preventDefault();
+    }
   });
 
   sim.startLoop();
+  window.setInterval(syncShowstopperUi, 120);
 } catch (cause) {
   error.hidden = false;
   error.textContent = cause instanceof Error ? cause.message : String(cause);

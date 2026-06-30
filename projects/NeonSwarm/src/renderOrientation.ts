@@ -2,14 +2,17 @@ import type { NeonShapeInstance } from "@just-the-games-please/neon-factory";
 import type { HelicopterCameraSettings, HelicopterViewport } from "./viewport";
 
 const degreesToRadians = (degrees: number): number => degrees * Math.PI / 180;
-const playerForwardRotation = {
-  rotationX: degreesToRadians(-52),
-  rotationY: degreesToRadians(-1),
-  rotationZ: degreesToRadians(1),
-};
+const clamp = (value: number, min: number, max: number): number => Math.max(min, Math.min(max, value));
 const screenForwardYaw = (direction: { x: number; y: number }): number => {
   const length = Math.hypot(direction.x, direction.y) || 1;
   return Math.atan2(direction.x / length, -direction.y / length);
+};
+const groundPitchForCamera = (camera: HelicopterCameraSettings): number => {
+  const lookCompensatedPitch = -(camera.lookAngleDegrees + 25);
+  return degreesToRadians(clamp(lookCompensatedPitch, -68, -18));
+};
+const groundRollForCamera = (camera: HelicopterCameraSettings): number => {
+  return degreesToRadians(clamp((camera.horizon - .5) * 18, -6, 6));
 };
 
 export type ActorVisualRole =
@@ -30,10 +33,11 @@ export interface ActorOrientationContext {
 export function actorOrientation(role: ActorVisualRole, context: ActorOrientationContext): Partial<NeonShapeInstance> {
   switch (role) {
     case "groundForward": {
+      const bob = Math.sin(context.now / 650 + (context.phase ?? 0)) * .06;
       return {
-        ...playerForwardRotation,
-        rotationX: playerForwardRotation.rotationX + Math.sin(context.now / 650 + (context.phase ?? 0)) * .06,
-        rotationY: playerForwardRotation.rotationY + (context.facing ? screenForwardYaw(context.facing) : 0),
+        rotationX: groundPitchForCamera(context.camera) + bob,
+        rotationY: context.facing ? screenForwardYaw(context.facing) : 0,
+        rotationZ: groundRollForCamera(context.camera),
       };
     }
     case "tumblingBillboard":

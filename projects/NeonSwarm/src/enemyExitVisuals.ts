@@ -29,6 +29,12 @@ export interface ActiveEnemyExitEffect {
   color: string;
   seed: number;
   age: number;
+  durationSeconds?: number;
+  size?: number;
+  glow?: number;
+  coreIntensity?: number;
+  rimIntensity?: number;
+  opacity?: number;
 }
 
 const basicOrbExitProfile: EnemyExitCloudProfile = {
@@ -83,6 +89,12 @@ export function createEnemyExitEffect(options: {
   y: number;
   color: string;
   seed?: number;
+  durationSeconds?: number;
+  size?: number;
+  glow?: number;
+  coreIntensity?: number;
+  rimIntensity?: number;
+  opacity?: number;
 }): ActiveEnemyExitEffect {
   return {
     enemyType: options.enemyType,
@@ -91,6 +103,12 @@ export function createEnemyExitEffect(options: {
     color: options.color,
     seed: options.seed ?? Math.random() * 1000,
     age: 0,
+    durationSeconds: options.durationSeconds,
+    size: options.size,
+    glow: options.glow,
+    coreIntensity: options.coreIntensity,
+    rimIntensity: options.rimIntensity,
+    opacity: options.opacity,
   };
 }
 
@@ -98,7 +116,7 @@ export function updateEnemyExitEffects(effects: ActiveEnemyExitEffect[], deltaSe
   for (let index = effects.length - 1; index >= 0; index--) {
     const effect = effects[index];
     effect.age += deltaSeconds;
-    if (effect.age >= enemyExitDuration(effect.enemyType)) effects.splice(index, 1);
+    if (effect.age >= (effect.durationSeconds ?? enemyExitDuration(effect.enemyType))) effects.splice(index, 1);
   }
 }
 
@@ -124,7 +142,7 @@ export function enemyExitCloud(effect: ActiveEnemyExitEffect): NeonTopDownCloudB
     };
   }
   const envelope = profile.envelope;
-  const duration = enemyExitDuration(effect.enemyType);
+  const duration = effect.durationSeconds ?? enemyExitDuration(effect.enemyType);
   const entryT = Math.min(1, effect.age / Math.max(.001, envelope.entrySeconds));
   const fadeStart = envelope.entrySeconds + envelope.sustainSeconds;
   const fadeT = Math.max(0, Math.min(1, (effect.age - fadeStart) / Math.max(.001, envelope.fadeSeconds)));
@@ -137,13 +155,13 @@ export function enemyExitCloud(effect: ActiveEnemyExitEffect): NeonTopDownCloudB
     coreColor: deriveNeonCloudCoreColor(effect.color),
     x: effect.x,
     y: effect.y,
-    size: profile.size * (.48 + entryT * .52),
+    size: (effect.size ?? profile.size) * (.48 + entryT * .52),
     detail: profile.detail,
     turbulence: profile.turbulence,
-    glow: (profile.glow ?? 1) * entryFlash * sustain * fadeEnergy * sparkAccent,
-    coreIntensity: (profile.coreIntensity ?? 1) * (1 + envelope.entryPunch * (1 - entryT) * .55),
-    rimIntensity: (profile.rimIntensity ?? 1) * (1 + fadeT * envelope.sparkIntensity * .35),
-    opacity: (profile.opacity ?? 1) * (effect.age < fadeStart ? 1 : 1 - fadeT * .88),
+    glow: (effect.glow ?? profile.glow ?? 1) * entryFlash * sustain * fadeEnergy * sparkAccent,
+    coreIntensity: (effect.coreIntensity ?? profile.coreIntensity ?? 1) * (1 + envelope.entryPunch * (1 - entryT) * .55),
+    rimIntensity: (effect.rimIntensity ?? profile.rimIntensity ?? 1) * (1 + fadeT * envelope.sparkIntensity * .35),
+    opacity: (effect.opacity ?? profile.opacity ?? 1) * (effect.age < fadeStart ? 1 : 1 - fadeT * .88),
     dissipationTime: duration,
     dissipationAction: "sparkFade",
     driftX: profile.driftX ?? 0,

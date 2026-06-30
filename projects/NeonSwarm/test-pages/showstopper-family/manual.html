@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+  <title>Neon Swarm - Showstopper Lab</title>
+  <meta name="theme-color" content="#05071c">
+  <script src="../../../lib/url-options.js"></script>
+  <script src="../../../lib/analytics.js"></script>
+  <link rel="stylesheet" href="../../../lib/top-bar/top-bar.css">
+  <link rel="stylesheet" href="../gun-family/manual.css">
+  <link rel="stylesheet" href="manual.css">
+</head>
+<body>
+  <main id="game" aria-label="Showstopper family director lab">
+    <canvas id="game-canvas"></canvas>
+    <header data-game-topbar data-contained>
+      <div class="game-topbar__identity">
+        <h1>SHOWSTOPPER <b>LAB</b></h1>
+        <p class="game-topbar__instructions" id="status">neonHall camera and bank preview.</p>
+      </div>
+      <div class="game-topbar__right">
+        <div class="game-topbar__controls">
+          <span id="bank-readout">Bank empty</span>
+          <span id="camera-readout">Camera ready</span>
+        </div>
+        <div class="game-topbar__utilities" data-game-topbar-utilities></div>
+      </div>
+    </header>
+    <button id="bank-slot" class="bank-slot" type="button" data-state="empty">
+      <span id="bank-glyph">-</span>
+      <strong id="bank-label">EMPTY</strong>
+    </button>
+    <aside class="lab-panel" aria-label="Manual test controls">
+      <h2>Director controls</h2>
+      <label>Showstopper
+        <select id="showstopper-select"></select>
+      </label>
+      <div class="button-row">
+        <button type="button" id="bank-button">Bank</button>
+        <button type="button" id="trigger-button">Trigger</button>
+        <button type="button" id="sync-showstopper">Sync</button>
+      </div>
+      <label>Height <input id="camera-height" type="range" min="20" max="120" step="1"></label>
+      <label>Look <input id="camera-look" type="range" min="5" max="55" step="1"></label>
+      <label>Forward <input id="camera-back" type="range" min="0" max="240" step="2"></label>
+      <div class="button-row">
+        <button type="button" id="preset-normal">Normal</button>
+        <button type="button" id="preset-dive">Dive</button>
+      </div>
+      <label>Duration
+        <input id="timeline-duration" type="number" min="250" max="12000" step="50" value="3600">
+      </label>
+      <section id="keyframe-editor" class="keyframe-editor" aria-label="Selected camera keyframe" hidden>
+        <h3>Selected keyframe</h3>
+        <label>Progress % <input id="edit-keyframe-time" type="number" min="0" max="100" step="0.1"></label>
+        <label>Ease <select id="edit-keyframe-ease"></select></label>
+        <label>Height delta <input id="edit-keyframe-height" type="number" min="-240" max="240" step="1"></label>
+        <label>Look delta <input id="edit-keyframe-look" type="number" min="-60" max="60" step="1"></label>
+        <label>Forward delta <input id="edit-keyframe-forward" type="number" min="-160" max="360" step="2"></label>
+      </section>
+      <section id="timewarp-editor" class="keyframe-editor" aria-label="Selected time warp point" hidden>
+        <h3>Selected time warp</h3>
+        <label>Progress % <input id="edit-timewarp-time" type="number" min="0" max="100" step="0.1"></label>
+        <label>Scale <input id="edit-timewarp-scale" type="number" min="0.05" max="1" step="0.05"></label>
+        <label>Ease <select id="edit-timewarp-ease"></select></label>
+      </section>
+      <div class="button-row">
+        <button type="button" id="reset-camera">Reset</button>
+      </div>
+      <section class="export-panel" aria-label="Animation export">
+        <div class="button-row">
+          <button type="button" id="export-animation">Export</button>
+          <button type="button" id="copy-export">Copy</button>
+        </div>
+        <textarea id="animation-export" readonly spellcheck="false" aria-label="Exported animation JSON"></textarea>
+      </section>
+      <dl id="spec-readout"></dl>
+      <p class="spec-note">This lab uses the neonHall parallax scene and the shared camera projection helpers.</p>
+    </aside>
+    <aside class="timeline-panel" aria-label="Camera timeline">
+      <h2>Timeline</h2>
+      <label>Zoom <input id="timeline-zoom" type="range" min="1" max="5" step="0.25" value="1"></label>
+      <div class="timeline-toolbar" aria-label="Timeline tools">
+        <select id="timeline-event-type" aria-label="Event type">
+          <option value="camera">Camera</option>
+          <option value="startAttack">Start attack</option>
+          <option value="stopAttack">Stop attack</option>
+          <option value="timeWarp">Time warp</option>
+        </select>
+        <button type="button" id="timeline-add-keyframe">Add</button>
+        <button type="button" id="timeline-delete-keyframe">Delete</button>
+      </div>
+      <div class="timeline-transport" aria-label="Playback controls">
+        <button type="button" id="timeline-play">Play</button>
+        <button type="button" id="timeline-pause">Pause</button>
+        <button type="button" id="timeline-stop">Stop</button>
+      </div>
+      <div id="timeline-scroll" class="timeline-scroll">
+        <div id="timeline-track" class="timeline-track">
+          <div class="timeline-line timeline-line--camera" data-label="CAM"></div>
+          <div class="timeline-line timeline-line--attack" data-label="ATK"></div>
+          <div class="timeline-line timeline-line--timewarp" data-label="TIME"></div>
+          <div class="timeline-line timeline-line--scrubber"></div>
+          <button type="button" id="timeline-scrubber" class="timeline-scrubber" aria-label="Current time"></button>
+          <div class="timeline-end">END</div>
+          <div class="timeline-zero">0</div>
+        </div>
+      </div>
+      <div id="timeline-menu" class="timeline-menu" hidden>
+        <button type="button" data-menu-action="add">Add keyframe</button>
+        <button type="button" data-menu-action="delete">Delete</button>
+      </div>
+    </aside>
+    <section id="error" role="alert" hidden></section>
+  </main>
+  <script src="../../../lib/top-bar/top-bar.js"></script>
+  <script type="module" src="manual.js"></script>
+</body>
+</html>

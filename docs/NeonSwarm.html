@@ -19,10 +19,15 @@
         <p class="game-topbar__instructions" id="status">Choose a track. Tap left or right to switch lanes.</p>
       </div>
       <div class="game-topbar__right">
-        <div class="game-topbar__controls"><span id="run-status"></span></div>
+        <div class="game-topbar__controls">
+          <span id="run-status"></span>
+        </div>
         <div class="game-topbar__utilities" data-game-topbar-utilities></div>
       </div>
     </header>
+    <section id="showstopper-bank" class="showstopper-bank" aria-label="Banked showstoppers">
+      <button id="showstopper-trigger" class="showstopper-trigger" type="button" hidden>Dragon's Breath</button>
+    </section>
     <section id="camera-lab" class="camera-lab" aria-label="Temporary camera controls" hidden>
       <label>Height <input id="camera-height" type="range" min="0" max="1000" step="5"></label>
       <label>Look <input id="camera-look" type="range" min="-10" max="85" step="1"></label>
@@ -64,7 +69,7 @@
     gameAudio.preload([
       'Boss','Boss_Alt1','BossDestroyed','ButtonClick',
       'EnemyDestroyed','EnemyDestroyed_Alt1','EnemyDestroyed_Alt2',
-      'EnemyEscaped',
+      'DragonBreath','EnemyEscaped',
       'GlassShieldShatter',
       'EnemyHit','EnemyHit_Alt1','EnemyHit_Alt2',
       'EnemySpawn','EnemySpawn_Alt1','EnemySpawn_Alt2',

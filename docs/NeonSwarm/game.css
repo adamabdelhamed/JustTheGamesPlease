@@ -47,7 +47,8 @@ button { font: inherit; }
 }
 
 #game[data-page="tracks"] #game-canvas,
-#game[data-page="tracks"] [data-game-topbar] {
+#game[data-page="tracks"] [data-game-topbar],
+#game[data-page="tracks"] .showstopper-bank {
   display: none;
 }
 
@@ -272,6 +273,76 @@ button { font: inherit; }
   color: #55e7ff;
   text-transform: none;
   letter-spacing: 0;
+}
+
+#game [data-game-topbar][data-contained] .game-topbar__controls {
+  display: grid;
+  justify-items: end;
+  align-items: start;
+  width: 188px;
+  flex: 0 0 188px;
+}
+
+#run-status {
+  display: -webkit-box;
+  width: 188px;
+  min-height: 34px;
+  max-height: 34px;
+  overflow: hidden;
+  color: #a9c8d8;
+  font-size: .66rem;
+  line-height: 1.25;
+  letter-spacing: .04em;
+  text-align: right;
+  text-overflow: ellipsis;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.showstopper-bank {
+  position: absolute;
+  z-index: 7;
+  right: 12px;
+  top: calc(50% + 48px);
+  display: flex;
+  flex-direction: column-reverse;
+  align-items: flex-end;
+  gap: 8px;
+  transform: translateY(-50%);
+  pointer-events: none;
+}
+
+.showstopper-trigger {
+  width: 158px;
+  height: 60px;
+  min-height: 60px;
+  padding: 8px 12px;
+  border: 1px solid #ffb44a88;
+  border-radius: 8px;
+  background: #201008d9;
+  color: #ffdf85;
+  box-shadow: 0 0 18px #ff8a4533;
+  font-size: .72rem;
+  font-weight: 800;
+  letter-spacing: .08em;
+  line-height: 1.1;
+  text-transform: uppercase;
+  cursor: pointer;
+  pointer-events: auto;
+}
+
+.showstopper-trigger:hover:not(:disabled) {
+  border-color: #ffdf85;
+  color: #fff2c2;
+}
+
+.showstopper-trigger:disabled {
+  opacity: .45;
+  cursor: default;
+}
+
+.showstopper-trigger[hidden] {
+  display: none;
 }
 
 .result {

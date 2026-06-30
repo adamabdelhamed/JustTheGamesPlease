@@ -16,6 +16,7 @@ import {
   orbFamily,
   parseTrackDefinition,
   shieldFamily,
+  showstopperFamily,
   swordFamily,
   type GunId,
   type LightningId,
@@ -23,6 +24,8 @@ import {
   type OrbId,
   type ParsedTrackEntity,
   type ShieldId,
+  type ShowstopperId,
+  type ShowstopperMember,
   type SwordId,
   type SwordMember,
   type SwordTargetingMode,
@@ -36,8 +39,8 @@ import { queryNearbyThreats } from "../combat/nearbyThreatQuery";
 import { resolveShieldContact, ShieldState, tickShield } from "../combat/shieldEvaluator";
 import { SwordState, tickSword } from "../combat/swordEvaluator";
 import { createEnemyActor, defeatEnemy, enemyDefinitionFromTrackId, projectedEnemyHealthBarPrimitives, resolveEnemyDamage } from "../enemyCatalog";
-import { enemyExitCloud, updateEnemyExitEffects, type ActiveEnemyExitEffect, type EnemyVisualType } from "../enemyExitVisuals";
-import { lightningPickupVisual, lightningVisuals, shieldPickupVisual, shieldVisuals, swordPickupVisual, swordVisualDurationMs, swordVisuals } from "../familyVisuals";
+import { createEnemyExitEffect, enemyExitCloud, updateEnemyExitEffects, type ActiveEnemyExitEffect, type EnemyVisualType } from "../enemyExitVisuals";
+import { lightningPickupVisual, lightningVisuals, shieldPickupVisual, shieldVisuals, showstopperPickupVisual, swordPickupVisual, swordVisualDurationMs, swordVisuals } from "../familyVisuals";
 import type { SwordVisualTuning } from "../familyVisuals";
 import { billboardOrientation, enemyOrientation, helicopterViewportFor, playerOrientation } from "../renderOrientation";
 import {
@@ -48,6 +51,7 @@ import {
   type LaneRunnerSceneBackgroundTuning,
 } from "../sceneEnvironment";
 import { actorInTopDownScene, shapeLabel, swarmShapes } from "../shapeVisuals";
+import { ShowstopperDirector, type ShowstopperDirectorState } from "../showstopperDirector";
 import { SquadModel } from "../squad";
 import {
   defaultHelicopterCameraSettings,
@@ -77,6 +81,8 @@ export interface NeonSwarmSimulationOptions {
   cameraSettings?: HelicopterCameraSettings;
   sound?: NeonSwarmSound;
   sceneId?: LaneRunnerSceneId;
+  initialShowstopperBank?: ShowstopperId;
+  playerInvincible?: boolean;
   onRunStatus?: (status: string) => void;
   onFinish?: (result: NeonSwarmFinishResult) => void;
 }
@@ -107,6 +113,8 @@ export interface NeonSwarmSnapshot {
     shieldLevel: number | null;
     sword: { id: SwordId; level: number } | null;
     lightning: { id: LightningId; level: number } | null;
+    showstopper: ShowstopperId | null;
+    showstopperCount: number;
   };
   enemies: Array<{ id: number; enemyId: OrbId; lane: Lane; x: number; y: number; health: number; maxHealth: number; dying: boolean }>;
   pickups: {
@@ -115,6 +123,7 @@ export interface NeonSwarmSnapshot {
     swords: number;
     lightnings: number;
     multipliers: number;
+    showstoppers: number;
   };
   kills: number;
 }
@@ -140,6 +149,7 @@ interface Enemy {
   planned: boolean;
   actor: NeonShapeActor;
   dying: boolean;
+  suppressed?: boolean;
   exitEffectSpawned?: boolean;
 }
 
@@ -189,6 +199,14 @@ interface MultiplierPickup {
   actor: NeonShapeActor;
 }
 
+interface ShowstopperPickup {
+  lane: Lane;
+  x: number;
+  y: number;
+  showstopperId: ShowstopperId;
+  speedMultiplier: number;
+}
+
 interface PendingSwordDamage {
   hits: Array<{ enemyId: number; dueAt: number }>;
   damage: number;
@@ -226,6 +244,10 @@ const soundAlternativeCounts: Partial<Record<string, number>> = {
 const maxTrackSpawnLeadSeconds = 18;
 const firstTrackRowArrivalSeconds = 2 * combatTuning.globalSpeedMultiplier;
 const trackRowTravelSeconds = .375 * combatTuning.globalSpeedMultiplier;
+const showstopperMinimumRowWorldDistance = 38;
+const dragonBreathExplosionDurationSeconds = 3;
+const dragonBreathExplosionColumns = 5;
+const dragonBreathFireColors = ["#ff3d00", "#ff7a00", "#ffb321", "#ffd36a"] as const;
 const smoothingClearDistance = 390;
 const smoothingSpawnDistance = 430;
 const smoothingMinimumUpcomingSeconds = 3.2;
@@ -248,6 +270,8 @@ export class NeonSwarmSimulation {
   private sound?: NeonSwarmSound;
   private onRunStatus?: (status: string) => void;
   private onFinish?: (result: NeonSwarmFinishResult) => void;
+  private initialShowstopperBank?: ShowstopperId;
+  private playerInvincible = false;
   private animationFrame = 0;
   private activeTrack: TrackMember | null = null;
   private trackSceneId: LaneRunnerSceneId;
@@ -272,6 +296,7 @@ export class NeonSwarmSimulation {
   private lightningPickups: LightningPickup[] = [];
   private collectedWeaponLevels = new Map<string, number>();
   private multipliers: MultiplierPickup[] = [];
+  private showstopperPickups: ShowstopperPickup[] = [];
   private enemyExitEffects: ActiveEnemyExitEffect[] = [];
   private victory: NeonVictoryExperience | null = null;
   private swordVisualTuning: Partial<SwordVisualTuning> = {};
@@ -279,6 +304,14 @@ export class NeonSwarmSimulation {
   private failureReason = "";
   private playerActors: NeonShapeActor[] = [];
   private explodingPlayers: Array<{ actor: NeonShapeActor; x: number; y: number }> = [];
+  private bankedShowstoppers = new Map<ShowstopperId, number>();
+  private activeShowstopper: ShowstopperDirectorState | null = null;
+  private showstopperDirector = new ShowstopperDirector();
+  private showstopperCameraFocusX: number | null = null;
+  private showstopperCameraFocusStartX = 0;
+  private showstopperLastExplosionRow = -1;
+  private showstopperLastAttackProgress = -1;
+  private showstopperAttackSoundPlayed = false;
   private weaponHudScreenX: number | null = null;
   private weaponHudTuning: WeaponHudTuning = {
     iconScale: .22,
@@ -309,6 +342,8 @@ export class NeonSwarmSimulation {
     this.sound = options.sound;
     this.onRunStatus = options.onRunStatus;
     this.onFinish = options.onFinish;
+    this.initialShowstopperBank = options.initialShowstopperBank;
+    this.playerInvincible = Boolean(options.playerInvincible);
     this.trackSceneId = options.sceneId ?? "neonHall";
     this.applySceneBackground();
     this.reset({ silent: true });
@@ -366,6 +401,13 @@ export class NeonSwarmSimulation {
     this.playerLane = 0;
     this.weaponHudScreenX = this.weaponHudTargetScreenX(0);
     this.playerActors = [new NeonShapeActor({ shape: swarmShapes.player })];
+    this.bankedShowstoppers.clear();
+    this.activeShowstopper = null;
+    this.showstopperCameraFocusX = null;
+    this.showstopperCameraFocusStartX = 0;
+    this.showstopperLastExplosionRow = -1;
+    this.showstopperLastAttackProgress = -1;
+    this.showstopperAttackSoundPlayed = false;
     this.failureReason = "";
     this.victory = null;
     this.pendingSwordDamage = null;
@@ -380,6 +422,7 @@ export class NeonSwarmSimulation {
     this.swordPickups = [];
     this.lightningPickups = [];
     this.multipliers = [];
+    this.showstopperPickups = [];
     this.enemyExitEffects = [];
     this.explodingPlayers = [];
     this.victory = null;
@@ -417,6 +460,13 @@ export class NeonSwarmSimulation {
     this.squad.x = this.laneX(startLane);
     this.squad.targetX = this.laneX(startLane);
     this.weaponHudScreenX = this.weaponHudTargetScreenX(startLane);
+    if (this.initialShowstopperBank) this.bankShowstopper(this.initialShowstopperBank);
+    this.activeShowstopper = null;
+    this.showstopperCameraFocusX = null;
+    this.showstopperCameraFocusStartX = 0;
+    this.showstopperLastExplosionRow = -1;
+    this.showstopperLastAttackProgress = -1;
+    this.showstopperAttackSoundPlayed = false;
     this.play("TrackStart");
   }
 
@@ -427,9 +477,50 @@ export class NeonSwarmSimulation {
 
   setSquadLane(lane: Lane, options: { requireActiveTrack?: boolean } = {}): void {
     if (options.requireActiveTrack && !this.activeTrack) return;
+    if (this.isLaneInputLocked()) return;
     if (lane !== this.squad.lane) this.play("LaneSwitch");
     this.squad.setLane(lane, value => this.laneX(value), this.combatNow);
     this.playerLane = lane;
+  }
+
+  bankShowstopper(id: ShowstopperId): void {
+    this.bankedShowstoppers.set(id, this.bankedShowstopperCount(id) + 1);
+  }
+
+  triggerBankedShowstopper(): boolean {
+    const banked = this.nextBankedShowstopper();
+    if (this.mode === "game" && !this.activeTrack || !banked || this.activeShowstopper) return false;
+    this.activeShowstopper = this.showstopperDirector.createState(banked);
+    this.showstopperCameraFocusStartX = laneRunnerCameraFocusX(this.canvas.width, this.squad.x);
+    this.showstopperCameraFocusX = this.showstopperCameraFocusStartX;
+    this.showstopperLastExplosionRow = -1;
+    this.showstopperLastAttackProgress = -1;
+    this.showstopperAttackSoundPlayed = false;
+    this.consumeBankedShowstopper(banked);
+    this.play(showstopperFamily.members[this.activeShowstopper.id].soundCues.deploy);
+    this.setCameraSettings(this.showstopperDirector.cameraAt(this.showstopperDirector.member(this.activeShowstopper.id), 0));
+    return true;
+  }
+
+  private nextBankedShowstopper(): ShowstopperId | null {
+    for (const [id, count] of this.bankedShowstoppers) {
+      if (count > 0) return id;
+    }
+    return null;
+  }
+
+  private bankedShowstopperCount(id: ShowstopperId | null): number {
+    return id ? this.bankedShowstoppers.get(id) ?? 0 : 0;
+  }
+
+  private consumeBankedShowstopper(id: ShowstopperId): void {
+    const nextCount = this.bankedShowstopperCount(id) - 1;
+    if (nextCount > 0) this.bankedShowstoppers.set(id, nextCount);
+    else this.bankedShowstoppers.delete(id);
+  }
+
+  isLaneInputLocked(): boolean {
+    return this.activeShowstopper !== null;
   }
 
   equipGun(gunId: GunId, level = 1): void {
@@ -475,6 +566,11 @@ export class NeonSwarmSimulation {
     this.simulationSpeed = Number.isFinite(speed) ? Math.max(.05, Math.min(2, speed)) : 1;
   }
 
+  setCameraSettings(settings: Partial<HelicopterCameraSettings>): void {
+    Object.assign(this.cameraSettings, settings);
+    this.syncSceneBackgroundPlacement();
+  }
+
   addSquadMembers(amount: number): void {
     this.squad.add(amount);
     this.syncPlayerActors();
@@ -486,7 +582,7 @@ export class NeonSwarmSimulation {
     const id = ++this.entityIdCounter;
     const actor = createEnemyActor(options.enemyId);
     if (options.color) actor.color = options.color;
-    this.enemies.push({
+    const enemy: Enemy = {
       id,
       enemyType: options.enemyId,
       enemyId: options.enemyId,
@@ -500,14 +596,89 @@ export class NeonSwarmSimulation {
       planned: false,
       actor,
       dying: false,
-    });
-    if (options.playSound !== false && definition.spawnSound) this.play(definition.spawnSound);
+    };
+    this.completeSpawnSuppressedByShowstopper(enemy);
+    this.enemies.push(enemy);
+    if (!enemy.suppressed && options.playSound !== false && definition.spawnSound) this.play(definition.spawnSound);
     return id;
+  }
+
+  spawnEnemyGrid(options: {
+    enemyId: OrbId;
+    lanes?: readonly Lane[];
+    rows: number;
+    columns: number;
+    rowSpacing?: number;
+    columnSpacing?: number;
+    firstRowOffset?: number;
+    startY?: number;
+    health?: number;
+    speedMultiplier?: number;
+    playSound?: boolean;
+  }): number[] {
+    const lanes = options.lanes ?? [0, 1];
+    const rowSpacing = options.rowSpacing ?? 38 * this.scale();
+    const columnSpacing = options.columnSpacing ?? 18 * this.scale();
+    const firstRowOffset = options.firstRowOffset ?? rowSpacing;
+    const startY = options.startY;
+    const ids: number[] = [];
+    for (const lane of lanes) {
+      for (let row = 0; row < options.rows; row++) {
+        for (let column = 0; column < options.columns; column++) {
+          ids.push(this.spawnEnemy({
+            enemyId: options.enemyId,
+            lane,
+            x: this.laneX(lane) + (column - (options.columns - 1) / 2) * columnSpacing,
+            y: startY === undefined ? this.playerY() - firstRowOffset - row * rowSpacing : startY - row * rowSpacing,
+            health: options.health,
+            speedMultiplier: options.speedMultiplier,
+            rowId: row,
+            playSound: options.playSound,
+          }));
+        }
+      }
+    }
+    return ids;
+  }
+
+  private completeSpawnSuppressedByShowstopper(enemy: Enemy): void {
+    if (!this.enemySpawnIsInActiveShowstopperPath(enemy)) return;
+    enemy.health = 0;
+    enemy.dying = true;
+    enemy.suppressed = true;
+    enemy.exitEffectSpawned = true;
+    enemy.actor.dispose(NeonShapeDisposal.Disappear);
+    this.kills++;
+  }
+
+  private enemySpawnIsInActiveShowstopperPath(enemy: Enemy): boolean {
+    const active = this.activeShowstopper;
+    if (!active || active.returning) return false;
+    const member = this.showstopperDirector.member(active.id);
+    const attack = member.attack;
+    if (attack.targeting !== "allLanesAhead") return false;
+    const maxReach = this.showstopperRowWorldDistance() * (1 + Math.max(0, attack.rowsAhead));
+    return this.enemyIntersectsForwardDistance(enemy, 0, maxReach);
   }
 
   defeatEnemyById(id: number): void {
     const enemy = this.enemies.find(item => item.id === id);
     if (enemy && !enemy.dying) this.destroyEnemy(enemy);
+  }
+
+  defeatEnemiesInRowsAhead(rowsAhead: number): void {
+    this.destroyEnemiesInForwardAttackSweep(rowsAhead, 1);
+  }
+
+  defeatEnemiesInRowRange(from: number, to: number): void {
+    this.destroyEnemiesInForwardDistanceRange(
+      from * this.showstopperRowWorldDistance(),
+      (to + 1) * this.showstopperRowWorldDistance(),
+    );
+  }
+
+  resolveShowstopperAttack(rowsAhead: number, progress: number): void {
+    this.destroyEnemiesInForwardAttackSweep(rowsAhead, progress);
   }
 
   spawnGunPickup(options: { gunId: GunId; lane: Lane; level?: number; x?: number; y?: number; speedMultiplier?: number }): void {
@@ -567,6 +738,16 @@ export class NeonSwarmSimulation {
     });
   }
 
+  spawnShowstopperPickup(options: { showstopperId: ShowstopperId; lane: Lane; x?: number; y?: number; speedMultiplier?: number }): void {
+    this.showstopperPickups.push({
+      lane: options.lane,
+      x: options.x ?? this.laneX(options.lane),
+      y: options.y ?? 135 * this.scale(),
+      showstopperId: options.showstopperId,
+      speedMultiplier: options.speedMultiplier ?? 1,
+    });
+  }
+
   startLoop(): void {
     this.stopLoop();
     const frame = (now: number): void => {
@@ -585,7 +766,8 @@ export class NeonSwarmSimulation {
   tick(frameNow: number): void {
     const rawDelta = Math.min(.05, (frameNow - this.lastFrame) / 1000);
     this.lastFrame = frameNow;
-    const delta = rawDelta * combatTuning.globalSpeedMultiplier * this.simulationSpeed;
+    const gameplayScale = this.showstopperGameplayScale(rawDelta);
+    const delta = rawDelta * combatTuning.globalSpeedMultiplier * this.simulationSpeed * gameplayScale;
     this.combatElapsed += delta;
     this.combatNow = this.combatElapsed * 1000;
     this.updateWeaponHud(delta);
@@ -593,7 +775,7 @@ export class NeonSwarmSimulation {
       item.actor.update(delta);
       if (item.actor.disposed) this.explodingPlayers.splice(this.explodingPlayers.indexOf(item), 1);
     }
-    updateEnemyExitEffects(this.enemyExitEffects, delta);
+    updateEnemyExitEffects(this.enemyExitEffects, rawDelta);
 
     if (this.mode === "game" && !this.activeTrack) return;
     if (this.activeTrack) {
@@ -602,10 +784,17 @@ export class NeonSwarmSimulation {
     }
 
     const gunStatus = this.activeByFamily.gun ? gunFamily.members[this.activeByFamily.gun.id].label : "No weapon";
+    const bankedShowstopper = this.nextBankedShowstopper();
+    const bankedShowstopperCount = this.bankedShowstopperCount(bankedShowstopper);
+    const showstopperStatus = this.activeShowstopper
+      ? `${showstopperFamily.members[this.activeShowstopper.id].label} active`
+      : bankedShowstopper
+        ? `${showstopperFamily.members[bankedShowstopper].label}${bankedShowstopperCount > 1 ? ` x${bankedShowstopperCount}` : ""} banked`
+        : "";
     const shieldDef = this.activeByFamily.shield ? shieldFamily.members[this.activeByFamily.shield.shieldId] : null;
     const swordDef = this.activeByFamily.sword ? swordFamily.members[this.activeByFamily.sword.swordId] : null;
     if (this.activeTrack) {
-      this.onRunStatus?.(`${gunStatus}${shieldDef ? ` · ${shieldDef.label}` : ""}${swordDef ? ` · ${swordDef.label}` : ""}`);
+      this.onRunStatus?.(`${gunStatus}${shieldDef ? ` · ${shieldDef.label}` : ""}${swordDef ? ` · ${swordDef.label}` : ""}${showstopperStatus ? ` · ${showstopperStatus}` : ""}`);
     }
 
     const laneEnemies = this.enemies.filter(enemy => enemy.lane === this.squad.lane && !enemy.dying);
@@ -616,6 +805,7 @@ export class NeonSwarmSimulation {
     this.stageElement.dataset.squadLane = String(this.squad.lane);
     this.syncSceneBackgroundPlacement();
     this.syncPlayerActors();
+    this.updateShowstopper(rawDelta);
 
     if (this.activeByFamily.gun) {
       advanceCooldownSlots(this.gunCooldowns, delta);
@@ -636,7 +826,7 @@ export class NeonSwarmSimulation {
     const primitives = laneRunnerScenePrimitives(this.trackSceneId, this.canvas.width, this.canvas.height, now);
     const s = this.scale();
     const playerPoints = this.squad.points(this.playerY(), s);
-    const helicopterViewport = helicopterViewportFor(this.canvas.width, this.canvas.height, this.playerY(), laneRunnerCameraFocusX(this.canvas.width, this.squad.x));
+    const helicopterViewport = helicopterViewportFor(this.canvas.width, this.canvas.height, this.playerY(), this.currentCameraFocusX());
 
     for (const point of playerPoints) {
       const smear = Math.min(22 * s, Math.abs(this.squad.targetX - this.squad.x) * .45);
@@ -740,6 +930,19 @@ export class NeonSwarmSimulation {
         label: shapeLabel(`${definition.label}: L${level}`, "above", 10, 7),
       });
     }
+    for (const pickup of this.showstopperPickups) {
+      const definition = showstopperFamily.members[pickup.showstopperId];
+      shapeInstances.push({
+        ...showstopperPickupVisual({
+          x: pickup.x,
+          y: pickup.y,
+          color: neonPalette[definition.pickupColor],
+          now,
+          scale: s,
+        }),
+        label: shapeLabel(definition.label, "above", 10, 7),
+      });
+    }
 
     const playerSize = 14;
     for (const [index, point] of playerPoints.entries()) {
@@ -751,6 +954,7 @@ export class NeonSwarmSimulation {
 
     const enemyHealthBars: Parameters<typeof projectedEnemyHealthBarPrimitives>[0][number][] = [];
     for (const enemy of this.enemies) {
+      if (enemy.suppressed) continue;
       const definition = this.enemyDefinition(enemy);
       const size = 18 * definition.columnSpan;
       enemyHealthBars.push({ enemyId: enemy.enemyId, x: enemy.x, y: enemy.y, health: enemy.health, maxHealth: enemy.maxHealth, size, scale: s });
@@ -776,6 +980,7 @@ export class NeonSwarmSimulation {
   }
 
   snapshot(): NeonSwarmSnapshot {
+    const bankedShowstopper = this.nextBankedShowstopper();
     return {
       mode: this.mode,
       activeTrack: this.activeTrack !== null,
@@ -795,23 +1000,28 @@ export class NeonSwarmSimulation {
         shieldLevel: this.activeByFamily.shield?.level ?? null,
         sword: this.activeByFamily.sword ? { id: this.activeByFamily.sword.swordId, level: this.activeByFamily.sword.level } : null,
         lightning: this.activeByFamily.lightning ? { id: this.activeByFamily.lightning.lightningId, level: this.activeByFamily.lightning.level } : null,
+        showstopper: this.activeShowstopper?.id ?? bankedShowstopper,
+        showstopperCount: this.activeShowstopper ? 0 : this.bankedShowstopperCount(bankedShowstopper),
       },
-      enemies: this.enemies.map(enemy => ({
-        id: enemy.id,
-        enemyId: enemy.enemyId,
-        lane: enemy.lane,
-        x: enemy.x,
-        y: enemy.y,
-        health: enemy.health,
-        maxHealth: enemy.maxHealth,
-        dying: enemy.dying,
-      })),
+      enemies: this.enemies
+        .filter(enemy => !enemy.suppressed)
+        .map(enemy => ({
+          id: enemy.id,
+          enemyId: enemy.enemyId,
+          lane: enemy.lane,
+          x: enemy.x,
+          y: enemy.y,
+          health: enemy.health,
+          maxHealth: enemy.maxHealth,
+          dying: enemy.dying,
+        })),
       pickups: {
         guns: this.gunPickups.length,
         shields: this.shieldPickups.length,
         swords: this.swordPickups.length,
         lightnings: this.lightningPickups.length,
         multipliers: this.multipliers.length,
+        showstoppers: this.showstopperPickups.length,
       },
       kills: this.kills,
     };
@@ -832,7 +1042,7 @@ export class NeonSwarmSimulation {
       const lane: Lane = entity.side === "left" ? 0 : 1;
       const enemyDefinitionEntry = enemyDefinitionFromTrackId(entity.id);
       if (enemyDefinitionEntry) {
-        this.spawnTrackEnemy(entity, lane, this.enemySpawnY(entity), entity.rowIndex);
+        this.spawnTrackEnemy(entity, lane, this.enemySpawnY(entity), entity.distanceFromPlayer);
       } else if (entity.id.startsWith("pickup.weapon.gun.")) {
         const candidate = entity.id.slice("pickup.weapon.gun.".length);
         if (!(candidate in gunFamily.members)) throw new Error(`Track uses unknown gun id "${entity.id}".`);
@@ -851,6 +1061,10 @@ export class NeonSwarmSimulation {
         this.spawnLightningPickup({ lane, x: this.entityX(entity), y: this.pickupSpawnY(entity), lightningId: candidate as LightningId, speedMultiplier: entity.speedMultiplier });
       } else if (entity.id === "pickup.unitMultiplier.2x") {
         this.spawnMultiplierPickup({ lane, x: this.entityX(entity), y: this.pickupSpawnY(entity), speedMultiplier: entity.speedMultiplier });
+      } else if (entity.id.startsWith("pickup.showstopper.")) {
+        const candidate = entity.id.slice("pickup.showstopper.".length);
+        if (!(candidate in showstopperFamily.members)) throw new Error(`Track uses unknown showstopper id "${entity.id}".`);
+        this.spawnShowstopperPickup({ lane, x: this.entityX(entity), y: this.pickupSpawnY(entity), showstopperId: candidate as ShowstopperId, speedMultiplier: entity.speedMultiplier });
       } else {
         throw new Error(`Track entity id "${entity.id}" is not supported by the lane runner.`);
       }
@@ -924,7 +1138,7 @@ export class NeonSwarmSimulation {
     const enemyDefinitionEntry = enemyDefinitionFromTrackId(entity.id);
     if (!enemyDefinitionEntry) return;
     const { enemyId, definition } = enemyDefinitionEntry;
-    this.enemies.push({
+    const enemy: Enemy = {
       id: ++this.entityIdCounter,
       enemyType: enemyId,
       enemyId,
@@ -938,8 +1152,10 @@ export class NeonSwarmSimulation {
       planned: rowId >= 0,
       actor: createEnemyActor(enemyId),
       dying: false,
-    });
-    if (definition.spawnSound) this.play(definition.spawnSound);
+    };
+    this.completeSpawnSuppressedByShowstopper(enemy);
+    this.enemies.push(enemy);
+    if (!enemy.suppressed && definition.spawnSound) this.play(definition.spawnSound);
   }
 
   private trackResolved(): boolean {
@@ -1157,6 +1373,174 @@ export class NeonSwarmSimulation {
     });
   }
 
+  private updateShowstopper(deltaSeconds: number): void {
+    const active = this.activeShowstopper;
+    if (!active) return;
+    const member = this.showstopperDirector.member(active.id);
+    const previousElapsedMs = active.elapsedMs;
+    const step = this.showstopperDirector.step(active, deltaSeconds * 1000, this.firstVisibleEnemyRow());
+    this.updateShowstopperCameraFocus(active);
+    this.setCameraSettings(step.camera);
+    if (!this.showstopperAttackSoundPlayed && step.state && !step.state.returning && this.crossedShowstopperEvent(member.timelineEvents, "startAttack", previousElapsedMs, step.state.elapsedMs)) {
+      this.showstopperAttackSoundPlayed = true;
+      this.play(member.soundCues.attackStart);
+    }
+    if (step.attackWindow) {
+      this.destroyEnemiesInForwardAttackSweep(step.attackWindow.rowsAhead, step.attackWindow.progress);
+    } else if (step.clearRows) {
+      this.destroyEnemiesInForwardDistanceRange(
+        step.clearRows.from * this.showstopperRowWorldDistance(),
+        (step.clearRows.to + 1) * this.showstopperRowWorldDistance(),
+      );
+    }
+    this.activeShowstopper = step.state;
+    if (step.resolved) {
+      this.showstopperCameraFocusX = null;
+      this.showstopperLastExplosionRow = -1;
+      this.showstopperLastAttackProgress = -1;
+      this.showstopperAttackSoundPlayed = false;
+      this.play(this.showstopperDirector.member(step.resolved).soundCues.resolve);
+    }
+  }
+
+  private crossedShowstopperEvent(events: ShowstopperMember["timelineEvents"], type: ShowstopperMember["timelineEvents"][number]["type"], previousElapsedMs: number, elapsedMs: number): boolean {
+    return events.some(event => event.type === type && previousElapsedMs < event.atMs && elapsedMs >= event.atMs);
+  }
+
+  private updateShowstopperCameraFocus(state: ShowstopperDirectorState): void {
+    const member = this.showstopperDirector.member(state.id);
+    const centeredFocusX = this.canvas.width / 2;
+    if (member.centerCameraMs <= 0 || state.centerElapsedMs >= member.centerCameraMs) {
+      this.showstopperCameraFocusX = centeredFocusX;
+      return;
+    }
+    const progress = this.easeInOut(state.centerElapsedMs / Math.max(1, member.centerCameraMs));
+    this.showstopperCameraFocusX = this.lerp(this.showstopperCameraFocusStartX, centeredFocusX, progress);
+  }
+
+  private showstopperGameplayScale(deltaSeconds: number): number {
+    const active = this.activeShowstopper;
+    if (!active) return 1;
+    const member = this.showstopperDirector.member(active.id);
+    if (active.centerElapsedMs < member.centerCameraMs) return 1;
+    const projectedElapsedMs = active.returning
+      ? active.elapsedMs - deltaSeconds * 1000
+      : active.elapsedMs + deltaSeconds * 1000;
+    return this.showstopperDirector.gameplayScaleForState(active, member, projectedElapsedMs);
+  }
+
+  private currentCameraFocusX(): number {
+    return this.showstopperCameraFocusX ?? laneRunnerCameraFocusX(this.canvas.width, this.squad.x);
+  }
+
+  private easeInOut(progress: number): number {
+    const t = Math.max(0, Math.min(1, progress));
+    return t * t * (3 - 2 * t);
+  }
+
+  private lerp(from: number, to: number, progress: number): number {
+    return from + (to - from) * progress;
+  }
+
+  private firstVisibleEnemyRow(): number | null {
+    return this.enemies.some(enemy => this.enemyIsVisibleAhead(enemy)) ? 0 : null;
+  }
+
+  private destroyEnemiesInForwardAttackSweep(rowsAhead: number, progress: number): void {
+    const rowDistance = this.showstopperRowWorldDistance();
+    const clampedProgress = Math.max(0, Math.min(1, progress));
+    if (clampedProgress < this.showstopperLastAttackProgress) this.showstopperLastExplosionRow = -1;
+    this.showstopperLastAttackProgress = clampedProgress;
+    const reach = rowDistance * (1 + Math.max(0, rowsAhead) * clampedProgress);
+    this.spawnDragonBreathExplosionRows(reach, rowDistance);
+    this.destroyEnemiesInForwardDistanceRange(0, reach);
+  }
+
+  private spawnDragonBreathExplosionRows(reach: number, rowDistance: number): void {
+    const targetRow = Math.max(0, Math.floor(reach / Math.max(1, rowDistance)));
+    if (targetRow <= this.showstopperLastExplosionRow) return;
+    for (let row = this.showstopperLastExplosionRow + 1; row <= targetRow; row++) {
+      this.spawnDragonBreathExplosionRow(row, rowDistance);
+    }
+    this.showstopperLastExplosionRow = targetRow;
+  }
+
+  private spawnDragonBreathExplosionRow(row: number, rowDistance: number): void {
+    const left = this.laneX(0) - 48 * this.scale();
+    const right = this.laneX(1) + 48 * this.scale();
+    const y = this.playerY() - row * rowDistance;
+    const columns = Math.max(3, dragonBreathExplosionColumns);
+    for (let index = 0; index < columns; index++) {
+      const progress = columns === 1 ? .5 : index / (columns - 1);
+      const x = this.lerp(left, right, progress);
+      const color = dragonBreathFireColors[(row + index) % dragonBreathFireColors.length];
+      this.enemyExitEffects.push(createEnemyExitEffect({
+        enemyType: "basicOrb",
+        x,
+        y: y + Math.sin((row + index) * 1.7) * 5 * this.scale(),
+        color,
+        seed: row * 31 + index * 17,
+        durationSeconds: dragonBreathExplosionDurationSeconds,
+        size: 16 * this.scale(),
+        glow: 18,
+        coreIntensity: 1.8,
+        rimIntensity: 1.25,
+        opacity: .9,
+      }));
+    }
+  }
+
+  private destroyEnemiesInForwardDistanceRange(fromDistance: number, toDistance: number): void {
+    const minDistance = Math.max(0, Math.min(fromDistance, toDistance));
+    const maxDistance = Math.max(minDistance, Math.max(fromDistance, toDistance));
+    for (const enemy of [...this.enemies]) {
+      if (!this.enemyIntersectsForwardDistance(enemy, minDistance, maxDistance)) continue;
+      this.destroyEnemy(enemy);
+    }
+  }
+
+  private enemyIntersectsForwardDistance(enemy: Enemy, minDistance: number, maxDistance: number): boolean {
+    if (enemy.dying) return false;
+    const radius = this.enemyDefinition(enemy).radius * this.scale();
+    const distanceAhead = this.playerY() - enemy.y;
+    return distanceAhead + radius >= minDistance && distanceAhead - radius <= maxDistance;
+  }
+
+  private showstopperRowWorldDistance(): number {
+    return Math.max(showstopperMinimumRowWorldDistance * this.scale(), orbFamily.members.basicOrb.speed * trackRowTravelSeconds * this.scale());
+  }
+
+  private destroyEnemiesInVisibleRowRange(from: number, to: number): void {
+    const minRow = Math.max(0, Math.floor(Math.min(from, to)));
+    const maxRow = Math.max(minRow, Math.floor(Math.max(from, to)));
+    const rows = this.visibleEnemyRowsAhead();
+    for (let rowIndex = minRow; rowIndex <= maxRow; rowIndex++) {
+      for (const enemy of rows[rowIndex]?.enemies ?? []) {
+        if (!enemy.dying) this.destroyEnemy(enemy);
+      }
+    }
+  }
+
+  private visibleEnemyRowsAhead(): Array<{ y: number; enemies: Enemy[] }> {
+    const rowTolerance = 8 * this.scale();
+    const rows: Array<{ y: number; enemies: Enemy[] }> = [];
+    for (const enemy of this.enemies) {
+      if (!this.enemyIsVisibleAhead(enemy)) continue;
+      const existing = rows.find(row => Math.abs(row.y - enemy.y) <= rowTolerance);
+      if (existing) {
+        existing.enemies.push(enemy);
+        existing.y = (existing.y * (existing.enemies.length - 1) + enemy.y) / existing.enemies.length;
+      } else {
+        rows.push({ y: enemy.y, enemies: [enemy] });
+      }
+    }
+    return rows.sort((a, b) => b.y - a.y);
+  }
+
+  private enemyIsVisibleAhead(enemy: Enemy): boolean {
+    return !enemy.dying && enemy.y < this.playerY();
+  }
+
   private swordStrikeProgress(laneProgress = .72): number {
     const tuning = this.swordVisualTuning;
     const strike = tuning.strikeDuration ?? .31;
@@ -1231,6 +1615,10 @@ export class NeonSwarmSimulation {
 
       const hitIndex = this.squad.points(this.playerY(), this.scale()).findIndex(point => Math.hypot(point.x - enemy.x, point.y - enemy.y) <= this.enemyDefinition(enemy).radius * 3.2);
       if (hitIndex >= 0) {
+        if (this.playerInvincible || this.activeShowstopper) {
+          this.destroyEnemy(enemy);
+          continue;
+        }
         const point = this.squad.points(this.playerY(), this.scale())[hitIndex];
         const actor = this.playerActors[hitIndex] ?? new NeonShapeActor({ shape: swarmShapes.player });
         actor.explodeMagnitude = .55;
@@ -1315,6 +1703,16 @@ export class NeonSwarmSimulation {
         this.playPickup("PickupGun");
         this.play("WeaponReady");
       } else if (pickup.y > this.canvas.height) this.lightningPickups.splice(this.lightningPickups.indexOf(pickup), 1);
+    }
+
+    for (const pickup of [...this.showstopperPickups]) {
+      pickup.y += 72 * pickup.speedMultiplier * this.scale() * delta;
+      if (pickup.y >= this.playerY() - 15 * this.scale() && pickup.lane === this.playerLane) {
+        this.bankShowstopper(pickup.showstopperId);
+        this.showstopperPickups.splice(this.showstopperPickups.indexOf(pickup), 1);
+        this.play("Pickup");
+        this.play("WeaponReady");
+      } else if (pickup.y > this.canvas.height) this.showstopperPickups.splice(this.showstopperPickups.indexOf(pickup), 1);
     }
 
     for (const pickup of [...this.multipliers]) {
@@ -1453,7 +1851,16 @@ export class NeonSwarmSimulation {
   }
 
   private syncSceneBackgroundPlacement(): void {
-    syncLaneRunnerSceneBackgroundPlacement(this.stageElement, this.sceneBackgroundTuning, this.sceneBackgroundLaneOffset(), this.trackSceneId);
+    const forwardOffset = Math.max(-1, Math.min(1, (defaultHelicopterCameraSettings.followDistance - this.cameraSettings.followDistance) / 220));
+    const lookOffset = Math.max(-1, Math.min(1, (this.cameraSettings.lookAngleDegrees - defaultHelicopterCameraSettings.lookAngleDegrees) / 28));
+    const verticalOffset = Math.max(-1, Math.min(1, (this.cameraSettings.height - defaultHelicopterCameraSettings.height) / 80));
+    const zoomOffset = Math.max(-1, Math.min(1, (this.cameraSettings.zoom - defaultHelicopterCameraSettings.zoom) / .4));
+    syncLaneRunnerSceneBackgroundPlacement(this.stageElement, this.sceneBackgroundTuning, this.sceneBackgroundLaneOffset(), this.trackSceneId, {
+      forwardOffset,
+      lookOffset,
+      verticalOffset,
+      zoomOffset,
+    });
   }
 
   private sceneBackgroundLaneOffset(): number {

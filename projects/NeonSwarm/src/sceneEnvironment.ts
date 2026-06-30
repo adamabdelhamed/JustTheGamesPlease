@@ -10,6 +10,14 @@ export interface LaneRunnerSceneBackgroundTuning {
   yPercent: number;
 }
 
+export interface LaneRunnerSceneBackgroundCameraMotion {
+  lateralOffset?: number;
+  forwardOffset?: number;
+  lookOffset?: number;
+  verticalOffset?: number;
+  zoomOffset?: number;
+}
+
 interface LaneRunnerSceneBackgroundLayer {
   suffix?: string;
   zoomPercent: number;
@@ -62,9 +70,10 @@ export function applyLaneRunnerSceneBackground(
   sceneId: LaneRunnerSceneId,
   tuning: LaneRunnerSceneBackgroundTuning = defaultLaneRunnerSceneBackgroundTuning,
   laneOffset = 0,
+  cameraMotion: LaneRunnerSceneBackgroundCameraMotion = {},
 ): void {
   const layers = sceneBackgroundLayers(sceneId, tuning);
-  syncLaneRunnerSceneBackgroundPlacement(element, tuning, laneOffset, sceneId);
+  syncLaneRunnerSceneBackgroundPlacement(element, tuning, laneOffset, sceneId, cameraMotion);
   element.style.backgroundRepeat = "no-repeat";
 
   const paths = layers.map(layer => laneRunnerSceneLayerBackgroundUrl(sceneId, layer.suffix));
@@ -99,17 +108,28 @@ export function syncLaneRunnerSceneBackgroundPlacement(
   tuning: LaneRunnerSceneBackgroundTuning = defaultLaneRunnerSceneBackgroundTuning,
   laneOffset = 0,
   sceneId?: LaneRunnerSceneId,
+  cameraMotion: LaneRunnerSceneBackgroundCameraMotion = {},
 ): void {
-  const clampedLaneOffset = Math.max(-1, Math.min(1, laneOffset));
+  const clampedLaneOffset = clampUnit(laneOffset + (cameraMotion.lateralOffset ?? 0));
+  const forwardOffset = clampUnit(cameraMotion.forwardOffset ?? 0);
+  const lookOffset = clampUnit(cameraMotion.lookOffset ?? 0);
+  const verticalOffset = clampUnit(cameraMotion.verticalOffset ?? 0);
+  const zoomOffset = clampUnit(cameraMotion.zoomOffset ?? 0);
   const layers = sceneBackgroundLayers(sceneId, tuning);
   element.style.backgroundPosition = layers
     .map(layer => {
+      const depth = backgroundLayerDepth(layer, tuning);
       const shift = clampedLaneOffset * layer.laneShiftPercent;
-      return `calc(50% + ${shift.toFixed(2)}%) ${layer.yPercent.toFixed(2)}%`;
+      const y = layer.yPercent - forwardOffset * depth * 9 - lookOffset * depth * 7 - verticalOffset * depth * 3;
+      return `calc(50% + ${shift.toFixed(2)}%) ${y.toFixed(2)}%`;
     })
     .reverse()
     .join(", ");
-  element.style.backgroundSize = layers.map(layer => `${layer.zoomPercent.toFixed(2)}% auto`).reverse().join(", ");
+  element.style.backgroundSize = layers.map(layer => {
+    const depth = backgroundLayerDepth(layer, tuning);
+    const zoom = layer.zoomPercent + forwardOffset * depth * 11 + lookOffset * depth * 6 - verticalOffset * depth * 2 + zoomOffset * depth * 10;
+    return `${Math.max(80, zoom).toFixed(2)}% auto`;
+  }).reverse().join(", ");
 }
 
 function sceneBackgroundLayers(
@@ -119,4 +139,13 @@ function sceneBackgroundLayers(
   return sceneId && parallaxSceneBackgroundLayers[sceneId]
     ? parallaxSceneBackgroundLayers[sceneId]
     : [tuning];
+}
+
+function clampUnit(value: number): number {
+  return Math.max(-1, Math.min(1, Number.isFinite(value) ? value : 0));
+}
+
+function backgroundLayerDepth(layer: LaneRunnerSceneBackgroundLayer, tuning: LaneRunnerSceneBackgroundTuning): number {
+  const laneDepth = layer.laneShiftPercent / Math.max(1, tuning.laneShiftPercent);
+  return Math.max(.45, Math.min(1.8, .55 + laneDepth));
 }

@@ -4,6 +4,7 @@ import { lightningFamily } from "./LightningFamily";
 import { multiplierFamily } from "./MultiplierFamily";
 import { orbFamily } from "./OrbFamily";
 import { shieldFamily } from "./ShieldFamily";
+import { showstopperFamily } from "./ShowstopperFamily";
 import { swordFamily } from "./SwordFamily";
 import { parseTrackDefinition, type TrackMember } from "./TrackDefinition";
 
@@ -218,6 +219,8 @@ const weaponPrefixes: Readonly<Record<string, string>> = {
 const pickupAliases: Readonly<Record<string, string>> = {
   "unitMultiplier.2x": "pickup.unitMultiplier.2x",
   "unitMultiplier.squadPlusOne": "pickup.unitMultiplier.2x",
+  "showstopper.dragonsBreath": "pickup.showstopper.dragonsBreath",
+  "dragonsBreath": "pickup.showstopper.dragonsBreath",
 };
 const preferredSymbols: Readonly<Record<string, string>> = {
   "enemy.basic": "E",
@@ -238,6 +241,7 @@ const preferredSymbols: Readonly<Record<string, string>> = {
   "pickup.weapon.lightning.chainSpark": "L",
   "pickup.weapon.lightning.forkCapacitor": "F",
   "pickup.unitMultiplier.2x": "2",
+  "pickup.showstopper.dragonsBreath": "Q",
 };
 const fallbackSymbols = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz23456789!#$%&*+,-/:;<=>?@^_~".split("")
   .filter(symbol => symbol !== emptySymbol && symbol !== playerSymbol);
@@ -306,6 +310,11 @@ function validateCanonicalId(id: string): void {
   if (id.startsWith("pickup.unitMultiplier.")) {
     const memberId = id.slice("pickup.unitMultiplier.".length);
     if (!(memberId in multiplierFamily.members)) throw new Error(`Unknown multiplier id "${id}".`);
+    return;
+  }
+  if (id.startsWith("pickup.showstopper.")) {
+    const memberId = id.slice("pickup.showstopper.".length);
+    if (!(memberId in showstopperFamily.members)) throw new Error(`Unknown showstopper id "${id}".`);
     return;
   }
   throw new Error(`Unsupported track entity id "${id}".`);

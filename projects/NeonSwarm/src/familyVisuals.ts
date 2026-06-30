@@ -424,3 +424,6 @@ export function lightningVisuals(chains: readonly ActiveLightningChain[], now: n
 
 export const lightningPickupVisual = (options: FamilyPickupVisualOptions): NeonTopDownShape =>
   pickupShape("hunter-bolt", options);
+
+export const showstopperPickupVisual = (options: FamilyPickupVisualOptions): NeonTopDownShape =>
+  pickupShape("hunter-burst", options);

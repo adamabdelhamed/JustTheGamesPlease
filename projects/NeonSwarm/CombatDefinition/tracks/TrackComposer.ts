@@ -353,6 +353,9 @@ function pickupPower(id: string): number {
   if (id === "unitMultiplier.2x" || id === "pickup.unitMultiplier.2x") {
     return multiplierFamily.members.squadPlusOne.squadAdded * 4;
   }
+  if (id === "showstopper.dragonsBreath" || id === "pickup.showstopper.dragonsBreath") {
+    return 14;
+  }
   return weaponPower(id);
 }
 
@@ -404,7 +407,7 @@ function selectWeapon(recipe: FamilyRecipe, role: PickupRole, tier: TrackTier, s
   return rng.pick(candidates);
 }
 
-function placePickups(section: TrackSectionBuilder, recipe: FamilyRecipe, beat: JourneyBeatRecipe, tier: TrackTier, state: GeneratorState, rng: Rng): { weapons: string[]; pickups: string[] } {
+function placePickups(section: TrackSectionBuilder, recipe: FamilyRecipe, beat: JourneyBeatRecipe, tier: TrackTier, rows: number, state: GeneratorState, rng: Rng): { weapons: string[]; pickups: string[] } {
   const roles = beat.pickupRoles ?? [];
   const columns = [c.left.mid, c.right.mid, c.left.nearOuter, c.right.nearOuter, c.left.nearInner, c.right.nearInner] as const;
   const weapons: string[] = [];
@@ -429,6 +432,14 @@ function placePickups(section: TrackSectionBuilder, recipe: FamilyRecipe, beat: 
       }
     }
     row += 2;
+  }
+  if (tier >= 2 && beat.kind === "rebuild") {
+    const pickup = "pickup.showstopper.dragonsBreath";
+    const pickupRow = Math.max(0, Math.min(rows - 1, rows - 3));
+    section.at(pickupRow).pickup(pickup, { column: state.cycle % 2 === 0 ? c.left.inner : c.right.inner });
+    state.playerPower += pickupPower(pickup);
+    state.selectedPickups.add(pickup);
+    pickups.push(pickup);
   }
   return { weapons, pickups };
 }
@@ -587,7 +598,7 @@ function compileBeat(builder: TrackBuilder, recipe: FamilyRecipe, beat: JourneyB
   } else {
     const sectionKind = beat.kind === "intro" || beat.kind === "rebuild" ? "rebuild" : "pressure";
     builder.section(sectionKind, rows, section => {
-      const pickups = placePickups(section, recipe, beat, tier, state, rng);
+      const pickups = placePickups(section, recipe, beat, tier, rows, state, rng);
       placedWeapons = pickups.weapons;
       placedPickups = pickups.pickups;
       if (beat.kind !== "intro" && beat.kind !== "rebuild") {
