@@ -1,0 +1,87 @@
+/* Parallax-specific overrides. Layout comes from gun-family/manual.css. */
+.lab-panel {
+  width: 280px;
+}
+
+.lab-panel h2 {
+  margin-top: 16px;
+  color: #8ee8ff;
+}
+
+.lab-panel h2:first-child {
+  margin-top: 0;
+}
+
+.lab-panel input[type="range"] {
+  width: 100%;
+  accent-color: #8ee8ff;
+}
+
+select:focus,
+button:hover {
+  border-color: #8ee8ff;
+  color: #8ee8ff;
+}
+
+.layer-controls {
+  display: grid;
+  gap: 8px;
+  margin: 10px 0 12px;
+  padding-top: 10px;
+  border-top: 1px solid #ffffff12;
+}
+
+.layer-card {
+  display: grid;
+  gap: 7px;
+  padding: 10px;
+  border: 1px solid #55e7ff25;
+  border-radius: 8px;
+  background: #10182a;
+}
+
+.layer-card h3 {
+  margin: 0;
+  color: #eafcff;
+  font-size: .74rem;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+}
+
+.layer-card label {
+  margin: 0;
+}
+
+.layer-value {
+  color: #dffaff;
+  font: 11px/1 Consolas, monospace;
+  letter-spacing: 0;
+}
+
+.export-panel {
+  display: grid;
+  gap: 8px;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid #ffffff12;
+}
+
+.export-panel textarea {
+  width: 100%;
+  min-height: 160px;
+  resize: vertical;
+  padding: 8px;
+  border: 1px solid #55e7ff25;
+  border-radius: 6px;
+  background: #10182a;
+  color: #eefcff;
+  font: 10px/1.35 Consolas, monospace;
+  letter-spacing: 0;
+}
+
+@media(max-width:940px) {
+  .lab-panel {
+    width: min(320px, calc(100vw - 16px));
+    max-height: 46%;
+  }
+}

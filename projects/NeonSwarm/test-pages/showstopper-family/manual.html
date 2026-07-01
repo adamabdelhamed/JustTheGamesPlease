@@ -33,6 +33,9 @@
     </button>
     <aside class="lab-panel" aria-label="Manual test controls">
       <h2>Director controls</h2>
+      <label>Scene
+        <select id="scene-select"></select>
+      </label>
       <label>Showstopper
         <select id="showstopper-select"></select>
       </label>
@@ -44,10 +47,6 @@
       <label>Height <input id="camera-height" type="range" min="20" max="120" step="1"></label>
       <label>Look <input id="camera-look" type="range" min="5" max="55" step="1"></label>
       <label>Forward <input id="camera-back" type="range" min="0" max="240" step="2"></label>
-      <div class="button-row">
-        <button type="button" id="preset-normal">Normal</button>
-        <button type="button" id="preset-dive">Dive</button>
-      </div>
       <label>Duration
         <input id="timeline-duration" type="number" min="250" max="12000" step="50" value="3600">
       </label>
@@ -76,7 +75,7 @@
         <textarea id="animation-export" readonly spellcheck="false" aria-label="Exported animation JSON"></textarea>
       </section>
       <dl id="spec-readout"></dl>
-      <p class="spec-note">This lab uses the neonHall parallax scene and the shared camera projection helpers.</p>
+      <p class="spec-note">This lab uses the selected scene's shared simulation parallax profile.</p>
     </aside>
     <aside class="timeline-panel" aria-label="Camera timeline">
       <h2>Timeline</h2>

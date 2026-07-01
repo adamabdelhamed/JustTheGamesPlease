@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+  <title>Neon Swarm - Parallax Lab</title>
+  <meta name="theme-color" content="#05071c">
+  <script src="../../../lib/url-options.js"></script>
+  <script src="../../../lib/analytics.js"></script>
+  <link rel="stylesheet" href="../../../lib/top-bar/top-bar.css">
+  <link rel="stylesheet" href="../gun-family/manual.css">
+  <link rel="stylesheet" href="manual.css">
+</head>
+<body>
+  <main id="game" aria-label="Parallax lab">
+    <canvas id="game-canvas"></canvas>
+    <header data-game-topbar data-contained>
+      <div class="game-topbar__identity">
+        <h1>PARALLAX <b>LAB</b></h1>
+        <p class="game-topbar__instructions" id="status">Tune scene layer closeness against shared camera motion.</p>
+      </div>
+      <div class="game-topbar__right">
+        <div class="game-topbar__controls">
+          <span id="camera-readout">Camera ready</span>
+        </div>
+        <div class="game-topbar__utilities" data-game-topbar-utilities></div>
+      </div>
+    </header>
+    <aside class="lab-panel" aria-label="Parallax controls">
+      <h2>Scene</h2>
+      <label>Background
+        <select id="scene-select"></select>
+      </label>
+      <section id="layer-controls" class="layer-controls" aria-label="Layer closeness controls"></section>
+      <h2>Runtime</h2>
+      <label>Pan strength <input id="pan-strength" type="range" min="0" max="5" step="0.05"></label>
+      <label>Zoom strength <input id="zoom-strength" type="range" min="0" max="5" step="0.05"></label>
+      <h2>Camera</h2>
+      <label>Height <input id="camera-height" type="range" min="0" max="220" step="1"></label>
+      <label>Look <input id="camera-look" type="range" min="-20" max="85" step="1"></label>
+      <label>Forward <input id="camera-forward" type="range" min="-240" max="520" step="2"></label>
+      <div class="button-row">
+        <button type="button" id="lane-left">Left</button>
+        <button type="button" id="lane-right">Right</button>
+      </div>
+      <button type="button" id="reset-camera">Reset Camera</button>
+      <section class="export-panel" aria-label="Parallax export">
+        <div class="button-row">
+          <button type="button" id="copy-export">Copy JSON</button>
+          <button type="button" id="reset-scene">Reset Scene</button>
+        </div>
+        <textarea id="parallax-export" readonly spellcheck="false" aria-label="Exported parallax JSON"></textarea>
+      </section>
+      <dl id="spec-readout"></dl>
+    </aside>
+    <section id="error" role="alert" hidden></section>
+  </main>
+  <script src="../../../lib/top-bar/top-bar.js"></script>
+  <script type="module" src="manual.js"></script>
+</body>
+</html>

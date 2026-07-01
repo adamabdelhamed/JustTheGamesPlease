@@ -102,6 +102,7 @@ await mkdir(resolve(docs, "NeonSwarm/tests/sword-family"), { recursive: true });
 await mkdir(resolve(docs, "NeonSwarm/tests/lightning-family"), { recursive: true });
 await mkdir(resolve(docs, "NeonSwarm/tests/lightning-family/manual/audio"), { recursive: true });
 await mkdir(resolve(docs, "NeonSwarm/tests/showstopper-family"), { recursive: true });
+await mkdir(resolve(docs, "NeonSwarm/tests/parallax-lab"), { recursive: true });
 await mkdir(resolve(docs, "NeonSwarm/tests/multiplier-family"), { recursive: true });
 await mkdir(resolve(docs, "NeonSwarm/tests/enemy-exit"), { recursive: true });
 await mkdir(resolve(docs, "NeonSwarm/tests/auto-aim"), { recursive: true });
@@ -133,6 +134,8 @@ await Promise.all([
   cp(resolve(root, "projects/NeonSwarm/test-pages/showstopper-family/manual.html"), resolve(docs, "NeonSwarm/tests/showstopper-family/manual.html")),
   cp(resolve(root, "projects/NeonSwarm/test-pages/showstopper-family/manual.css"), resolve(docs, "NeonSwarm/tests/showstopper-family/manual.css")),
   cp(resolve(root, "projects/NeonSwarm/test-pages/showstopper-family/smoke.html"), resolve(docs, "NeonSwarm/tests/showstopper-family/smoke.html")),
+  cp(resolve(root, "projects/NeonSwarm/test-pages/parallax-lab/manual.html"), resolve(docs, "NeonSwarm/tests/parallax-lab/manual.html")),
+  cp(resolve(root, "projects/NeonSwarm/test-pages/parallax-lab/manual.css"), resolve(docs, "NeonSwarm/tests/parallax-lab/manual.css")),
   cp(resolve(root, "projects/NeonSwarm/test-pages/multiplier-family/smoke.html"), resolve(docs, "NeonSwarm/tests/multiplier-family/smoke.html")),
   cp(resolve(root, "projects/NeonSwarm/test-pages/enemy-exit/manual.html"), resolve(docs, "NeonSwarm/tests/enemy-exit/manual.html")),
   cp(resolve(root, "projects/NeonSwarm/test-pages/enemy-exit/manual.css"), resolve(docs, "NeonSwarm/tests/enemy-exit/manual.css")),
@@ -192,6 +195,11 @@ await Promise.all([
   build({
     entryPoints: [resolve(root, "projects/NeonSwarm/test-pages/showstopper-family/smoke.ts")],
     outfile: resolve(docs, "NeonSwarm/tests/showstopper-family/smoke.js"),
+    bundle: true, format: "esm", platform: "browser", target: "es2022", sourcemap: "inline",
+  }),
+  build({
+    entryPoints: [resolve(root, "projects/NeonSwarm/test-pages/parallax-lab/manual.ts")],
+    outfile: resolve(docs, "NeonSwarm/tests/parallax-lab/manual.js"),
     bundle: true, format: "esm", platform: "browser", target: "es2022", sourcemap: "inline",
   }),
   build({

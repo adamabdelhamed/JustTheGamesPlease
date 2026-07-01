@@ -46,9 +46,12 @@ import { billboardOrientation, enemyOrientation, helicopterViewportFor, playerOr
 import {
   applyLaneRunnerSceneBackground,
   defaultLaneRunnerSceneBackgroundTuning,
+  laneRunnerSceneBackgroundProfile,
   laneRunnerScenePrimitives,
   syncLaneRunnerSceneBackgroundPlacement,
+  type LaneRunnerSceneBackgroundProfile,
   type LaneRunnerSceneBackgroundTuning,
+  type LaneRunnerSceneParallaxInterpretation,
 } from "../sceneEnvironment";
 import { actorInTopDownScene, shapeLabel, swarmShapes } from "../shapeVisuals";
 import { ShowstopperDirector, type ShowstopperDirectorState } from "../showstopperDirector";
@@ -81,6 +84,8 @@ export interface NeonSwarmSimulationOptions {
   cameraSettings?: HelicopterCameraSettings;
   sound?: NeonSwarmSound;
   sceneId?: LaneRunnerSceneId;
+  sceneBackgroundProfile?: LaneRunnerSceneBackgroundProfile;
+  sceneParallaxInterpretation?: Partial<LaneRunnerSceneParallaxInterpretation>;
   initialShowstopperBank?: ShowstopperId;
   playerInvincible?: boolean;
   onRunStatus?: (status: string) => void;
@@ -321,6 +326,8 @@ export class NeonSwarmSimulation {
   };
   private simulationSpeed = 1;
   private sceneBackgroundTuning: LaneRunnerSceneBackgroundTuning = { ...defaultLaneRunnerSceneBackgroundTuning };
+  private sceneBackgroundProfile: LaneRunnerSceneBackgroundProfile | null = null;
+  private sceneParallaxInterpretation: Partial<LaneRunnerSceneParallaxInterpretation> = {};
   private activeByFamily: {
     gun: { id: GunId; level: number } | null;
     shield: ShieldState | null;
@@ -345,6 +352,8 @@ export class NeonSwarmSimulation {
     this.initialShowstopperBank = options.initialShowstopperBank;
     this.playerInvincible = Boolean(options.playerInvincible);
     this.trackSceneId = options.sceneId ?? "neonHall";
+    this.sceneBackgroundProfile = options.sceneBackgroundProfile ? cloneSceneBackgroundProfile(options.sceneBackgroundProfile) : null;
+    this.sceneParallaxInterpretation = { ...options.sceneParallaxInterpretation };
     this.applySceneBackground();
     this.reset({ silent: true });
   }
@@ -472,7 +481,22 @@ export class NeonSwarmSimulation {
 
   setScene(sceneId: LaneRunnerSceneId): void {
     this.trackSceneId = sceneId;
+    this.sceneBackgroundProfile = null;
     this.applySceneBackground();
+  }
+
+  setSceneBackgroundProfile(profile: LaneRunnerSceneBackgroundProfile | null): void {
+    this.sceneBackgroundProfile = profile ? cloneSceneBackgroundProfile(profile) : null;
+    if (profile) this.trackSceneId = profile.sceneId;
+    this.applySceneBackground();
+  }
+
+  setSceneParallaxInterpretation(interpretation: Partial<LaneRunnerSceneParallaxInterpretation>): void {
+    this.sceneParallaxInterpretation = {
+      ...this.sceneParallaxInterpretation,
+      ...interpretation,
+    };
+    this.syncSceneBackgroundPlacement();
   }
 
   setSquadLane(lane: Lane, options: { requireActiveTrack?: boolean } = {}): void {
@@ -1847,7 +1871,7 @@ export class NeonSwarmSimulation {
   }
 
   private applySceneBackground(): void {
-    applyLaneRunnerSceneBackground(this.stageElement, this.trackSceneId, this.sceneBackgroundTuning, this.sceneBackgroundLaneOffset());
+    applyLaneRunnerSceneBackground(this.stageElement, this.trackSceneId, this.sceneBackgroundTuning, this.sceneBackgroundLaneOffset(), {}, this.sceneBackgroundRuntimeOptions());
   }
 
   private syncSceneBackgroundPlacement(): void {
@@ -1860,7 +1884,14 @@ export class NeonSwarmSimulation {
       lookOffset,
       verticalOffset,
       zoomOffset,
-    });
+    }, this.sceneBackgroundRuntimeOptions());
+  }
+
+  private sceneBackgroundRuntimeOptions(): { profile: LaneRunnerSceneBackgroundProfile; interpretation: Partial<LaneRunnerSceneParallaxInterpretation> } {
+    return {
+      profile: this.sceneBackgroundProfile ?? laneRunnerSceneBackgroundProfile(this.trackSceneId),
+      interpretation: this.sceneParallaxInterpretation,
+    };
   }
 
   private sceneBackgroundLaneOffset(): number {
@@ -1923,4 +1954,13 @@ export class NeonSwarmSimulation {
     this.play("Pickup");
     this.play(id);
   }
+}
+
+function cloneSceneBackgroundProfile(profile: LaneRunnerSceneBackgroundProfile): LaneRunnerSceneBackgroundProfile {
+  return {
+    sceneId: profile.sceneId,
+    label: profile.label,
+    layers: profile.layers.map(layer => ({ ...layer })),
+    parallax: { ...profile.parallax },
+  };
 }

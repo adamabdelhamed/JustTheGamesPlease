@@ -82,6 +82,15 @@ Last Audit commit hash: NONE
 - [Audit] Revisit Dragon's Breath after playtesting full tier 2/3 tracks.
   - Check whether the clear range, pickup frequency, time-warp curve, trigger position, explosion density, audio mix, and composer placement remain satisfying without trivializing pressure.
 
+## Scene Backgrounds and Parallax
+
+- [Spec Task] Explore larger parallax background assets and projection models.
+  - Current scene images are sized as 2D full-bleed layers near the default camera, so extreme camera height/look/forward movement must eventually clamp to avoid exposing empty edges.
+  - Future assets may need to represent a much larger field than the viewport, possibly a 360-degree-ish view around the default camera, so close/floor-like scenes can keep responding under stronger camera moves.
+  - Evaluate whether scene backgrounds should remain CSS layered images or move into the shared scene renderer as textured 3D planes/surfaces tilted with the camera. A tilted 2D floor plane may communicate Solar Array-style platform depth better than pan/zoom alone.
+  - Acceptance: Produce a short implementation recommendation with asset requirements, runtime projection behavior, and how gameplay/labs continue sharing one parallax path.
+  - Verification: Prototype against Solar Array and Neon Hall with Dragon's Breath-style camera movement.
+
 ## Player Iteration
 
 - [Spec Task] Audit and specify a more forgiving player health/failure model.

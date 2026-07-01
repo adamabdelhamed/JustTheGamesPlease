@@ -1,4 +1,6 @@
 import {
+  getLaneRunnerSceneName,
+  laneRunnerSceneIds,
   type LaneRunnerSceneId,
 } from "@just-the-games-please/neon-factory";
 import { showstopperFamily, type ShowstopperCameraPose, type ShowstopperEasing, type ShowstopperId, type ShowstopperTimeWarpPoint } from "../../CombatDefinition";
@@ -16,7 +18,6 @@ import {
   type HelicopterCameraSettings,
 } from "../../src/viewport";
 
-const sceneId: LaneRunnerSceneId = "neonHall";
 type Lane = 0 | 1;
 
 const laneCenters = [.32, .68] as const;
@@ -29,6 +30,7 @@ const enemyTopUpRows = 4;
 const canvas = document.querySelector<HTMLCanvasElement>("#game-canvas")!;
 const gameElement = document.querySelector<HTMLElement>("#game")!;
 const error = document.querySelector<HTMLElement>("#error")!;
+const sceneSelect = document.querySelector<HTMLSelectElement>("#scene-select")!;
 const showstopperSelect = document.querySelector<HTMLSelectElement>("#showstopper-select")!;
 const bankButton = document.querySelector<HTMLButtonElement>("#bank-button")!;
 const triggerButton = document.querySelector<HTMLButtonElement>("#trigger-button")!;
@@ -72,6 +74,7 @@ const timewarpInputs = {
 
 const cameraSettings: HelicopterCameraSettings = { ...defaultHelicopterCameraSettings };
 let sim: NeonSwarmSimulation;
+let sceneId: LaneRunnerSceneId = "neonHall";
 let banked: ShowstopperId | null = null;
 let lastNow = performance.now();
 let previousPlaybackProgress = 0;
@@ -323,6 +326,17 @@ function selectedShowstopper(): ShowstopperId {
   return showstopperSelect.value as ShowstopperId;
 }
 
+function selectedSceneId(): LaneRunnerSceneId {
+  return sceneSelect.value as LaneRunnerSceneId;
+}
+
+function applySelectedScene(): void {
+  sceneId = selectedSceneId();
+  sim.setScene(sceneId);
+  syncSpecReadout();
+  syncAnimationExport();
+}
+
 function syncBankUi(): void {
   syncShowstopperTriggerUi({
     triggerButton,
@@ -354,20 +368,8 @@ function syncSpecReadout(): void {
     ["Time warp", member.timeWarp.map(point => `${Math.round((point.progress ?? 0) * 100)}% @ ${Math.round(point.gameplayScale * 100)}%`).join(" / ")],
     ["Camera poses", String(member.camera.length)],
     ["Attack", `${member.attack.rowsAhead} rows - ${member.attack.targeting}`],
-    ["Scene", sceneId],
+    ["Scene", getLaneRunnerSceneName(sceneId)],
   ].map(([name, value]) => `<dt>${name}</dt><dd>${value}</dd>`).join("");
-}
-
-function setCameraPreset(preset: "normal" | "dive"): void {
-  const values = preset === "normal"
-    ? defaultHelicopterCameraSettings
-    : showstopperFamily.members.dragonsBreath.camera[2];
-  pausePlayback();
-  setCameraPose({
-    height: values.height,
-    lookAngleDegrees: values.lookAngleDegrees,
-    forward: followDistanceToForward(values.followDistance),
-  }, { syncSliders: true });
 }
 
 function timelineDuration(): number {
@@ -745,6 +747,11 @@ function restoreEditorState(): boolean {
     if (parsed.showstopperId && showstopperFamily.members[parsed.showstopperId]) {
       showstopperSelect.value = parsed.showstopperId;
     }
+    if (parsed.authoring?.sceneId && (laneRunnerSceneIds as readonly string[]).includes(parsed.authoring.sceneId)) {
+      sceneId = parsed.authoring.sceneId;
+      sceneSelect.value = sceneId;
+      sim.setScene(sceneId);
+    }
     editorDurationMs = clampDuration(Number(parsed.durationMs));
     durationInput.value = String(editorDurationMs);
     const restoredKeyframes = Array.isArray(parsed.keyframes)
@@ -1095,6 +1102,10 @@ try {
     playerInvincible: true,
   });
 
+  for (const id of laneRunnerSceneIds) {
+    sceneSelect.add(new Option(getLaneRunnerSceneName(id), id));
+  }
+  sceneSelect.value = sceneId;
   for (const [id, member] of Object.entries(showstopperFamily.members)) {
     showstopperSelect.add(new Option(member.label, id));
   }
@@ -1134,6 +1145,7 @@ try {
       if (!inputLocked()) sim.setSquadLane(lane);
     },
   });
+  sceneSelect.addEventListener("change", applySelectedScene);
   showstopperSelect.addEventListener("change", () => {
     syncSpecReadout();
     syncAnimationExport();
@@ -1283,8 +1295,6 @@ try {
     stopPlayback();
     applyPlaybackProgress(0);
   });
-  document.querySelector<HTMLButtonElement>("#preset-normal")!.addEventListener("click", () => setCameraPreset("normal"));
-  document.querySelector<HTMLButtonElement>("#preset-dive")!.addEventListener("click", () => setCameraPreset("dive"));
   syncAnimationExport();
 } catch (cause) {
   error.hidden = false;

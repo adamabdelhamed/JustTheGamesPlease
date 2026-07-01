@@ -70,10 +70,10 @@ interface DragonBreathIntent {
 }
 
 const dragonBreathIntent = {
-  durationMs: 1600,
+  durationMs: 1000,
   centerCameraMs: 50,
-  returnCameraMs: 400,
-  attackStartProgress: .125,
+  returnCameraMs: 250,
+  attackStartProgress: .1,
   attackEndProgress: 1,
   rowsAhead: 15,
   timeWarp: [
