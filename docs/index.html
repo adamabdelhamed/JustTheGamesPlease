@@ -409,7 +409,7 @@
     }
 
     .swarm-card {
-      --accent: var(--cyan);
+      --accent: #20eaff;
     }
 
     .pour-card {
@@ -549,13 +549,13 @@
 
     .swarm-art {
       background:
-        radial-gradient(circle at 24% 78%, rgba(86, 204, 255, 0.2), transparent 7rem),
-        radial-gradient(circle at 76% 22%, rgba(255, 85, 119, 0.18), transparent 7rem),
-        radial-gradient(circle at 50% 105%, rgba(124, 255, 178, 0.14), transparent 9rem),
-        linear-gradient(rgba(255, 255, 255, 0.055) 1px, transparent 1px),
-        linear-gradient(90deg, rgba(255, 255, 255, 0.045) 1px, transparent 1px),
-        linear-gradient(180deg, #08122d, #02050c 74%);
-      background-size: auto, auto, auto, 72px 72px, 72px 72px, auto;
+        radial-gradient(circle at 26% 18%, rgba(255, 59, 213, 0.24), transparent 8rem),
+        radial-gradient(circle at 78% 78%, rgba(32, 234, 255, 0.24), transparent 8rem),
+        radial-gradient(circle at 50% 96%, rgba(255, 230, 107, 0.16), transparent 10rem),
+        linear-gradient(rgba(32, 234, 255, 0.09) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255, 59, 213, 0.07) 1px, transparent 1px),
+        linear-gradient(180deg, #071326, #02050d 72%);
+      background-size: auto, auto, auto, 56px 56px, 56px 56px, auto;
     }
 
     .swarm-player {
@@ -564,14 +564,14 @@
       bottom: 52px;
       width: 42px;
       height: 42px;
-      border: 3px solid rgba(255, 255, 255, 0.72);
-      border-radius: 4px;
+      border: 3px solid rgba(255, 255, 255, 0.78);
+      border-radius: 8px;
       clip-path: polygon(50% 0, 100% 100%, 50% 76%, 0 100%);
-      background: linear-gradient(135deg, white, #56ccff 38%, #355eff);
+      background: linear-gradient(135deg, white, #20eaff 38%, #7c4dff);
       box-shadow:
         0 0 0 10px rgba(255, 255, 255, 0.055),
-        0 0 28px #56ccff,
-        0 0 48px rgba(86, 204, 255, 0.62);
+        0 0 28px #20eaff,
+        0 0 48px rgba(255, 59, 213, 0.55);
     }
 
     .swarm-player::after {
@@ -587,12 +587,13 @@
       top: 0;
       bottom: 0;
       width: 2px;
-      background: linear-gradient(180deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+      background: linear-gradient(180deg, transparent, rgba(32, 234, 255, 0.62), transparent);
       opacity: 0.9;
+      box-shadow: 0 0 16px rgba(32, 234, 255, 0.48);
     }
 
     .lane-left {
-      display: none;
+      left: 25%;
     }
 
     .lane-mid {
@@ -601,7 +602,7 @@
     }
 
     .lane-right {
-      display: none;
+      left: 75%;
     }
 
     .laser {
@@ -609,8 +610,8 @@
       width: 7px;
       height: 32px;
       border-radius: 999px;
-      background: #56ccff;
-      box-shadow: 0 0 12px #56ccff, 0 0 3px white inset;
+      background: #20eaff;
+      box-shadow: 0 0 12px #20eaff, 0 0 3px white inset;
     }
 
     .laser-a {
@@ -628,14 +629,14 @@
       position: absolute;
       width: 38px;
       height: 38px;
-      color: #ff5577;
+      color: #ff3bd5;
       border: 3px solid rgba(255, 255, 255, 0.64);
       clip-path: polygon(50% 0, 90% 22%, 100% 68%, 68% 100%, 22% 90%, 0 45%);
       background: linear-gradient(135deg, white, currentColor 34%, #4d0825 100%);
       box-shadow:
-        0 0 0 8px rgba(255, 85, 119, 0.08),
+        0 0 0 8px rgba(255, 59, 213, 0.08),
         0 0 24px currentColor,
-        0 0 48px rgba(255, 85, 119, 0.48);
+        0 0 48px rgba(255, 59, 213, 0.48);
     }
 
     .e1 { left: calc(25% - 19px); top: 16%; transform: scale(0.78); }
@@ -1053,7 +1054,7 @@
         </div>
       </a>
 
-      <a class="game-card swarm-card" href="Swarm.html" data-game-name="Neon Swarm">
+      <a class="game-card swarm-card" href="NeonSwarm.html" data-game-name="Neon Swarm">
         <span class="tag">Arcade</span>
         <div class="art swarm-art" aria-hidden="true">
           <span class="lane lane-left"></span>
@@ -1079,30 +1080,8 @@
           </span>
           <div>
             <h3>Neon Swarm</h3>
-            <p>Weave between two neon lanes and build a wildly different weapon every run.</p>
+            <p>Clear track families, chase high scores, and tune a neon squad through escalating battles.</p>
             <span class="play">Play Game <span aria-hidden="true">&#8594;</span></span>
-          </div>
-        </div>
-      </a>
-
-      <a class="game-card swarm-card" href="NeonSwarm.html" data-game-name="Neon Swarm Project" data-status="InProgress">
-        <span class="tag">Project Preview</span>
-        <div class="art swarm-art" aria-hidden="true">
-          <span class="lane lane-left"></span>
-          <span class="lane lane-mid"></span>
-          <span class="lane lane-right"></span>
-          <span class="laser laser-a"></span>
-          <span class="laser laser-b"></span>
-          <span class="boost b1"></span>
-          <span class="boost b2"></span>
-          <span class="swarm-player"></span>
-        </div>
-        <div class="card-body">
-          <span class="game-icon" aria-hidden="true">&#9670;</span>
-          <div>
-            <h3>Neon Swarm Project</h3>
-            <p>Preview the WebGPU and NeonFactory foundation for the next Neon Swarm.</p>
-            <span class="play">Preview <span aria-hidden="true">&#8594;</span></span>
           </div>
         </div>
       </a>

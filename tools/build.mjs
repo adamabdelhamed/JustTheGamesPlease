@@ -1,9 +1,45 @@
 import { build } from "esbuild";
-import { cp, mkdir } from "node:fs/promises";
+import { copyFile, cp, mkdir, readdir, rm } from "node:fs/promises";
 import { resolve } from "node:path";
 
 const root = resolve(import.meta.dirname, "..");
 const docs = resolve(root, "docs");
+
+async function copyAudioAssets(from, to, options = {}) {
+  await rm(to, { recursive: true, force: true });
+  await mkdir(to, { recursive: true });
+  const entries = await readdir(from, { withFileTypes: true });
+  await Promise.all(entries
+    .filter(entry => entry.isFile() && (options.allFiles || entry.name.toLowerCase().endsWith(".mp3")))
+    .map(entry => copyFile(resolve(from, entry.name), resolve(to, entry.name))));
+}
+
+async function copySelectedAudioAssets(from, to, names) {
+  await rm(to, { recursive: true, force: true });
+  await mkdir(to, { recursive: true });
+  await Promise.all(names.map(name => copyFile(resolve(from, name), resolve(to, name))));
+}
+
+const gunManualAudio = [
+  "Boss.mp3",
+  "BossDestroyed.mp3",
+  "Boss_Alt1.mp3",
+  "EnemyDestroyed.mp3",
+  "EnemyEscaped.mp3",
+  "GameOver.mp3",
+  "Hit.mp3",
+  "Pickup.mp3",
+  "Primary.mp3",
+  "Primary_Alt1.mp3",
+  "Primary_Alt2.mp3",
+  "Primary_Alt3.mp3",
+  "PuzzleComplete.mp3",
+  "Secondary.mp3",
+  "Secondary_Alt1.mp3",
+  "Secondary_Alt2.mp3",
+  "Shield.mp3",
+  "Streak.mp3",
+];
 
 await build({
   entryPoints: [resolve(root, "projects/NeonFactory/src/index.ts")],
@@ -108,8 +144,8 @@ await mkdir(resolve(docs, "NeonSwarm/tests/enemy-exit"), { recursive: true });
 await mkdir(resolve(docs, "NeonSwarm/tests/auto-aim"), { recursive: true });
 await mkdir(resolve(docs, "NeonSwarm/tests/track-generator"), { recursive: true });
 await Promise.all([
-  cp(resolve(docs, "Swarm/audio"), resolve(docs, "NeonSwarm/audio"), { recursive: true }),
-  cp(resolve(docs, "Swarm/audio"), resolve(docs, "NeonSwarm/tests/gun-family/manual/audio"), { recursive: true }),
+  copyAudioAssets(resolve(root, "projects/NeonSwarm/public/audio"), resolve(docs, "NeonSwarm/audio"), { allFiles: true }),
+  copySelectedAudioAssets(resolve(root, "projects/NeonSwarm/public/audio"), resolve(docs, "NeonSwarm/tests/gun-family/manual/audio"), gunManualAudio),
   cp(resolve(docs, "NeonPour/audio/PuzzleComplete.mp3"), resolve(docs, "NeonSwarm/audio/PuzzleComplete.mp3")),
   cp(resolve(docs, "NeonPour/audio/PuzzleComplete.mp3"), resolve(docs, "NeonSwarm/tests/gun-family/manual/audio/PuzzleComplete.mp3")),
   cp(resolve(root, "projects/NeonSwarm/public/index.html"), resolve(docs, "NeonSwarm.html")),
