@@ -71,16 +71,10 @@ Last Audit commit hash: NONE
   - New showstoppers should reuse the same bank, trigger UI, camera director, time-warp, live enemy targeting, pickup, and composer paths.
   - Add new runtime hooks only when the second ability proves Dragon's Breath-specific assumptions are too narrow.
 
-- [Ready Task] Improve the showstopper bank UI for multiple showstopper types.
-  - The current layout is prepared to stack upward, but runtime UI still exposes one trigger button for the current/next banked type.
-  - Future UI should show one large right-docked trigger per banked showstopper type, with counts, clear selection behavior, and keyboard/gamepad-friendly activation.
-
 - [Tooling] Continue improving the showstopper lab only where it serves runtime authoring.
   - Keep game and lab behavior DRY. The lab should use shared simulation/director code for visible effects and keep local state only for authoring controls, export, and scrub/edit workflows.
   - Useful future slices: import/export the full runtime member format, author attack/time-warp/camera in one model, validate generated member data, and show a concise diff from the current runtime member.
 
-- [Audit] Revisit Dragon's Breath after playtesting full tier 2/3 tracks.
-  - Check whether the clear range, pickup frequency, time-warp curve, trigger position, explosion density, audio mix, and composer placement remain satisfying without trivializing pressure.
 
 ## Scene Backgrounds and Parallax
 
