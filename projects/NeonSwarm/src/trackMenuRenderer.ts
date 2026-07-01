@@ -6,6 +6,7 @@ import {
 } from "@just-the-games-please/neon-factory";
 import type { TrackFamilyDefinition, TrackFamilyId, TrackFamilyMember, TrackId } from "../CombatDefinition";
 import { trackCatalog, trackFamilyCatalog, trackThemeCatalog } from "../CombatDefinition/tracks";
+import { starsForScore, trackProgressSummary, trackUnlocked, type TrackProgress } from "./trackProgress";
 import { trackMenuTuning as tune } from "./trackMenuTuning";
 
 type TrackRoute = (trackId: TrackId) => string;
@@ -14,6 +15,7 @@ interface TrackButtonBounds {
   trackId: TrackId;
   familyLabel: string;
   trackLabel: string;
+  unlocked: boolean;
   x: number;
   y: number;
   size: number;
@@ -36,6 +38,9 @@ interface TrackVisual {
   x: number;
   y: number;
   unlocked: boolean;
+  completed: boolean;
+  stars: 0 | 1 | 2 | 3;
+  highScore: number;
 }
 
 const accents = ["#ff3bd5", "#20eaff", "#9b42ff", "#4b86ff", "#ffb23a", "#70ffd0"] as const;
@@ -73,6 +78,10 @@ function wobble(seed: number, time: number): { x: number; y: number; scale: numb
   };
 }
 
+function lineThicknessForShape(shapeId: string): number {
+  return tune.nodeLineWidthByShape[shapeId] ?? tune.nodeLineWidth;
+}
+
 export class TrackMenuRenderer {
   #renderer: NeonTopDownSceneRenderer;
   #canvas: HTMLCanvasElement;
@@ -80,6 +89,8 @@ export class TrackMenuRenderer {
   #labelLayer: HTMLElement;
   #trackFamily: TrackFamilyDefinition;
   #route: TrackRoute;
+  #progress: TrackProgress;
+  #devMode: boolean;
   #families: TrackFamilyVisual[] = [];
   #contentHeight = 800;
   #hoveredTrackId: TrackId | null = null;
@@ -93,6 +104,8 @@ export class TrackMenuRenderer {
     labelLayer: HTMLElement,
     trackFamily: TrackFamilyDefinition,
     route: TrackRoute,
+    progress: TrackProgress,
+    devMode: boolean,
   ) {
     this.#renderer = renderer;
     this.#canvas = canvas;
@@ -100,6 +113,8 @@ export class TrackMenuRenderer {
     this.#labelLayer = labelLayer;
     this.#trackFamily = trackFamily;
     this.#route = route;
+    this.#progress = progress;
+    this.#devMode = devMode;
     this.#families = this.#createLayout();
     this.#contentHeight = this.#measureContentHeight();
     this.#syncCssSize();
@@ -113,10 +128,12 @@ export class TrackMenuRenderer {
     labelLayer: HTMLElement;
     trackFamily: TrackFamilyDefinition;
     route: TrackRoute;
+    progress: TrackProgress;
+    devMode?: boolean;
   }): Promise<TrackMenuRenderer> {
     const contentHeight = TrackMenuRenderer.measureTrackFamily(options.trackFamily);
     const renderer = await NeonTopDownSceneRenderer.create(options.canvas, tune.logicalWidth, contentHeight);
-    return new TrackMenuRenderer(renderer, options.canvas, options.buttonLayer, options.labelLayer, options.trackFamily, options.route);
+    return new TrackMenuRenderer(renderer, options.canvas, options.buttonLayer, options.labelLayer, options.trackFamily, options.route, options.progress, Boolean(options.devMode));
   }
 
   start(): void {
@@ -131,6 +148,20 @@ export class TrackMenuRenderer {
   destroy(): void {
     cancelAnimationFrame(this.#animationFrame);
     this.#renderer.destroy();
+  }
+
+  updateProgress(progress: TrackProgress): void {
+    this.#progress = progress;
+    this.updateTuning();
+  }
+
+  updateTuning(): void {
+    this.#families = this.#createLayout();
+    this.#contentHeight = this.#measureContentHeight();
+    this.#lastWidth = 0;
+    this.#syncCssSize();
+    this.#syncInteractionLayer();
+    this.#syncLabels();
   }
 
   static measureTrackFamily(trackFamily: TrackFamilyDefinition): number {
@@ -158,14 +189,17 @@ export class TrackMenuRenderer {
           accent,
           themeShapeIds: trackThemeCatalog[theme].nodeShapeIds,
           y,
-          unlocked: true,
+          unlocked: family.trackIds.some(trackId => trackUnlocked(trackId, this.#progress, { devMode: this.#devMode })),
           tracks: family.trackIds.map((trackId, trackIndex) => ({
             trackId,
             label: this.#trackFamily.members[trackId].label,
             index: trackIndex,
             x: tune.trackRowX + trackIndex * (tune.trackNodeSize + tune.trackNodeGap),
             y: y + tune.trackRowY,
-            unlocked: true,
+            unlocked: trackUnlocked(trackId, this.#progress, { devMode: this.#devMode }),
+            completed: this.#progress.completedTrackIds.includes(trackId),
+            stars: starsForScore(this.#progress.highScores[trackId] ?? 0),
+            highScore: this.#progress.highScores[trackId] ?? 0,
           })),
         };
       });
@@ -191,6 +225,7 @@ export class TrackMenuRenderer {
       trackId: track.trackId,
       familyLabel: family.label,
       trackLabel: track.label,
+      unlocked: track.unlocked,
       x: track.x,
       y: track.y,
       size: tune.hitTargetSize,
@@ -198,8 +233,9 @@ export class TrackMenuRenderer {
 
     this.#buttonLayer.replaceChildren(...bounds.map(bound => {
       const anchor = document.createElement("a");
-      anchor.className = "track-menu-hit";
-      anchor.href = this.#route(bound.trackId);
+      anchor.className = `track-menu-hit${bound.unlocked ? "" : " track-menu-hit--locked"}`;
+      if (bound.unlocked) anchor.href = this.#route(bound.trackId);
+      else anchor.setAttribute("aria-disabled", "true");
       anchor.dataset.track = bound.trackId;
       anchor.setAttribute("aria-label", `${bound.familyLabel}, ${bound.trackLabel}`);
       Object.assign(anchor.style, {
@@ -212,33 +248,62 @@ export class TrackMenuRenderer {
       anchor.addEventListener("pointerleave", () => { if (this.#hoveredTrackId === bound.trackId) this.#hoveredTrackId = null; });
       anchor.addEventListener("focus", () => { this.#hoveredTrackId = bound.trackId; });
       anchor.addEventListener("blur", () => { if (this.#hoveredTrackId === bound.trackId) this.#hoveredTrackId = null; });
+      anchor.addEventListener("click", event => {
+        if (bound.unlocked) return;
+        event.preventDefault();
+      });
       return anchor;
     }));
   }
 
   #syncLabels(): void {
     const labels: HTMLElement[] = [];
+    const summary = trackProgressSummary(this.#progress, this.#trackFamily);
+    const progressLabel = document.createElement("div");
+    progressLabel.className = "track-menu-progress";
+    progressLabel.textContent = `${summary.completed}-${summary.total} tracks completed`;
+    Object.assign(progressLabel.style, {
+      top: `${tune.progressTop / this.#contentHeight * 100}%`,
+      fontSize: `${tune.progressFontSize}px`,
+    });
+    labels.push(progressLabel);
     this.#families.forEach(family => {
       const familyLabel = document.createElement("section");
-      familyLabel.className = "track-menu-family-label";
+      familyLabel.className = `track-menu-family-label${family.unlocked ? "" : " track-menu-family-label--locked"}`;
       familyLabel.setAttribute("aria-hidden", "true");
       familyLabel.innerHTML = `<h2>${family.label}</h2>`;
       Object.assign(familyLabel.style, {
         left: this.#logicalToCss(tune.titleX),
         top: `${(family.y + tune.titleY) / this.#contentHeight * 100}%`,
+        fontSize: `${tune.familyTitleFontSize}px`,
       });
+      familyLabel.style.setProperty("--track-family-accent", family.accent);
       labels.push(familyLabel);
 
       family.tracks.forEach(track => {
         const trackLabel = document.createElement("div");
-        trackLabel.className = "track-menu-track-label";
+        trackLabel.className = [
+          "track-menu-track-label",
+          track.unlocked ? "" : "track-menu-track-label--locked",
+          track.highScore > 100 ? "track-menu-track-label--over-score" : "",
+        ].filter(Boolean).join(" ");
         trackLabel.setAttribute("aria-hidden", "true");
-        trackLabel.innerHTML = `<strong>${track.label}</strong>`;
+        const stars = Array.from({ length: 3 }, (_, index) => {
+          const filled = index < track.stars && track.completed;
+          return filled
+            ? `<span class="is-filled" style="--track-star-color:${family.accent}">★</span>`
+            : "<span>★</span>";
+        }).join("");
+        trackLabel.innerHTML = `<strong>${track.label}</strong><small>${stars}</small>`;
         Object.assign(trackLabel.style, {
-          left: this.#logicalToCss(track.x - 43),
-          top: `${(track.y + 35) / this.#contentHeight * 100}%`,
-          width: this.#logicalToCss(86),
+          left: this.#logicalToCss(track.x - tune.trackLabelWidth / 2),
+          top: `${(track.y + tune.trackLabelOffsetY) / this.#contentHeight * 100}%`,
+          width: this.#logicalToCss(tune.trackLabelWidth),
+          fontSize: `${tune.trackLabelFontSize}px`,
         });
+        trackLabel.style.setProperty("--track-star-size", `${tune.progressStarSize}px`);
+        trackLabel.style.setProperty("--track-star-gap", `${tune.progressStarGap}px`);
+        trackLabel.style.setProperty("--track-family-accent", family.accent);
         labels.push(trackLabel);
       });
     });
@@ -336,14 +401,15 @@ export class TrackMenuRenderer {
       shape: "diamond",
       rotation: Math.PI / 4 + wob.rotation,
     });
+    const shapeId = family.themeShapeIds[track.index % family.themeShapeIds.length];
     shapes.push({
-      shape: requiredShape(family.themeShapeIds[track.index % family.themeShapeIds.length]),
+      shape: requiredShape(shapeId),
       x: track.x + wob.x,
       y: track.y + wob.y,
       size: tune.trackNodeSize * .72 * wob.scale,
       color: track.unlocked ? family.accent : "#8d96aa",
       rotationZ: wob.rotation + time * .16,
-      lineThickness: tune.nodeLineWidth,
+      lineThickness: lineThicknessForShape(shapeId),
       glow,
       energyIntensity: energy,
       energyCoverage: hovered ? .76 : .48,
@@ -353,7 +419,7 @@ export class TrackMenuRenderer {
       label: {
         text: String(track.index + 1),
         position: "center",
-        fontSize: 22,
+        fontSize: tune.trackNodeLabelFontSize,
         fontWeight: 900,
       },
     });

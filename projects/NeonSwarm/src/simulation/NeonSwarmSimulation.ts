@@ -2,7 +2,6 @@ import {
   NeonShapeActor,
   NeonShapeDisposal,
   NeonTopDownSceneRenderer,
-  NeonVictoryExperience,
   neonPalette,
   type LaneRunnerSceneId,
   type NeonPrimitive,
@@ -89,7 +88,9 @@ export interface NeonSwarmSimulationOptions {
   sceneParallaxInterpretation?: Partial<LaneRunnerSceneParallaxInterpretation>;
   initialShowstopperBank?: ShowstopperId | readonly ShowstopperId[];
   playerInvincible?: boolean;
+  highScoreToBeat?: number;
   onRunStatus?: (status: string) => void;
+  onHighScore?: (score: number) => void;
   onFinish?: (result: NeonSwarmFinishResult) => void;
 }
 
@@ -98,6 +99,7 @@ export interface NeonSwarmFinishResult {
   title: string;
   detail: string;
   breaches: number;
+  score: number;
 }
 
 export interface NeonSwarmSnapshot {
@@ -133,6 +135,7 @@ export interface NeonSwarmSnapshot {
     showstoppers: number;
   };
   kills: number;
+  score: number;
 }
 
 interface WeaponHudTuning {
@@ -288,6 +291,9 @@ const smoothingFinalActMaxEnemiesPerBurst = 7;
 const smoothingSourceRowWindow = 3;
 const smoothingExcludedEnemyIds = new Set<OrbId>(["tank"]);
 const showstopperMusicPostReturnRampMs = 1000;
+const squadMemberLossScorePenalty = 12;
+const shieldAbsorbScorePenalty = 2.5;
+const shieldAbsorbedHpScorePenaltyScale = 6;
 
 export class NeonSwarmSimulation {
   readonly mode: NeonSwarmSimulationMode;
@@ -299,6 +305,7 @@ export class NeonSwarmSimulation {
   private renderer: NeonTopDownSceneRenderer;
   private sound?: NeonSwarmSound;
   private onRunStatus?: (status: string) => void;
+  private onHighScore?: (score: number) => void;
   private onFinish?: (result: NeonSwarmFinishResult) => void;
   private initialShowstopperBank?: ShowstopperId | readonly ShowstopperId[];
   private playerInvincible = false;
@@ -318,6 +325,14 @@ export class NeonSwarmSimulation {
   private nextSmoothingAt = 0;
   private breaches = 0;
   private kills = 0;
+  private scorePlannedKilledHp = 0;
+  private scoreDynamicKilledHp = 0;
+  private scorePlannedHp = 0;
+  private scoreShieldAbsorbs = 0;
+  private scoreShieldAbsorbedHp = 0;
+  private scoreSquadMemberLosses = 0;
+  private highScoreToBeat = 0;
+  private highScoreAnnounced = false;
   private enemies: Enemy[] = [];
   private gunSimulation = new GunSimulation();
   private gunPickups: GunPickup[] = [];
@@ -330,7 +345,6 @@ export class NeonSwarmSimulation {
   private enemyExitEffects: ActiveEnemyExitEffect[] = [];
   private snowParticles: SnowParticle[] = [];
   private delayedSounds: DelayedSound[] = [];
-  private victory: NeonVictoryExperience | null = null;
   private swordVisualTuning: Partial<SwordVisualTuning> = {};
   private pendingSwordDamage: PendingSwordDamage | null = null;
   private failureReason = "";
@@ -378,7 +392,9 @@ export class NeonSwarmSimulation {
     this.cameraSettings = options.cameraSettings ?? { ...defaultHelicopterCameraSettings };
     this.sound = options.sound;
     this.onRunStatus = options.onRunStatus;
+    this.onHighScore = options.onHighScore;
     this.onFinish = options.onFinish;
+    this.highScoreToBeat = Math.max(0, options.highScoreToBeat ?? 0);
     this.initialShowstopperBank = options.initialShowstopperBank;
     this.playerInvincible = Boolean(options.playerInvincible);
     this.trackSceneId = options.sceneId ?? "neonHall";
@@ -428,6 +444,13 @@ export class NeonSwarmSimulation {
     this.trackEntities = [];
     this.breaches = 0;
     this.kills = 0;
+    this.scorePlannedKilledHp = 0;
+    this.scoreDynamicKilledHp = 0;
+    this.scorePlannedHp = 0;
+    this.scoreShieldAbsorbs = 0;
+    this.scoreShieldAbsorbedHp = 0;
+    this.scoreSquadMemberLosses = 0;
+    this.highScoreAnnounced = false;
     this.clearStage();
     this.activeByFamily.gun = null;
     this.activeByFamily.shield = null;
@@ -450,7 +473,6 @@ export class NeonSwarmSimulation {
     this.showstopperLastAttackProgress = -1;
     this.showstopperAttackSoundPlayed = false;
     this.failureReason = "";
-    this.victory = null;
     this.pendingSwordDamage = null;
     if (!options.silent) this.play("MenuOpen");
   }
@@ -468,7 +490,6 @@ export class NeonSwarmSimulation {
     this.snowParticles = [];
     this.delayedSounds = [];
     this.explodingPlayers = [];
-    this.victory = null;
     this.pendingSwordDamage = null;
   }
 
@@ -482,6 +503,18 @@ export class NeonSwarmSimulation {
     this.combatElapsed = 0;
     this.combatNow = 0;
     const allEntities = parseTrackDefinition(track.definition);
+    this.scorePlannedHp = allEntities.reduce((sum, entity) => {
+      const enemyDefinitionEntry = enemyDefinitionFromTrackId(entity.id);
+      return enemyDefinitionEntry
+        ? sum + enemyDefinitionEntry.definition.health * track.definition.balance.enemyHp
+        : sum;
+    }, 0);
+    this.scorePlannedKilledHp = 0;
+    this.scoreDynamicKilledHp = 0;
+    this.scoreShieldAbsorbs = 0;
+    this.scoreShieldAbsorbedHp = 0;
+    this.scoreSquadMemberLosses = 0;
+    this.highScoreAnnounced = false;
     const playerStart = allEntities.find(entity => entity.id === "player.start");
     const startLane: Lane = playerStart?.side === "right" ? 1 : 0;
     this.playerLane = startLane;
@@ -516,6 +549,11 @@ export class NeonSwarmSimulation {
     this.showstopperLastAttackProgress = -1;
     this.showstopperAttackSoundPlayed = false;
     this.play("TrackStart");
+  }
+
+  setHighScoreToBeat(score: number): void {
+    this.highScoreToBeat = Math.max(0, Number.isFinite(score) ? score : 0);
+    this.highScoreAnnounced = false;
   }
 
   setScene(sceneId: LaneRunnerSceneId): void {
@@ -723,7 +761,42 @@ export class NeonSwarmSimulation {
     enemy.suppressed = true;
     enemy.exitEffectSpawned = true;
     enemy.actor.dispose(NeonShapeDisposal.Disappear);
+    this.recordEnemyKilled(enemy);
+  }
+
+  private score(): number {
+    if (this.scorePlannedHp <= 0) return 0;
+    const plannedClearScore = Math.min(100, this.scorePlannedKilledHp / this.scorePlannedHp * 100);
+    const dynamicBonus = this.scoreDynamicKilledHp / this.scorePlannedHp * 100;
+    const shieldPenalty = this.scoreShieldAbsorbs * shieldAbsorbScorePenalty
+      + this.scoreShieldAbsorbedHp / this.scorePlannedHp * shieldAbsorbedHpScorePenaltyScale;
+    const survivalPenalty = this.scoreSquadMemberLosses * squadMemberLossScorePenalty;
+    return plannedClearScore + dynamicBonus - shieldPenalty - survivalPenalty;
+  }
+
+  private recordEnemyKilled(enemy: Enemy): void {
     this.kills++;
+    if (enemy.planned) this.scorePlannedKilledHp += Math.max(0, enemy.maxHealth);
+    else this.scoreDynamicKilledHp += Math.max(0, enemy.maxHealth);
+    this.checkHighScore();
+  }
+
+  private recordShieldAbsorption(amount: number): void {
+    this.scoreShieldAbsorbs++;
+    this.scoreShieldAbsorbedHp += Math.max(0, amount);
+    this.checkHighScore();
+  }
+
+  private recordSquadMemberLost(): void {
+    this.scoreSquadMemberLosses++;
+    this.checkHighScore();
+  }
+
+  private checkHighScore(): void {
+    const score = this.score();
+    if (this.highScoreToBeat <= 0 || this.highScoreAnnounced || score <= this.highScoreToBeat) return;
+    this.highScoreAnnounced = true;
+    this.onHighScore?.(score);
   }
 
   private enemySpawnIsInActiveShowstopperPath(enemy: Enemy): boolean {
@@ -871,7 +944,8 @@ export class NeonSwarmSimulation {
     const shieldDef = this.activeByFamily.shield ? shieldFamily.members[this.activeByFamily.shield.shieldId] : null;
     const swordDef = this.activeByFamily.sword ? swordFamily.members[this.activeByFamily.sword.swordId] : null;
     if (this.activeTrack) {
-      this.onRunStatus?.(`${gunStatus}${shieldDef ? ` · ${shieldDef.label}` : ""}${swordDef ? ` · ${swordDef.label}` : ""}${showstopperStatus ? ` · ${showstopperStatus}` : ""}`);
+      const scoreStatus = `Score ${Math.floor(this.score())}`;
+      this.onRunStatus?.(`${scoreStatus} · ${gunStatus}${shieldDef ? ` · ${shieldDef.label}` : ""}${swordDef ? ` · ${swordDef.label}` : ""}${showstopperStatus ? ` · ${showstopperStatus}` : ""}`);
     }
 
     const laneEnemies = this.enemies.filter(enemy => enemy.lane === this.squad.lane && !enemy.dying);
@@ -926,8 +1000,6 @@ export class NeonSwarmSimulation {
     primitives.push(...this.gunSimulation.projectilePrimitives());
     primitives.push(...this.snowParticlePrimitives());
     if (this.activeByFamily.lightning) primitives.push(...lightningVisuals(this.activeByFamily.lightning.activeChains, now));
-    if (this.victory) primitives.push(...this.victory.primitives(now));
-
     const shapeInstances: NeonTopDownShape[] = [];
     if (this.activeByFamily.shield) {
       const liveShield = this.activeByFamily.shield;
@@ -1104,6 +1176,7 @@ export class NeonSwarmSimulation {
         showstoppers: this.showstopperPickups.length,
       },
       kills: this.kills,
+      score: this.score(),
     };
   }
 
@@ -1333,7 +1406,7 @@ export class NeonSwarmSimulation {
         color: this.enemyExitColor(gameEnemy),
       });
       if (result.killed) {
-        this.kills++;
+        this.recordEnemyKilled(gameEnemy);
         if (result.deathSound) this.play(result.deathSound);
       } else {
         this.play("ProjectileHit");
@@ -1367,7 +1440,7 @@ export class NeonSwarmSimulation {
         color: neonPalette[member.visualIdentity.color],
       });
       if (resolved.killed) {
-        this.kills++;
+        this.recordEnemyKilled(enemy);
         if (resolved.deathSound) this.play(resolved.deathSound);
       }
     }
@@ -1839,7 +1912,7 @@ export class NeonSwarmSimulation {
         color: pending.color,
       });
       if (result.killed) {
-        this.kills++;
+        this.recordEnemyKilled(enemy);
         if (result.deathSound) this.play(result.deathSound);
       }
     }
@@ -1868,6 +1941,7 @@ export class NeonSwarmSimulation {
           radius: this.enemyDefinition(enemy).radius * this.scale(),
         }), px, py, this.combatNow, this.scale());
         if (shieldContact.absorbed) {
+          this.recordShieldAbsorption(shieldContact.damageAbsorbed);
           if (shieldContact.enemyDestroyed) {
             this.destroyEnemy(enemy);
           } else {
@@ -1893,6 +1967,7 @@ export class NeonSwarmSimulation {
         this.explodingPlayers.push({ actor, x: point.x, y: point.y });
         this.playerActors.splice(hitIndex, 1);
         this.squad.remove();
+        this.recordSquadMemberLost();
         this.enemies.splice(this.enemies.indexOf(enemy), 1);
         this.play("PlayerDamage");
         this.play("SquadMemberLost");
@@ -1996,22 +2071,19 @@ export class NeonSwarmSimulation {
 
   private finish(won: boolean): void {
     if (!this.activeTrack) return;
+    const score = this.score();
     const title = won ? "FLAWLESS RUN" : "TRACK FAILED";
-    const detail = won ? "No enemy touched or escaped past you." : this.failureReason || `${this.breaches} enemy${this.breaches === 1 ? "" : "ies"} breached the defense.`;
+    const scoreText = `Score ${Math.floor(score)}`;
+    const detail = won
+      ? `${scoreText}. Track complete.`
+      : `${scoreText}. ${this.failureReason || `${this.breaches} enemy${this.breaches === 1 ? "" : "ies"} breached the defense.`}`;
     if (won) {
-      this.victory = new NeonVictoryExperience({
-        centerX: this.canvas.width / 2,
-        centerY: this.canvas.height * .38,
-        width: this.canvas.width,
-        height: this.canvas.height,
-        particleCount: 120,
-      });
       this.play("PuzzleComplete");
     } else {
       this.play("GameOver");
     }
     this.activeTrack = null;
-    this.onFinish?.({ won, title, detail, breaches: this.breaches });
+    this.onFinish?.({ won, title, detail, breaches: this.breaches, score });
   }
 
   private syncPlayerActors(): void {
@@ -2154,7 +2226,7 @@ export class NeonSwarmSimulation {
 
   private destroyEnemy(enemy: Enemy, exit?: Parameters<typeof defeatEnemy>[3]): void {
     const result = defeatEnemy(enemy, this.enemyExitEffects, this.enemyExitColor(enemy), exit);
-    this.kills++;
+    this.recordEnemyKilled(enemy);
     if (result.deathSound === "FrozenShatter") {
       this.play("IceCracking");
       this.delayedSounds.push({ id: result.deathSound, dueAt: this.combatNow + frozenShatterDelaySeconds * 1000 });

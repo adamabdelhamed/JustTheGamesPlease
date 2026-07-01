@@ -8,19 +8,29 @@
   <script src="lib/url-options.js"></script>
   <script src="lib/analytics.js"></script>
   <link rel="stylesheet" href="lib/top-bar/top-bar.css">
-  <link rel="stylesheet" href="NeonSwarm/game.css?v=camera-gate-1">
+  <link rel="stylesheet" href="NeonSwarm/game.css?v=track-hti-1">
 </head>
 <body>
   <main id="game">
     <canvas id="game-canvas"></canvas>
     <header data-game-topbar data-contained>
       <div class="game-topbar__identity">
-        <h1>NEON <b>SWARM</b></h1>
         <p class="game-topbar__instructions" id="status">Choose a track. Tap left or right to switch lanes.</p>
       </div>
       <div class="game-topbar__right">
         <div class="game-topbar__controls">
-          <span id="run-status"></span>
+          <section id="score-panel" class="score-panel" aria-label="Score" hidden>
+            <div class="score-panel__current">
+              <span>Score</span>
+              <strong id="score-current">0</strong>
+            </div>
+            <div id="score-deltas" class="score-panel__deltas" aria-hidden="true"></div>
+            <div id="score-high" class="score-panel__high" hidden>
+              <span>Previous High Score</span>
+              <strong id="score-high-value">0</strong>
+            </div>
+            <div id="score-jackpot" class="score-panel__jackpot" hidden>New High Score</div>
+          </section>
         </div>
         <div class="game-topbar__utilities" data-game-topbar-utilities></div>
       </div>
@@ -53,18 +63,25 @@
       </div>
       <p id="developer-tools" class="developer-tools" hidden><a href="NeonSwarm/tests/index.html#dev-1">Open Test Center</a></p>
     </section>
-    <section id="start-dialog" class="start-dialog" role="dialog" aria-modal="true" aria-labelledby="start-dialog-title" hidden>
+    <section id="start-dialog" class="start-dialog" role="dialog" aria-modal="false" aria-labelledby="start-dialog-title" hidden>
       <div class="start-dialog__panel">
         <span id="start-dialog-family" class="start-dialog__family"></span>
         <h2 id="start-dialog-title"></h2>
         <p id="start-dialog-detail"></p>
         <div class="start-dialog__actions">
-          <button id="cancel-track-start" type="button">Cancel</button>
           <button id="confirm-track-start" type="button">Start</button>
         </div>
       </div>
     </section>
-    <section id="result" class="result" hidden><h2 id="result-title"></h2><p id="result-detail"></p><button id="back-to-tracks">Tracks</button></section>
+    <section id="result" class="result" role="dialog" aria-modal="false" aria-labelledby="result-title" hidden>
+      <h2 id="result-title"></h2>
+      <p id="result-detail"></p>
+      <div class="result__actions">
+        <button id="play-again" type="button">Play Again</button>
+        <button id="back-to-tracks" type="button">Back to Tracks</button>
+        <button id="back-to-games" type="button">Back to other games</button>
+      </div>
+    </section>
     <section id="error" role="alert" hidden></section>
   </main>
   <script src="lib/top-bar/top-bar.js"></script>
@@ -91,6 +108,6 @@
       'TrackStart','WavePressure'
     ]);
   </script>
-  <script type="module" src="NeonSwarm/game.js?v=camera-gate-1"></script>
+  <script type="module" src="NeonSwarm/game.js?v=track-hti-1"></script>
 </body>
 </html>
