@@ -62,6 +62,13 @@ export interface GunTarget {
   dying: boolean;
 }
 
+function deterministicUnit(seed: number): number {
+  let value = Math.imul(seed + 0x6d2b79f5, 1);
+  value = Math.imul(value ^ value >>> 15, value | 1);
+  value ^= value + Math.imul(value ^ value >>> 7, value | 61);
+  return ((value ^ value >>> 14) >>> 0) / 4294967296;
+}
+
 interface ScheduledVolley {
   firesAt: number;
   gun: GunMember;
@@ -82,6 +89,8 @@ export class GunSimulation {
     this.projectiles.length = 0;
     this.effects.length = 0;
     this.scheduledVolleys.length = 0;
+    this.sequence = 0;
+    this.shotSequence = 0;
   }
 
   fire(gun: GunMember, level: GunLevel, lane: number, origins: readonly { x: number; y: number; aimX?: number; aimY?: number }[], now: number, scale = 1): void {
@@ -177,9 +186,10 @@ export class GunSimulation {
         const angle = aimAngle + spreadDegrees * Math.PI / 180;
         const speed = level.projectileSpeed * scale;
         this.shotSequence++;
+        const projectileId = ++this.sequence;
         this.projectiles.push({
-          id: ++this.sequence, lane,
-          x: origin.x + (Math.random() * 2 - 1) * gun.visualIdentity.horizontalJitter * scale,
+          id: projectileId, lane,
+          x: origin.x + (deterministicUnit(projectileId) * 2 - 1) * gun.visualIdentity.horizontalJitter * scale,
           y: origin.y,
           vx: Math.sin(angle) * speed,
           vy: -Math.cos(angle) * speed,

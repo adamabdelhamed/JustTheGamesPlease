@@ -609,6 +609,32 @@ button { font: inherit; }
   text-shadow: 0 0 7px #ffffff, 0 0 18px #ffe66b, 0 0 34px #ff3bd5;
 }
 
+.recording-renderer #game[data-page="game"] [data-game-topbar] {
+  display: flex !important;
+  pointer-events: none;
+}
+
+.recording-renderer #game[data-page="game"] .game-topbar__identity,
+.recording-renderer #game[data-page="game"] .game-topbar__utilities,
+.recording-renderer #game[data-page="game"] [data-recording-controls] {
+  display: none !important;
+}
+
+.recording-renderer #game[data-page="game"] .game-topbar__right,
+.recording-renderer #game[data-page="game"] .game-topbar__controls {
+  display: grid !important;
+  justify-items: end;
+  margin-left: auto;
+}
+
+.recording-renderer #game[data-page="game"] .score-panel {
+  display: grid !important;
+}
+
+.recording-renderer #game[data-page="game"] .score-panel[hidden] {
+  display: none !important;
+}
+
 @keyframes score-pop {
   0% { opacity: 0; transform: translate3d(0, 10px, 0) scale(.7); }
   13% { opacity: 1; transform: translate3d(0, 0, 0) scale(1.08); }

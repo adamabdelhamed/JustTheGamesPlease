@@ -54,14 +54,35 @@
     const solutions = loadSolutions(gameName);
     solutions.push(solution);
     global.localStorage.setItem(storageKey(gameName), JSON.stringify(solutions.slice(-100)));
+    const game = games.get(gameName);
+    if (game) syncDevControls(game);
   }
 
   function clearSolutions(gameName) {
     global.localStorage.removeItem(storageKey(gameName));
   }
 
+  function syncDevControls(game) {
+    const controls = document.querySelector(`[data-recording-controls="${game.slug}"]`);
+    if (!controls) return;
+    const count = loadSolutions(game.name).length;
+    controls.dataset.recordingCount = String(count);
+    const downloadButton = controls.querySelector('[data-recording-action="download"]');
+    if (downloadButton) {
+      downloadButton.textContent = `Download (${count})`;
+      downloadButton.title = count > 0 ? `Download ${count} recorded run${count === 1 ? '' : 's'}` : 'No recorded runs to download yet';
+      downloadButton.disabled = count === 0;
+    }
+  }
+
   function download(game) {
-    const url = URL.createObjectURL(new Blob([JSON.stringify(commonEnvelope(game, loadSolutions(game.name)), null, 2)], { type: 'application/json' }));
+    const solutions = loadSolutions(game.name);
+    if (solutions.length === 0) {
+      global.alert?.(`No recorded ${game.name} runs are available yet. Finish a run before downloading.`);
+      syncDevControls(game);
+      return;
+    }
+    const url = URL.createObjectURL(new Blob([JSON.stringify(commonEnvelope(game, solutions), null, 2)], { type: 'application/json' }));
     const link = Object.assign(document.createElement('a'), {
       href: url,
       download: `${game.slug}-solutions-${new Date().toISOString().replace(/[:.]/g, '-')}.json`
@@ -80,15 +101,20 @@
       button.type = 'button';
       button.textContent = label;
       button.title = `${label} recorded successful games`;
+      button.dataset.recordingAction = label.toLowerCase();
       button.addEventListener('click', () => {
         if (label === 'Download') download(game);
-        if (label === 'Clear') clearSolutions(game.name);
+        if (label === 'Clear') {
+          clearSolutions(game.name);
+          syncDevControls(game);
+        }
       });
       controls.appendChild(button);
     }
     const right = document.querySelector('.game-topbar__right');
     if (right) right.appendChild(controls);
     else document.body.appendChild(controls);
+    syncDevControls(game);
   }
 
   function normalizeGame(definition) {
@@ -101,6 +127,10 @@
       validateSolution: () => ({ isValid: true, errors: [] }),
       getAudioEvents: () => []
     }, definition);
+  }
+
+  function supportsFrameReplay(game) {
+    return typeof game.beginFrameReplay === 'function' && typeof game.stepFrame === 'function';
   }
 
   global.gameRecording = Object.freeze({
@@ -118,7 +148,8 @@
         name: game.name,
         slug: game.slug,
         page: game.page || `${game.slug}.html`,
-        supportsReplay: typeof game.loadSolution === 'function' && typeof game.seek === 'function'
+        supportsReplay: typeof game.loadSolution === 'function' && (typeof game.seek === 'function' || supportsFrameReplay(game)),
+        supportsFrameReplay: supportsFrameReplay(game)
       }));
     },
     saveSolution,
@@ -150,6 +181,23 @@
       const game = games.get(gameName);
       if (!game || typeof game.seek !== 'function') throw new Error(`Game cannot seek replay solutions: ${gameName}`);
       return game.seek(timeMs, options || {});
+    },
+    frameReplayPlan(gameName, solution, options) {
+      const game = games.get(gameName);
+      if (!game) throw new Error(`Unknown recording game: ${gameName}`);
+      if (!supportsFrameReplay(game)) return { enabled: false };
+      if (typeof game.getFrameReplayPlan === 'function') return game.getFrameReplayPlan(solution, options || {});
+      return { enabled: true };
+    },
+    beginFrameReplay(gameName, solution, options) {
+      const game = games.get(gameName);
+      if (!game || !supportsFrameReplay(game)) throw new Error(`Game cannot begin frame replay: ${gameName}`);
+      return game.beginFrameReplay(solution, options || {});
+    },
+    stepFrame(gameName, frame, options) {
+      const game = games.get(gameName);
+      if (!game || typeof game.stepFrame !== 'function') throw new Error(`Game cannot step frame replay: ${gameName}`);
+      return game.stepFrame(frame, options || {});
     },
     duration(gameName, solution, options) {
       const game = games.get(gameName);

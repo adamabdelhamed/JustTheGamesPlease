@@ -1,6 +1,6 @@
 import { showstopperFamily, trackFamily, type ShowstopperId, type TrackFamilyId, type TrackId } from "../CombatDefinition";
 import { bindSquadInput } from "./input";
-import { NeonSwarmSimulation } from "./simulation/NeonSwarmSimulation";
+import { NeonSwarmSimulation, neonSwarmSimulationFps, neonSwarmSimulationFrameMs, type NeonSwarmFinishResult, type NeonSwarmSound } from "./simulation/NeonSwarmSimulation";
 import { syncShowstopperTriggerUi } from "./showstopperTriggerUi";
 import { TrackMenuRenderer } from "./trackMenuRenderer";
 import { completeTrack, loadTrackProgress, recordTrackHighScore, saveTrackProgress, starsForScore, trackUnlocked, type TrackProgress } from "./trackProgress";
@@ -40,6 +40,7 @@ const cameraLab = document.querySelector<HTMLElement>("#camera-lab")!;
 const cameraOutputText = document.querySelector<HTMLOutputElement>("#camera-output-text")!;
 const urlOptions = window.JustTheGamesPlease?.urlOptions;
 const developerMode = urlOptions?.isEnabled("dev") ?? false;
+const rendererMode = urlOptions?.isEnabled("renderer") ?? false;
 const cameraControlsMode = urlOptions?.isEnabled("cameracontrols") ?? false;
 const tuningMode = urlOptions?.isEnabled("tuning") ?? false;
 const defaultTrackSceneId = Object.values(trackFamily.families)[0].environment.sceneId;
@@ -55,6 +56,101 @@ let pendingScoreDelta = 0;
 let pendingScoreDeltaTimer = 0;
 let scoreAnimationFrame = 0;
 let jackpotTimer = 0;
+let simForSound: NeonSwarmSimulation | null = null;
+let activeRecording: NeonSwarmRecordedRun | null = null;
+let replayAudioEvents: RecordingAudioEvent[] = [];
+let replayAudioCapture = false;
+let lastRecordedMusicVolume: number | null = null;
+const audioRotations = new Map<string, number>();
+
+type NeonSwarmRecordedInput =
+  | { frame: number; action: "lane"; lane: 0 | 1 }
+  | { frame: number; action: "showstopper"; id?: ShowstopperId };
+type NeonSwarmRecordedInputPayload =
+  | { action: "lane"; lane: 0 | 1 }
+  | { action: "showstopper"; id?: ShowstopperId };
+
+interface RecordingAudioEvent {
+  kind?: "sound" | "music" | "musicVolume";
+  name?: string;
+  timeMs: number;
+  durationMs?: number;
+  volume?: number;
+}
+
+interface NeonSwarmRecordedRun {
+  schemaVersion: 1;
+  recordedAt: string;
+  trackId: TrackId;
+  viewport: { width: number; height: number };
+  simulationFps: number;
+  inputs: NeonSwarmRecordedInput[];
+  audio: RecordingAudioEvent[];
+  durationFrames?: number;
+  durationMs?: number;
+  score?: number;
+  won?: boolean;
+}
+
+interface NeonSwarmReplayState {
+  solution: NeonSwarmRecordedRun;
+  frame: number;
+  inputsByFrame: Map<number, NeonSwarmRecordedInput[]>;
+  legacyCombatInputs: NeonSwarmRecordedInput[];
+  legacyCombatInputIndex: number;
+}
+
+let replayState: NeonSwarmReplayState | null = null;
+
+const resetAudioRotations = (): void => {
+  audioRotations.clear();
+  lastRecordedMusicVolume = null;
+};
+
+const currentSimulationTime = (): number => Math.max(0, (simForSound?.frame ?? 0) * neonSwarmSimulationFrameMs);
+
+const recordSound = (name: string): void => {
+  const event = { kind: "sound" as const, name, timeMs: currentSimulationTime() };
+  if (activeRecording) activeRecording.audio.push(event);
+  if (replayAudioCapture) replayAudioEvents.push(event);
+};
+
+const recordMusicVolume = (volume: number): void => {
+  const normalized = Math.max(0, Math.min(1, Number.isFinite(volume) ? volume : 1));
+  if (lastRecordedMusicVolume !== null && Math.abs(lastRecordedMusicVolume - normalized) < .005) return;
+  lastRecordedMusicVolume = normalized;
+  const event = { kind: "musicVolume" as const, timeMs: currentSimulationTime(), volume: normalized };
+  if (activeRecording) activeRecording.audio.push(event);
+  if (replayAudioCapture) replayAudioEvents.push(event);
+};
+
+const ensureMusicEvent = (audio: RecordingAudioEvent[], durationMs?: number): void => {
+  const existing = audio.find(event => event.kind === "music" && event.name === "Music");
+  if (existing) {
+    if (durationMs !== undefined) existing.durationMs = Math.max(0, durationMs - existing.timeMs);
+    return;
+  }
+  audio.unshift({ kind: "music", name: "Music", timeMs: 0, durationMs, volume: 1 });
+};
+
+const playResolvedSound = (name: string): void => {
+  recordSound(name);
+  if (!rendererMode) window.gameAudio?.play(name);
+};
+
+const simulationSound: NeonSwarmSound = {
+  play: playResolvedSound,
+  playRotated(id, alternatives) {
+    const alternativeCount = Math.max(0, Math.floor(alternatives));
+    const next = audioRotations.get(id) ?? 0;
+    playResolvedSound(next === 0 ? id : `${id}_Alt${next}`);
+    audioRotations.set(id, (next + 1) % (alternativeCount + 1));
+  },
+  setMusicVolume(volume) {
+    recordMusicVolume(volume);
+    if (!rendererMode) window.gameAudio?.setMusicVolume?.(volume);
+  },
+};
 
 developerTools.hidden = !developerMode;
 cameraLab.hidden = !cameraControlsMode;
@@ -195,7 +291,7 @@ try {
     canvas,
     stageElement: gameElement,
     cameraSettings,
-    sound: window.gameAudio,
+    sound: simulationSound,
     sceneId: defaultTrackSceneId,
     initialShowstopperBank: ["deepFreeze", "dragonsBreath"],
     onHighScore: score => {
@@ -208,7 +304,8 @@ try {
       result.hidden = false;
       resultTitle.textContent = finish.won ? victoryTitleForScore(finish.score) : finish.title;
       resultDetail.textContent = finish.detail;
-      if (currentTrackId) {
+      finishRunRecording(finish);
+      if (currentTrackId && !rendererMode) {
         progress = finish.won
           ? completeTrack(progress, currentTrackId, finish.score)
           : recordTrackHighScore(progress, currentTrackId, finish.score);
@@ -217,6 +314,151 @@ try {
       }
     },
   });
+  simForSound = sim;
+
+  const recordingFrameForNextInput = (): number => sim.frame + 1;
+
+  const beginRunRecording = (trackId: TrackId): void => {
+    if (!window.gameRecording?.devMode || window.gameRecording.rendererMode) return;
+    resetAudioRotations();
+    activeRecording = {
+      schemaVersion: 1,
+      recordedAt: new Date().toISOString(),
+      trackId,
+      viewport: { width: canvas.width, height: canvas.height },
+      simulationFps: neonSwarmSimulationFps,
+      inputs: [],
+      audio: [],
+    };
+    ensureMusicEvent(activeRecording.audio);
+    recordMusicVolume(1);
+  };
+
+  const recordRunInput = (input: NeonSwarmRecordedInputPayload): void => {
+    if (!activeRecording) return;
+    activeRecording.inputs.push({ frame: recordingFrameForNextInput(), ...input } as NeonSwarmRecordedInput);
+  };
+
+  const finishRunRecording = (finish: NeonSwarmFinishResult): void => {
+    if (!activeRecording || !window.gameRecording) return;
+    activeRecording.durationFrames = Math.max(1, sim.frame);
+    activeRecording.durationMs = activeRecording.durationFrames * neonSwarmSimulationFrameMs;
+    activeRecording.score = finish.score;
+    activeRecording.won = finish.won;
+    ensureMusicEvent(activeRecording.audio, activeRecording.durationMs);
+    window.gameRecording.saveSolution("Neon Swarm", activeRecording);
+    activeRecording = null;
+  };
+
+  const normalizeReplaySolution = (solution: Partial<NeonSwarmRecordedRun>): NeonSwarmRecordedRun => {
+    if (!solution || typeof solution.trackId !== "string" || !(solution.trackId in trackFamily.members)) {
+      throw new Error("Neon Swarm replay needs a valid trackId.");
+    }
+    const inputs = Array.isArray(solution.inputs)
+      ? solution.inputs
+        .map(input => ({ ...input, frame: Math.max(0, Math.floor(Number(input.frame) || 0)) } as NeonSwarmRecordedInput))
+        .filter(input => input.action === "lane" || input.action === "showstopper")
+      : [];
+    const durationMs = Number(solution.durationMs);
+    const durationFrames = Math.floor(Number(solution.durationFrames));
+    return {
+      schemaVersion: 1,
+      recordedAt: solution.recordedAt ?? new Date(0).toISOString(),
+      trackId: solution.trackId,
+      viewport: solution.viewport ?? { width: canvas.width, height: canvas.height },
+      simulationFps: neonSwarmSimulationFps,
+      inputs,
+      audio: Array.isArray(solution.audio) ? solution.audio : [],
+      durationFrames: Number.isFinite(durationFrames) && durationFrames > 0 ? durationFrames : undefined,
+      durationMs: Number.isFinite(durationMs) && durationMs > 0 ? Math.max(neonSwarmSimulationFrameMs, durationMs) : undefined,
+      score: Number(solution.score) || 0,
+      won: Boolean(solution.won),
+    };
+  };
+
+  const resetReplaySurface = (trackId: TrackId): void => {
+    pendingTrackId = null;
+    currentTrackId = trackId;
+    gameElement.dataset.page = "game";
+    gameElement.style.removeProperty("background-image");
+    trackSelect.hidden = true;
+    startDialog.hidden = true;
+    result.hidden = true;
+    configureScorePanelForTrack(trackId);
+    scorePanel.hidden = false;
+    resetScorePanel();
+    sim.setScene(trackFamily.members[trackId].environment.sceneId);
+    status.textContent = "Rendering replay.";
+    syncShowstopperUi();
+  };
+
+  const loadReplay = (rawSolution: Partial<NeonSwarmRecordedRun>, captureAudio: boolean): NeonSwarmRecordedRun => {
+    const solution = normalizeReplaySolution(rawSolution);
+    sim.stopLoop();
+    replayAudioCapture = false;
+    replayAudioEvents = [];
+    activeRecording = null;
+    resetAudioRotations();
+    resetReplaySurface(solution.trackId);
+    sim.reset({ silent: true });
+    sim.setHighScoreToBeat(0);
+    replayAudioCapture = captureAudio;
+    if (captureAudio) {
+      ensureMusicEvent(replayAudioEvents, solution.durationMs);
+      recordMusicVolume(1);
+    }
+    sim.startTrack(trackFamily.members[solution.trackId]);
+    replayAudioCapture = captureAudio;
+    const inputsByFrame = new Map<number, NeonSwarmRecordedInput[]>();
+    for (const input of solution.inputs) {
+      const list = inputsByFrame.get(input.frame) ?? [];
+      list.push(input);
+      inputsByFrame.set(input.frame, list);
+    }
+    replayState = {
+      solution,
+      frame: 0,
+      inputsByFrame,
+      legacyCombatInputs: solution.durationFrames ? [] : [...solution.inputs].sort((left, right) => left.frame - right.frame),
+      legacyCombatInputIndex: 0,
+    };
+    sim.render(0);
+    return solution;
+  };
+
+  const applyReplayInput = (input: NeonSwarmRecordedInput): void => {
+    if (input.action === "lane") {
+      sim.setSquadLane(input.lane, { requireActiveTrack: true });
+      return;
+    }
+    if (input.action === "showstopper") {
+      sim.triggerBankedShowstopper(input.id);
+    }
+  };
+
+  const stepReplayToFrame = (targetFrame: number): void => {
+    if (!replayState) throw new Error("Neon Swarm replay has not been loaded.");
+    const nextFrame = Math.max(0, Math.floor(targetFrame));
+    while (replayState.frame < nextFrame) {
+      replayState.frame++;
+      if (replayState.solution.durationFrames) {
+        for (const input of replayState.inputsByFrame.get(replayState.frame) ?? []) applyReplayInput(input);
+      } else {
+        const combatInputFrame = Math.floor(sim.now / neonSwarmSimulationFrameMs) + 1;
+        while (
+          replayState.legacyCombatInputIndex < replayState.legacyCombatInputs.length &&
+          replayState.legacyCombatInputs[replayState.legacyCombatInputIndex].frame <= combatInputFrame
+        ) {
+          applyReplayInput(replayState.legacyCombatInputs[replayState.legacyCombatInputIndex]);
+          replayState.legacyCombatInputIndex++;
+        }
+      }
+      sim.stepFixedFrame();
+    }
+    sim.render(sim.now);
+    setScoreTarget(sim.snapshot().score);
+  };
+
   const trackRoute = (trackId: TrackId): string => `#track/${encodeURIComponent(trackId)}`;
   const trackFamilyForTrack = (trackId: TrackId): (typeof trackFamily.families)[TrackFamilyId] | null => {
     const families = Object.values(trackFamily.families) as Array<(typeof trackFamily.families)[TrackFamilyId] & { trackIds: readonly TrackId[] }>;
@@ -249,6 +491,7 @@ try {
   const triggerShowstopper = (id?: ShowstopperId): void => {
     const labelId = id && showstopperFamily.members[id] ? id : sim.snapshot().active.showstopper;
     if (sim.triggerBankedShowstopper(id)) {
+      recordRunInput({ action: "showstopper", id: id && showstopperFamily.members[id] ? id : undefined });
       status.textContent = labelId ? `${showstopperFamily.members[labelId].label}!` : "Showstopper!";
       syncShowstopperUi();
     }
@@ -355,10 +598,11 @@ try {
     progress,
     devMode: developerMode,
   });
-  trackMenu.start();
+  if (!rendererMode) trackMenu.start();
   if (tuningMode) new HumanTuningInterface({ host: document.body, trackMenu });
 
   const resetToTracks = (): void => {
+    activeRecording = null;
     sim.reset();
     pendingTrackId = null;
     currentTrackId = null;
@@ -401,6 +645,7 @@ try {
   const startTrack = (trackId: TrackId): void => {
     pendingTrackId = null;
     currentTrackId = trackId;
+    beginRunRecording(trackId);
     startDialog.hidden = true;
     gameElement.dataset.page = "game";
     trackSelect.hidden = true;
@@ -437,7 +682,9 @@ try {
   bindSquadInput(gameElement, {
     lane: () => sim.snapshot().squad.lane,
     setLane: lane => {
-      if (!sim.isLaneInputLocked()) sim.setSquadLane(lane, { requireActiveTrack: true });
+      if (!sim.isLaneInputLocked() && sim.setSquadLane(lane, { requireActiveTrack: true })) {
+        recordRunInput({ action: "lane", lane });
+      }
     },
   });
   bindShowstopperSwipe(showstopperTrigger);
@@ -451,7 +698,59 @@ try {
     }
   });
 
-  sim.startLoop();
+  window.gameRecording?.registerGame({
+    name: "Neon Swarm",
+    slug: "neon-swarm",
+    page: "NeonSwarm.html",
+    version: 1,
+    scoreSolution(solution: Partial<NeonSwarmRecordedRun>) {
+      return Number(solution?.score) || 0;
+    },
+    optimizeSolution(solution: NeonSwarmRecordedRun) {
+      return solution;
+    },
+    validateSolution(solution: Partial<NeonSwarmRecordedRun>) {
+      const errors: string[] = [];
+      if (!solution || typeof solution.trackId !== "string" || !(solution.trackId in trackFamily.members)) errors.push("Missing or unknown trackId.");
+      if (!Array.isArray(solution?.inputs)) errors.push("Replay inputs must be an array.");
+      return { isValid: errors.length === 0, errors };
+    },
+    loadSolution(solution: Partial<NeonSwarmRecordedRun>) {
+      loadReplay(solution, false);
+    },
+    getDurationMs(solution: Partial<NeonSwarmRecordedRun>) {
+      const replay = normalizeReplaySolution(solution);
+      if (replay.durationFrames) return replay.durationFrames * neonSwarmSimulationFrameMs;
+      if (replay.durationMs) return replay.durationMs;
+      const lastInputFrame = replay.inputs.reduce((max, input) => Math.max(max, input.frame), 0);
+      return Math.max(1000, (lastInputFrame + neonSwarmSimulationFps * 4) * neonSwarmSimulationFrameMs);
+    },
+    getFrameReplayPlan(solution: Partial<NeonSwarmRecordedRun>, options: { captureFps?: number } = {}) {
+      const replay = normalizeReplaySolution(solution);
+      const lastInputFrame = replay.inputs.reduce((max, input) => Math.max(max, input.frame), 0);
+      const totalFrames = replay.durationFrames || Math.max(1, Math.ceil((replay.durationMs || Math.max(1000, (lastInputFrame + neonSwarmSimulationFps * 4) * neonSwarmSimulationFrameMs)) / neonSwarmSimulationFrameMs));
+      const durationMs = totalFrames * neonSwarmSimulationFrameMs;
+      return {
+        enabled: true,
+        simulationFps: neonSwarmSimulationFps,
+        captureFps: Math.max(1, Math.floor(options.captureFps ?? 30)),
+        totalFrames,
+        durationMs,
+      };
+    },
+    beginFrameReplay(solution: Partial<NeonSwarmRecordedRun>) {
+      loadReplay(solution, true);
+    },
+    stepFrame(frame: number) {
+      stepReplayToFrame(frame);
+    },
+    getAudioEvents(solution: Partial<NeonSwarmRecordedRun>) {
+      if (replayAudioEvents.length > 0) return replayAudioEvents;
+      return Array.isArray(solution?.audio) ? solution.audio : [];
+    },
+  });
+
+  if (!rendererMode) sim.startLoop();
   window.setInterval(() => {
     syncShowstopperUi();
     const snapshot = sim.snapshot();
@@ -473,6 +772,27 @@ declare global {
       play(id: string): void;
       playRotated(id: string, alternatives: number): void;
       setMusicVolume?(volume: number): void;
+    };
+    gameRecording?: {
+      devMode: boolean;
+      rendererMode: boolean;
+      saveSolution(gameName: string, solution: unknown): void;
+      registerGame(definition: {
+        name: string;
+        slug?: string;
+        page?: string;
+        version?: number;
+        scoreSolution?(solution: unknown): number;
+        optimizeSolution?(solution: unknown, options?: unknown): unknown;
+        validateSolution?(solution: unknown): { isValid: boolean; errors: string[] };
+        loadSolution?(solution: unknown): void;
+        seek?(timeMs: number, options?: unknown): void;
+        getDurationMs?(solution: unknown, options?: unknown): number;
+        getAudioEvents?(solution: unknown, options?: unknown): RecordingAudioEvent[];
+        getFrameReplayPlan?(solution: unknown, options?: unknown): unknown;
+        beginFrameReplay?(solution: unknown, options?: unknown): void;
+        stepFrame?(frame: number, options?: unknown): void;
+      }): unknown;
     };
   }
 }

@@ -69,6 +69,9 @@ type Lane = 0 | 1;
 type LevelWeaponFamily = "gun" | "shield" | "sword" | "lightning";
 type LevelWeaponId = GunId | ShieldId | SwordId | LightningId;
 
+export const neonSwarmSimulationFps = 60;
+export const neonSwarmSimulationFrameMs = 1000 / neonSwarmSimulationFps;
+
 export type NeonSwarmSimulationMode = "game" | "lab";
 
 export interface NeonSwarmSound {
@@ -315,6 +318,7 @@ export class NeonSwarmSimulation {
   private lastFrame = performance.now();
   private combatElapsed = 0;
   private combatNow = 0;
+  private simulationFrame = 0;
   private playerLane: Lane = 0;
   private cooldown = 0;
   private gunCooldowns: number[] = [];
@@ -369,6 +373,7 @@ export class NeonSwarmSimulation {
     verticalOffset: 131,
   };
   private simulationSpeed = 1;
+  private fixedStepAccumulator = 0;
   private sceneBackgroundTuning: LaneRunnerSceneBackgroundTuning = { ...defaultLaneRunnerSceneBackgroundTuning };
   private sceneBackgroundProfile: LaneRunnerSceneBackgroundProfile | null = null;
   private sceneParallaxInterpretation: Partial<LaneRunnerSceneParallaxInterpretation> = {};
@@ -413,6 +418,10 @@ export class NeonSwarmSimulation {
     return this.combatNow;
   }
 
+  get frame(): number {
+    return this.simulationFrame;
+  }
+
   get activeTrackRunning(): boolean {
     return this.activeTrack !== null;
   }
@@ -434,10 +443,13 @@ export class NeonSwarmSimulation {
     this.cancelShowstopperMusicRelease();
     this.activeTrack = null;
     this.lastFrame = performance.now();
+    this.fixedStepAccumulator = 0;
     this.combatElapsed = 0;
     this.combatNow = 0;
+    this.simulationFrame = 0;
     this.cooldown = 0;
     this.gunCooldowns = [];
+    this.entityIdCounter = 0;
     this.nextTrackEntity = 0;
     this.smoothedTrackRows.clear();
     this.nextSmoothingAt = 0;
@@ -500,8 +512,10 @@ export class NeonSwarmSimulation {
     this.trackSceneId = track.environment.sceneId;
     this.applySceneBackground();
     this.lastFrame = performance.now();
+    this.fixedStepAccumulator = 0;
     this.combatElapsed = 0;
     this.combatNow = 0;
+    this.simulationFrame = 0;
     const allEntities = parseTrackDefinition(track.definition);
     this.scorePlannedHp = allEntities.reduce((sum, entity) => {
       const enemyDefinitionEntry = enemyDefinitionFromTrackId(entity.id);
@@ -525,6 +539,7 @@ export class NeonSwarmSimulation {
     this.collectedWeaponLevels.clear();
     this.cooldown = 0;
     this.gunCooldowns = [];
+    this.entityIdCounter = 0;
     this.nextTrackEntity = 0;
     this.smoothedTrackRows.clear();
     this.nextSmoothingAt = 0;
@@ -576,12 +591,14 @@ export class NeonSwarmSimulation {
     this.syncSceneBackgroundPlacement();
   }
 
-  setSquadLane(lane: Lane, options: { requireActiveTrack?: boolean } = {}): void {
-    if (options.requireActiveTrack && !this.activeTrack) return;
-    if (this.isLaneInputLocked()) return;
+  setSquadLane(lane: Lane, options: { requireActiveTrack?: boolean } = {}): boolean {
+    if (options.requireActiveTrack && !this.activeTrack) return false;
+    if (this.isLaneInputLocked()) return false;
+    if (lane === this.squad.lane) return false;
     if (lane !== this.squad.lane) this.play("LaneSwitch");
     this.squad.setLane(lane, value => this.laneX(value), this.combatNow);
     this.playerLane = lane;
+    return true;
   }
 
   bankShowstopper(id: ShowstopperId): void {
@@ -898,8 +915,20 @@ export class NeonSwarmSimulation {
 
   startLoop(): void {
     this.stopLoop();
+    this.lastFrame = performance.now();
+    this.fixedStepAccumulator = 0;
     const frame = (now: number): void => {
-      this.tick(now);
+      const rawDelta = Math.min(.2, Math.max(0, (now - this.lastFrame) / 1000));
+      this.lastFrame = now;
+      this.fixedStepAccumulator += rawDelta;
+      const fixedDelta = 1 / neonSwarmSimulationFps;
+      let steps = 0;
+      while (this.fixedStepAccumulator >= fixedDelta && steps < 12) {
+        this.tickDelta(fixedDelta);
+        this.fixedStepAccumulator -= fixedDelta;
+        steps++;
+      }
+      if (steps >= 12) this.fixedStepAccumulator = 0;
       this.render(this.combatNow);
       this.animationFrame = requestAnimationFrame(frame);
     };
@@ -914,6 +943,15 @@ export class NeonSwarmSimulation {
   tick(frameNow: number): void {
     const rawDelta = Math.min(.05, (frameNow - this.lastFrame) / 1000);
     this.lastFrame = frameNow;
+    this.tickDelta(rawDelta);
+  }
+
+  stepFixedFrame(): void {
+    this.tickDelta(1 / neonSwarmSimulationFps);
+  }
+
+  private tickDelta(rawDelta: number): void {
+    this.simulationFrame++;
     const gameplayScale = this.showstopperGameplayScale(rawDelta);
     const delta = rawDelta * combatTuning.globalSpeedMultiplier * this.simulationSpeed * gameplayScale;
     this.combatElapsed += delta;

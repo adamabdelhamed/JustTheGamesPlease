@@ -83,6 +83,18 @@ export function enemyExitDuration(enemyType: EnemyVisualType): number {
   return envelope.entrySeconds + envelope.sustainSeconds + envelope.fadeSeconds;
 }
 
+function fallbackSeed(enemyType: EnemyVisualType, x: number, y: number): number {
+  let value = 2166136261;
+  for (let index = 0; index < enemyType.length; index++) {
+    value ^= enemyType.charCodeAt(index);
+    value = Math.imul(value, 16777619);
+  }
+  value ^= Math.round(x * 10);
+  value = Math.imul(value, 16777619);
+  value ^= Math.round(y * 10);
+  return value >>> 0;
+}
+
 export function createEnemyExitEffect(options: {
   enemyType: EnemyVisualType;
   x: number;
@@ -101,7 +113,7 @@ export function createEnemyExitEffect(options: {
     x: options.x,
     y: options.y,
     color: options.color,
-    seed: options.seed ?? Math.random() * 1000,
+    seed: options.seed ?? fallbackSeed(options.enemyType, options.x, options.y),
     age: 0,
     durationSeconds: options.durationSeconds,
     size: options.size,
