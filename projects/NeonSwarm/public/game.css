@@ -311,6 +311,7 @@ button { font: inherit; }
 
 .showstopper-bank__hint {
   position: absolute;
+  z-index: 2;
   left: 50%;
   bottom: 56px;
   margin: 0;
@@ -330,6 +331,8 @@ button { font: inherit; }
 }
 
 .showstopper-bank__dock {
+  position: relative;
+  z-index: 1;
   display: flex;
   flex-direction: column-reverse;
   align-items: center;
