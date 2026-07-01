@@ -166,6 +166,7 @@ const familyRecipes: Record<TrackThemeId, FamilyRecipe> = {
     bossEnemies: ["tank"],
     pressureStyles: ["laneLine", "centerAlternating", "wideSweep", "mirroredWalls"],
     openingWeapons: ["sword.arcBlade", "shield.lightGuard"],
+    openingPickups: ["unitMultiplier.2x"],
     upgradeSpacing: 3,
   },
   crystalSiege: {

@@ -146,8 +146,6 @@ await mkdir(resolve(docs, "NeonSwarm/tests/track-generator"), { recursive: true 
 await Promise.all([
   copyAudioAssets(resolve(root, "projects/NeonSwarm/public/audio"), resolve(docs, "NeonSwarm/audio"), { allFiles: true }),
   copySelectedAudioAssets(resolve(root, "projects/NeonSwarm/public/audio"), resolve(docs, "NeonSwarm/tests/gun-family/manual/audio"), gunManualAudio),
-  cp(resolve(docs, "NeonPour/audio/PuzzleComplete.mp3"), resolve(docs, "NeonSwarm/audio/PuzzleComplete.mp3")),
-  cp(resolve(docs, "NeonPour/audio/PuzzleComplete.mp3"), resolve(docs, "NeonSwarm/tests/gun-family/manual/audio/PuzzleComplete.mp3")),
   cp(resolve(root, "projects/NeonSwarm/public/index.html"), resolve(docs, "NeonSwarm.html")),
   cp(resolve(root, "projects/NeonSwarm/public/game.css"), resolve(docs, "NeonSwarm/game.css")),
   cp(resolve(root, "projects/NeonSwarm/public/scenes"), resolve(docs, "NeonSwarm/scenes"), { recursive: true }),
