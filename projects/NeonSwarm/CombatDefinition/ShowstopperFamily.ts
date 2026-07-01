@@ -51,6 +51,7 @@ export interface ShowstopperMember {
   camera: readonly ShowstopperCameraPose[];
   timelineEvents: readonly ShowstopperTimelineEvent[];
   attack: ShowstopperAttackDefinition;
+  musicDuckVolume: number;
   pickupColor: NeonColorName;
   soundCues: Readonly<Record<"deploy" | "attackStart" | "resolve", string>>;
 }
@@ -64,6 +65,7 @@ interface DragonBreathIntent {
   attackStartProgress: number;
   attackEndProgress: number;
   rowsAhead: number;
+  musicDuckVolume: number;
   timeWarp: readonly TimedByProgress<ShowstopperTimeWarpPoint>[];
   camera: readonly TimedByProgress<ShowstopperCameraPose>[];
   soundCues: ShowstopperMember["soundCues"];
@@ -76,6 +78,7 @@ const dragonBreathIntent = {
   attackStartProgress: .1,
   attackEndProgress: 1,
   rowsAhead: 15,
+  musicDuckVolume: .3,
   timeWarp: [
     { progress: 0, gameplayScale: 1, easing: "easeInOut" },
     { progress: .0333, gameplayScale: .1, easing: "easeIn" },
@@ -115,6 +118,7 @@ function dragonBreathMember(intent: DragonBreathIntent): ShowstopperMember {
       rowsAhead: intent.rowsAhead,
       targeting: "allLanesAhead",
     },
+    musicDuckVolume: intent.musicDuckVolume,
     pickupColor: "orange",
     soundCues: intent.soundCues,
   };
@@ -161,6 +165,7 @@ export class ShowstopperFamilyDefinition extends FamilyDefinition<Record<string,
       this.require(member.attack.startMs >= 0 && member.attack.endMs > member.attack.startMs, `${id} attack must have a valid time range.`);
       this.require(member.attack.endMs <= member.durationMs, `${id} attack cannot exceed duration.`);
       this.require(member.attack.rowsAhead > 0, `${id} attack rowsAhead must be positive.`);
+      this.require(member.musicDuckVolume > 0 && member.musicDuckVolume <= 1, `${id} musicDuckVolume must be in the 0-1 range.`);
       this.require(neonPalette[member.pickupColor] !== undefined, `${id} has an unknown pickup color.`);
       this.validateTimedPoints(id, "timeWarp", member.timeWarp, member.durationMs);
       this.validateTimedPoints(id, "camera", member.camera, member.durationMs);

@@ -230,6 +230,7 @@ declare global {
     gameAudio?: {
       play(id: string): void;
       playRotated(id: string, alternatives: number): void;
+      setMusicVolume?(volume: number): void;
     };
   }
 }

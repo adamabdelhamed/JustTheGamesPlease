@@ -75,6 +75,7 @@ export type NeonSwarmSimulationMode = "game" | "lab";
 export interface NeonSwarmSound {
   play(id: string): void;
   playRotated?(id: string, alternatives: number): void;
+  setMusicVolume?(volume: number): void;
 }
 
 export interface NeonSwarmSimulationOptions {
@@ -263,6 +264,7 @@ const smoothingFinalActCooldownSeconds = 1.05;
 const smoothingFinalActMaxEnemiesPerBurst = 7;
 const smoothingSourceRowWindow = 3;
 const smoothingExcludedEnemyIds = new Set<OrbId>(["tank"]);
+const showstopperMusicPostReturnRampMs = 1000;
 
 export class NeonSwarmSimulation {
   readonly mode: NeonSwarmSimulationMode;
@@ -317,6 +319,9 @@ export class NeonSwarmSimulation {
   private showstopperLastExplosionRow = -1;
   private showstopperLastAttackProgress = -1;
   private showstopperAttackSoundPlayed = false;
+  private currentMusicVolume = 1;
+  private showstopperMusicReleaseElapsedMs: number | null = null;
+  private showstopperMusicReleaseFrom = 1;
   private weaponHudScreenX: number | null = null;
   private weaponHudTuning: WeaponHudTuning = {
     iconScale: .22,
@@ -384,6 +389,8 @@ export class NeonSwarmSimulation {
   }
 
   reset(options: { silent?: boolean } = {}): void {
+    this.setMusicVolume(1);
+    this.cancelShowstopperMusicRelease();
     this.activeTrack = null;
     this.lastFrame = performance.now();
     this.combatElapsed = 0;
@@ -439,6 +446,8 @@ export class NeonSwarmSimulation {
   }
 
   startTrack(track: TrackMember): void {
+    this.setMusicVolume(1);
+    this.cancelShowstopperMusicRelease();
     this.activeTrack = track;
     this.trackSceneId = track.environment.sceneId;
     this.applySceneBackground();
@@ -520,8 +529,10 @@ export class NeonSwarmSimulation {
     this.showstopperLastExplosionRow = -1;
     this.showstopperLastAttackProgress = -1;
     this.showstopperAttackSoundPlayed = false;
+    this.cancelShowstopperMusicRelease();
     this.consumeBankedShowstopper(banked);
     this.play(showstopperFamily.members[this.activeShowstopper.id].soundCues.deploy);
+    this.syncShowstopperMusicVolume(this.activeShowstopper);
     this.setCameraSettings(this.showstopperDirector.cameraAt(this.showstopperDirector.member(this.activeShowstopper.id), 0));
     return true;
   }
@@ -830,6 +841,7 @@ export class NeonSwarmSimulation {
     this.syncSceneBackgroundPlacement();
     this.syncPlayerActors();
     this.updateShowstopper(rawDelta);
+    this.updateShowstopperMusicRelease(rawDelta);
 
     if (this.activeByFamily.gun) {
       advanceCooldownSlots(this.gunCooldowns, delta);
@@ -1052,6 +1064,8 @@ export class NeonSwarmSimulation {
   }
 
   destroy(): void {
+    this.setMusicVolume(1);
+    this.cancelShowstopperMusicRelease();
     this.stopLoop();
     this.renderer.destroy();
   }
@@ -1403,6 +1417,8 @@ export class NeonSwarmSimulation {
     const member = this.showstopperDirector.member(active.id);
     const previousElapsedMs = active.elapsedMs;
     const step = this.showstopperDirector.step(active, deltaSeconds * 1000, this.firstVisibleEnemyRow());
+    if (step.state) this.syncShowstopperMusicVolume(step.state, member);
+    else if (!step.resolved) this.syncShowstopperMusicVolume(null);
     this.updateShowstopperCameraFocus(active);
     this.setCameraSettings(step.camera);
     if (!this.showstopperAttackSoundPlayed && step.state && !step.state.returning && this.crossedShowstopperEvent(member.timelineEvents, "startAttack", previousElapsedMs, step.state.elapsedMs)) {
@@ -1419,6 +1435,7 @@ export class NeonSwarmSimulation {
     }
     this.activeShowstopper = step.state;
     if (step.resolved) {
+      this.startShowstopperMusicRelease();
       this.showstopperCameraFocusX = null;
       this.showstopperLastExplosionRow = -1;
       this.showstopperLastAttackProgress = -1;
@@ -1457,9 +1474,64 @@ export class NeonSwarmSimulation {
     return this.showstopperCameraFocusX ?? laneRunnerCameraFocusX(this.canvas.width, this.squad.x);
   }
 
+  private syncShowstopperMusicVolume(state: ShowstopperDirectorState | null, member?: ShowstopperMember): void {
+    if (!state) {
+      this.setMusicVolume(1);
+      return;
+    }
+    const activeMember = member ?? this.showstopperDirector.member(state.id);
+    const duckVolume = activeMember.musicDuckVolume;
+    const attackStartMs = activeMember.attack.startMs;
+    const attackEndMs = activeMember.attack.endMs;
+    const rampDownDurationMs = Math.max(1, activeMember.centerCameraMs + attackStartMs);
+    if (!state.returning && state.elapsedMs <= attackStartMs) {
+      const progress = Math.max(0, Math.min(1, (state.centerElapsedMs + state.elapsedMs) / rampDownDurationMs));
+      this.setMusicVolume(this.lerp(1, duckVolume, this.easeIn(progress)));
+      return;
+    }
+    const returnEndMs = activeMember.durationMs + activeMember.returnCameraMs + showstopperMusicPostReturnRampMs;
+    const musicClockMs = state.returning
+      ? activeMember.durationMs + state.returnElapsedMs
+      : state.elapsedMs;
+    if (musicClockMs >= attackEndMs) {
+      const progress = Math.max(0, Math.min(1, (musicClockMs - attackEndMs) / Math.max(1, returnEndMs - attackEndMs)));
+      this.setMusicVolume(this.lerp(duckVolume, 1, this.easeInOut(progress)));
+      return;
+    }
+    this.setMusicVolume(duckVolume);
+  }
+
+  private startShowstopperMusicRelease(): void {
+    this.showstopperMusicReleaseElapsedMs = 0;
+    this.showstopperMusicReleaseFrom = this.currentMusicVolume;
+  }
+
+  private cancelShowstopperMusicRelease(): void {
+    this.showstopperMusicReleaseElapsedMs = null;
+    this.showstopperMusicReleaseFrom = 1;
+  }
+
+  private updateShowstopperMusicRelease(deltaSeconds: number): void {
+    if (this.showstopperMusicReleaseElapsedMs === null || this.activeShowstopper) return;
+    this.showstopperMusicReleaseElapsedMs += deltaSeconds * 1000;
+    const progress = Math.max(0, Math.min(1, this.showstopperMusicReleaseElapsedMs / showstopperMusicPostReturnRampMs));
+    this.setMusicVolume(this.lerp(this.showstopperMusicReleaseFrom, 1, this.easeInOut(progress)));
+    if (progress >= 1) this.cancelShowstopperMusicRelease();
+  }
+
   private easeInOut(progress: number): number {
     const t = Math.max(0, Math.min(1, progress));
     return t * t * (3 - 2 * t);
+  }
+
+  private easeIn(progress: number): number {
+    const t = Math.max(0, Math.min(1, progress));
+    return t * t;
+  }
+
+  private easeOut(progress: number): number {
+    const t = Math.max(0, Math.min(1, progress));
+    return 1 - (1 - t) * (1 - t);
   }
 
   private lerp(from: number, to: number, progress: number): number {
@@ -1953,6 +2025,11 @@ export class NeonSwarmSimulation {
   private playPickup(id: "PickupGun" | "PickupShield" | "PickupSword" | "PickupMultiplier"): void {
     this.play("Pickup");
     this.play(id);
+  }
+
+  private setMusicVolume(volume: number): void {
+    this.currentMusicVolume = Math.max(0, Math.min(1, Number.isFinite(volume) ? volume : 1));
+    this.sound?.setMusicVolume?.(this.currentMusicVolume);
   }
 }
 

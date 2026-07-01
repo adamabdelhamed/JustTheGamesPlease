@@ -18,6 +18,7 @@
   let musicPausedForInactivity = false;
   let pageInactive = document.hidden || !document.hasFocus();
   let musicEnabled = localStorage.getItem('gameAudio.musicEnabled') !== 'false';
+  let musicVolume = 1;
 
   function source(id, shared) {
     const file = /\.[a-z0-9]+$/i.test(id) ? id : `${id}.mp3`;
@@ -239,6 +240,7 @@
     if (!musicEnabled || !musicIds.length) return;
     if (music) music.pause();
     music = new Audio(source(musicIds[musicIndex], sharedMusic));
+    music.volume = musicVolume;
     music.preload = 'auto';
     music.addEventListener('ended', () => {
       musicIndex = (musicIndex + 1) % musicIds.length;
@@ -283,6 +285,11 @@
     playCurrentMusic();
   }
 
+  function setMusicVolume(value) {
+    musicVolume = Math.max(0, Math.min(1, Number.isFinite(Number(value)) ? Number(value) : 1));
+    if (music) music.volume = musicVolume;
+  }
+
   function updateToggle(button) {
     button.innerHTML = musicEnabled
       ? '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 18V5l10-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="16" cy="16" r="3"/></svg>'
@@ -312,7 +319,7 @@
     if (!global.gameTopBar || !global.gameTopBar.addUtility(button)) document.body.append(button);
   }
 
-  const api = { playMusic, playSharedMusic, play, loop, loopGapless, preload, playRotated, addMusicToggle };
+  const api = { playMusic, playSharedMusic, setMusicVolume, play, loop, loopGapless, preload, playRotated, addMusicToggle };
   global.gameAudio = Object.freeze(api);
   document.addEventListener('visibilitychange', () => {
     if (document.hidden) pauseMusicForInactivity();
