@@ -47,7 +47,9 @@ export function createEnemyDeathEffect(options: {
   y: number;
   color: string;
   seed?: number;
+  visual?: EnemyExitVisualOverride;
 }): ActiveEnemyExitEffect | null {
+  if (options.visual === "none" || options.visual === "burn") return null;
   const definition = orbFamily.members[options.enemyId];
   if (definition.deathVisual !== "cloud") return null;
   return createEnemyExitEffect({
@@ -59,9 +61,22 @@ export function createEnemyDeathEffect(options: {
   });
 }
 
-export function disposeEnemyActor(actor: NeonShapeActor, definition: OrbMember): void {
+export type EnemyExitVisualOverride = "default" | "none" | "burn";
+export type EnemyExitSoundOverride = "default" | "none";
+
+export interface EnemyExitOverride {
+  visual?: EnemyExitVisualOverride;
+  sound?: EnemyExitSoundOverride;
+}
+
+export interface EnemyDefeatResult {
+  definition: OrbMember;
+  deathSound: string | null;
+}
+
+export function disposeEnemyActor(actor: NeonShapeActor, definition: OrbMember, visual: EnemyExitVisualOverride = "default"): void {
   actor.explodeMagnitude = definition.explosionMagnitude;
-  actor.dispose(NeonShapeDisposal.Explode);
+  actor.dispose(visual === "burn" ? NeonShapeDisposal.Burn : NeonShapeDisposal.Explode);
 }
 
 export interface DamageableEnemy {
@@ -80,8 +95,10 @@ export function defeatEnemy(
   enemy: DamageableEnemy,
   effects: ActiveEnemyExitEffect[],
   color: string = neonPalette[orbFamily.members[enemy.enemyId].baseColor],
-): OrbMember {
+  exit: EnemyExitOverride = {},
+): EnemyDefeatResult {
   const definition = orbFamily.members[enemy.enemyId];
+  const visual = exit.visual ?? "default";
   enemy.dying = true;
   if (!enemy.exitEffectSpawned) {
     enemy.exitEffectSpawned = true;
@@ -91,11 +108,15 @@ export function defeatEnemy(
       y: enemy.y,
       color,
       seed: enemy.id,
+      visual,
     });
     if (effect) effects.push(effect);
   }
-  disposeEnemyActor(enemy.actor, definition);
-  return definition;
+  disposeEnemyActor(enemy.actor, definition, visual);
+  return {
+    definition,
+    deathSound: exit.sound === "none" ? null : definition.deathSound,
+  };
 }
 
 export function resolveEnemyDamage(options: {
@@ -105,7 +126,8 @@ export function resolveEnemyDamage(options: {
   impactMagnitude?: number;
   hitFlashUntil?: number;
   color?: string;
-}): { killed: boolean; definition: OrbMember } {
+  exit?: EnemyExitOverride;
+}): { killed: boolean; definition: OrbMember; deathSound: string | null } {
   const definition = orbFamily.members[options.enemy.enemyId];
   if (options.damage) options.enemy.health -= options.damage;
   if (options.impactMagnitude) {
@@ -116,9 +138,10 @@ export function resolveEnemyDamage(options: {
   }
   if (options.hitFlashUntil !== undefined) options.enemy.hitFlashUntil = options.hitFlashUntil;
   if (options.enemy.health <= 0) {
-    return { killed: true, definition: defeatEnemy(options.enemy, options.effects, options.color) };
+    const defeated = defeatEnemy(options.enemy, options.effects, options.color, options.exit);
+    return { killed: true, definition: defeated.definition, deathSound: defeated.deathSound };
   }
-  return { killed: false, definition };
+  return { killed: false, definition, deathSound: null };
 }
 
 export function enemyHealthBarPrimitives(options: {

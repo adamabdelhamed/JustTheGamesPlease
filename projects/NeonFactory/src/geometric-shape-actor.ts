@@ -5,6 +5,7 @@ export enum NeonShapeDisposal {
   FadeOut = "fadeOut",
   Disappear = "disappear",
   Explode = "explode",
+  Burn = "burn",
 }
 
 export interface NeonShapeVector {
@@ -119,7 +120,7 @@ export class NeonShapeActor {
     this.#impactVelocity.x *= damping; this.#impactVelocity.y *= damping;
     this.#impactRotation.x *= damping; this.#impactRotation.y *= damping;
     if (this.#disposalProgress > 0 && !this.disposed) {
-      const duration = this.disposal === NeonShapeDisposal.Explode ? .85 : .55;
+      const duration = this.disposal === NeonShapeDisposal.Explode ? .85 : this.disposal === NeonShapeDisposal.Burn ? 2.85 : .55;
       this.#disposalProgress = Math.min(1, this.#disposalProgress + deltaSeconds / duration);
       if (this.#disposalProgress >= 1) this.disposed = true;
     }
@@ -129,7 +130,7 @@ export class NeonShapeActor {
 
   renderInstance(overrides: Partial<NeonShapeInstance> = {}): NeonShapeInstance {
     const fade = this.disposal === NeonShapeDisposal.FadeOut ? 1 - this.#disposalProgress : 1;
-    return {
+    const instance: NeonShapeInstance = {
       shape: this.shape, x: this.x, y: this.y, z: this.z, scale: this.scale,
       rotationX: this.rotationX, rotationY: this.rotationY, rotationZ: this.rotationZ,
       label: this.label, color: this.color, opacity: this.disposed ? 0 : fade,
@@ -139,5 +140,45 @@ export class NeonShapeActor {
       explodeMagnitude: this.explodeMagnitude,
       ...overrides,
     };
+    return this.disposal === NeonShapeDisposal.Burn ? this.burnRenderInstance(instance) : instance;
+  }
+
+  private burnRenderInstance(instance: NeonShapeInstance): NeonShapeInstance {
+    const progress = Math.max(0, Math.min(1, this.#disposalProgress));
+    const heatEnd = .08;
+    const hotEnd = .43;
+    const ashEnd = .69;
+    const fallT = Math.max(0, (progress - ashEnd) / Math.max(.001, 1 - ashEnd));
+    const coolT = Math.max(0, Math.min(1, (progress - hotEnd) / Math.max(.001, ashEnd - hotEnd)));
+    const color = mixHex("#ff4a14", "#2b2d2c", coolT);
+    const heatT = Math.min(1, progress / heatEnd);
+    const glow = (1 - coolT) * (1.4 + heatT * 2.2);
+    return {
+      ...instance,
+      color,
+      glow,
+      energyIntensity: 0,
+      energyCoverage: 0,
+      energySpeed: 0,
+      energyBleed: 0,
+      opacity: (instance.opacity ?? 1) * (1 - fallT * .95),
+      explodeProgress: 0,
+      explodeMagnitude: Math.max(.18, this.explodeMagnitude * .45),
+      fallProgress: fallT,
+    };
   }
 }
+
+const hexChannel = (value: string, index: number): number => {
+  const raw = value.replace("#", "");
+  return Number.parseInt(raw.slice(index, index + 2), 16);
+};
+
+const mixHex = (from: string, to: string, progress: number): string => {
+  const t = Math.max(0, Math.min(1, progress));
+  const channels = [0, 2, 4].map(index => {
+    const value = Math.round(hexChannel(from, index) + (hexChannel(to, index) - hexChannel(from, index)) * t);
+    return value.toString(16).padStart(2, "0");
+  });
+  return `#${channels.join("")}`;
+};

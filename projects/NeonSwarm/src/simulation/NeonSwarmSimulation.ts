@@ -696,9 +696,9 @@ export class NeonSwarmSimulation {
     return this.enemyIntersectsForwardDistance(enemy, 0, maxReach);
   }
 
-  defeatEnemyById(id: number): void {
+  defeatEnemyById(id: number, exit?: Parameters<typeof defeatEnemy>[3]): void {
     const enemy = this.enemies.find(item => item.id === id);
-    if (enemy && !enemy.dying) this.destroyEnemy(enemy);
+    if (enemy && !enemy.dying) this.destroyEnemy(enemy, exit);
   }
 
   defeatEnemiesInRowsAhead(rowsAhead: number): void {
@@ -1278,7 +1278,7 @@ export class NeonSwarmSimulation {
   }
 
   private updateProjectiles(delta: number): void {
-    this.gunSimulation.updateProjectiles(delta, this.combatNow, this.enemies.map(enemy => Object.assign(enemy, {
+    this.gunSimulation.updateProjectiles(delta, this.combatNow, this.liveEnemies().map(enemy => Object.assign(enemy, {
       radius: this.enemyDefinition(enemy).radius * this.scale(),
     })), { top: -40 * this.scale(), left: -40, right: this.canvas.width + 40 }, (shot, enemy) => {
       const gameEnemy = enemy as Enemy & { radius: number };
@@ -1290,7 +1290,7 @@ export class NeonSwarmSimulation {
       });
       if (result.killed) {
         this.kills++;
-        this.play(result.definition.deathSound);
+        if (result.deathSound) this.play(result.deathSound);
       } else {
         this.play("ProjectileHit");
         this.play("EnemyHit");
@@ -1303,7 +1303,7 @@ export class NeonSwarmSimulation {
     if (!state) return;
     const member = lightningFamily.members[state.lightningId];
     const level = member.levels.find(item => item.level === state.level) ?? member.levels[0];
-    const result = tickLightning(state, member, level, this.enemies, {
+    const result = tickLightning(state, member, level, this.liveEnemies(), {
       x: this.squad.x,
       y: this.playerY() - 22 * this.scale(),
       lane: this.playerLane,
@@ -1324,7 +1324,7 @@ export class NeonSwarmSimulation {
       });
       if (resolved.killed) {
         this.kills++;
-        this.play(resolved.definition.deathSound);
+        if (resolved.deathSound) this.play(resolved.deathSound);
       }
     }
     if (impacted) this.play("EnemyHit");
@@ -1333,9 +1333,10 @@ export class NeonSwarmSimulation {
   private updateNearPlayerEffects(delta: number, shieldDef: (typeof shieldFamily.members)[ShieldId] | null, swordDef: SwordMember | null): void {
     const px = this.squad.x;
     const py = this.playerY();
+    const liveEnemies = this.liveEnemies();
     if (this.activeByFamily.shield && shieldDef) {
       const shieldState = this.activeByFamily.shield;
-      const shieldThreats = queryNearbyThreats(this.enemies, {
+      const shieldThreats = queryNearbyThreats(liveEnemies, {
         origin: { x: px, y: py },
         lane: this.playerLane,
         range: shieldDef.radius * this.scale(),
@@ -1346,7 +1347,7 @@ export class NeonSwarmSimulation {
       const shieldResult = tickShield(shieldState, shieldDef, shieldThreats, px, py, this.combatNow, delta);
       if (shieldResult.pushEnemyIds.length > 0) {
         for (const enemy of this.enemies) {
-          if (!shieldResult.pushEnemyIds.includes(enemy.id)) continue;
+          if (enemy.dying || !shieldResult.pushEnemyIds.includes(enemy.id)) continue;
           const dx = enemy.x - px;
           const dy = enemy.y - py;
           const dist = Math.hypot(dx, dy) || 1;
@@ -1369,7 +1370,7 @@ export class NeonSwarmSimulation {
       const swordQueryRange = swordDef.rowReach
         ? Math.max(this.canvas.width, swordDef.range * this.scale())
         : swordDef.range * this.scale();
-      const swordThreats = queryNearbyThreats(this.enemies, {
+      const swordThreats = queryNearbyThreats(liveEnemies, {
         origin: { x: px, y: py },
         lane: this.playerLane,
         range: swordQueryRange,
@@ -1549,7 +1550,7 @@ export class NeonSwarmSimulation {
     this.showstopperLastAttackProgress = clampedProgress;
     const reach = rowDistance * (1 + Math.max(0, rowsAhead) * clampedProgress);
     this.spawnDragonBreathExplosionRows(reach, rowDistance);
-    this.destroyEnemiesInForwardDistanceRange(0, reach);
+    this.destroyEnemiesInForwardDistanceRange(0, reach, { visual: "burn", sound: "none" });
   }
 
   private spawnDragonBreathExplosionRows(reach: number, rowDistance: number): void {
@@ -1586,12 +1587,12 @@ export class NeonSwarmSimulation {
     }
   }
 
-  private destroyEnemiesInForwardDistanceRange(fromDistance: number, toDistance: number): void {
+  private destroyEnemiesInForwardDistanceRange(fromDistance: number, toDistance: number, exit?: Parameters<typeof defeatEnemy>[3]): void {
     const minDistance = Math.max(0, Math.min(fromDistance, toDistance));
     const maxDistance = Math.max(minDistance, Math.max(fromDistance, toDistance));
     for (const enemy of [...this.enemies]) {
       if (!this.enemyIntersectsForwardDistance(enemy, minDistance, maxDistance)) continue;
-      this.destroyEnemy(enemy);
+      this.destroyEnemy(enemy, exit);
     }
   }
 
@@ -1637,6 +1638,10 @@ export class NeonSwarmSimulation {
     return !enemy.dying && enemy.y < this.playerY();
   }
 
+  private liveEnemies(): Enemy[] {
+    return this.enemies.filter(enemy => !enemy.dying);
+  }
+
   private swordStrikeProgress(laneProgress = .72): number {
     const tuning = this.swordVisualTuning;
     const strike = tuning.strikeDuration ?? .31;
@@ -1669,7 +1674,7 @@ export class NeonSwarmSimulation {
       });
       if (result.killed) {
         this.kills++;
-        this.play(result.definition.deathSound);
+        if (result.deathSound) this.play(result.deathSound);
       }
     }
     if (impacted) this.play(pending.impactSoundId);
@@ -1681,16 +1686,16 @@ export class NeonSwarmSimulation {
     const py = this.playerY();
     for (const enemy of [...this.enemies]) {
       enemy.actor.setVelocity(0, 0).update(delta);
+      if (enemy.dying) {
+        enemy.actor.moveTo(0, 0);
+        if (enemy.actor.disposed) this.enemies.splice(this.enemies.indexOf(enemy), 1);
+        continue;
+      }
       const effective = slowEnemyIds.has(enemy.id)
         ? enemy.speedMultiplier * (shieldDef?.slowMultiplier ?? 1)
         : enemy.speedMultiplier;
       enemy.y += this.enemyDefinition(enemy).speed * effective * this.scale() * delta - enemy.actor.y * this.canvas.height / 2.5;
       enemy.actor.moveTo(0, 0);
-      if (enemy.dying && enemy.actor.disposed) {
-        this.enemies.splice(this.enemies.indexOf(enemy), 1);
-        continue;
-      }
-      if (enemy.dying) continue;
 
       if (this.activeByFamily.shield && shieldDef) {
         const shieldContact = resolveShieldContact(this.activeByFamily.shield, shieldDef, Object.assign(enemy, {
@@ -1981,10 +1986,10 @@ export class NeonSwarmSimulation {
     return orbFamily.members[enemy.enemyId];
   }
 
-  private destroyEnemy(enemy: Enemy): void {
-    const definition = defeatEnemy(enemy, this.enemyExitEffects, this.enemyExitColor(enemy));
+  private destroyEnemy(enemy: Enemy, exit?: Parameters<typeof defeatEnemy>[3]): void {
+    const result = defeatEnemy(enemy, this.enemyExitEffects, this.enemyExitColor(enemy), exit);
     this.kills++;
-    this.play(definition.deathSound);
+    if (result.deathSound) this.play(result.deathSound);
   }
 
   private entityX(entity: ParsedTrackEntity): number {

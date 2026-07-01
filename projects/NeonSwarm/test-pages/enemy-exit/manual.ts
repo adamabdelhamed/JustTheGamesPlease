@@ -9,6 +9,7 @@ const status = q<HTMLOutputElement>("#test-status");
 const error = q<HTMLElement>("#error");
 const enemyType = q<HTMLSelectElement>("#enemy-type");
 const color = q<HTMLInputElement>("#color");
+const exitEffect = q<HTMLSelectElement>("#exit-effect");
 const json = q<HTMLTextAreaElement>("#json");
 const readout = q<HTMLElement>("#readout");
 
@@ -19,10 +20,16 @@ let activeEnemyId = 0;
 
 const selectedType = (): EnemyVisualType => enemyType.value as EnemyVisualType;
 const selectedColor = (): string => color.value || neonPalette[orbFamily.members[selectedType()].baseColor];
+const selectedExitEffect = (): "default" | "burn" => exitEffect.value === "burn" ? "burn" : "default";
 const syncJson = (): void => {
-  const profile = enemyExitProfiles[selectedType()];
-  json.value = JSON.stringify({ enemyType: selectedType(), color: selectedColor(), profile }, null, 2);
-  readout.textContent = `${selectedType()} - ${enemyExitDuration(selectedType()).toFixed(2)}s spark fade`;
+  const effect = selectedExitEffect();
+  const profile = effect === "burn"
+    ? { visual: "burn", sound: "none", durationSeconds: 2.85 }
+    : enemyExitProfiles[selectedType()];
+  json.value = JSON.stringify({ enemyType: selectedType(), color: selectedColor(), exitEffect: effect, profile }, null, 2);
+  readout.textContent = effect === "burn"
+    ? `${selectedType()} - Burn - 2.85s silent molten ash`
+    : `${selectedType()} - ${enemyExitDuration(selectedType()).toFixed(2)}s spark fade`;
 };
 const run = (): void => {
   if (!sim) return;
@@ -38,14 +45,14 @@ const run = (): void => {
     color: selectedColor(),
     playSound: false,
   });
-  sim.defeatEnemyById(activeEnemyId);
+  sim.defeatEnemyById(activeEnemyId, selectedExitEffect() === "burn" ? { visual: "burn", sound: "none" } : undefined);
   sim.startLoop();
   syncJson();
 };
 
 q<HTMLButtonElement>("#run").addEventListener("click", run);
 q<HTMLButtonElement>("#copy").addEventListener("click", () => navigator.clipboard?.writeText(json.value));
-[enemyType, color].forEach(control => control.addEventListener("input", run));
+[enemyType, color, exitEffect].forEach(control => control.addEventListener("input", run));
 syncJson();
 
 const test = createTestPage("neon-swarm-enemy-exit-lab", { run }, status);
@@ -54,6 +61,7 @@ try {
   run();
   test.ready();
   test.assert("Enemy exit profiles include new enemies", "glassShield" in enemyExitProfiles && "winger" in enemyExitProfiles && "tank" in enemyExitProfiles);
+  test.assert("Burn exit is available", exitEffect.querySelector('option[value="burn"]') !== null);
   test.assert("WebGPU enemy exit lab initialized", true);
 } catch (cause) {
   const message = cause instanceof Error ? cause.message : String(cause);

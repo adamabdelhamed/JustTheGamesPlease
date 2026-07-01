@@ -34,6 +34,7 @@ export interface NeonShapeInstance {
   entranceMagnitude?: number;
   explodeProgress?: number;
   explodeMagnitude?: number;
+  fallProgress?: number;
   label?: NeonShapeLabel;
 }
 
@@ -225,13 +226,16 @@ function edgeMesh(instance: NeonShapeInstance): Vertex[] {
   };
   const explode = (a: V3, b: V3, index: number): [V3, V3] => {
     const progress = Math.max(instance.explodeProgress ?? 0, 1 - entranceEase);
-    if (!progress) return [a, b];
+    const fallProgress = Math.max(0, Math.min(1, instance.fallProgress ?? 0));
+    if (!progress && !fallProgress) return [a, b];
     const mx = (a[0] + b[0]) / 2 - (instance.x ?? 0), my = (a[1] + b[1]) / 2 - (instance.y ?? 0);
     const length = Math.hypot(mx, my) || 1;
     const magnitude = instance.explodeMagnitude ?? .55;
     const speed = magnitude * (.45 + (Math.sin(index * 91.17) * .5 + .5) * .55);
-    const dx = mx / length * progress * speed, dy = my / length * progress * speed + progress * progress * .18;
-    const angle = progress * (index % 2 ? 1 : -1) * 2.4;
+    const drift = progress + fallProgress * .35;
+    const dx = mx / length * drift * speed * .35;
+    const dy = my / length * progress * speed + progress * progress * .18 - fallProgress * fallProgress * .55;
+    const angle = progress * (index % 2 ? 1 : -1) * 2.4 + fallProgress * (index % 2 ? 1 : -1) * 1.35;
     const transform = (p: V3): V3 => {
       const x = p[0] - (instance.x ?? 0), y = p[1] - (instance.y ?? 0);
       return [x * Math.cos(angle) - y * Math.sin(angle) + (instance.x ?? 0) + dx, x * Math.sin(angle) + y * Math.cos(angle) + (instance.y ?? 0) + dy, p[2]];
