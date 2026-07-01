@@ -13,6 +13,9 @@ const trackMenuLabels = document.querySelector<HTMLElement>("#track-menu-labels"
 const status = document.querySelector<HTMLElement>("#status")!;
 const runStatus = document.querySelector<HTMLElement>("#run-status")!;
 const showstopperTrigger = document.querySelector<HTMLButtonElement>("#showstopper-trigger")!;
+const showstopperTriggerSecondary = document.querySelector<HTMLButtonElement>("#showstopper-trigger-secondary")!;
+const showstopperBank = document.querySelector<HTMLElement>("#showstopper-bank")!;
+const showstopperHint = document.querySelector<HTMLElement>(".showstopper-bank__hint")!;
 const result = document.querySelector<HTMLElement>("#result")!;
 const resultTitle = document.querySelector<HTMLElement>("#result-title")!;
 const resultDetail = document.querySelector<HTMLElement>("#result-detail")!;
@@ -97,11 +100,15 @@ try {
     const snapshot = sim.snapshot();
     const activeId = snapshot.active.showstopper;
     const hasTrack = snapshot.activeTrack;
+    showstopperBank.hidden = !hasTrack || !activeId;
+    showstopperHint.textContent = matchMedia("(pointer: coarse)").matches ? "swipe up to use" : "click or swipe up";
     syncShowstopperTriggerUi({
       triggerButton: showstopperTrigger,
+      secondaryTriggerButton: showstopperTriggerSecondary,
     }, {
       id: activeId,
       count: snapshot.active.showstopperCount,
+      banked: snapshot.active.showstoppers,
       active: sim.isLaneInputLocked(),
       hidden: !hasTrack || !activeId,
       disabled: !hasTrack || sim.isLaneInputLocked(),
@@ -112,6 +119,80 @@ try {
       status.textContent = "Dragon's Breath!";
       syncShowstopperUi();
     }
+  };
+  const flingShowstopperButton = (button: HTMLButtonElement): void => {
+    if (button.hidden) return;
+    const sourceRect = button.getBoundingClientRect();
+    const bankRect = showstopperBank.getBoundingClientRect();
+    const ghost = button.cloneNode(true) as HTMLButtonElement;
+    ghost.removeAttribute("id");
+    ghost.disabled = true;
+    ghost.classList.add("showstopper-trigger--fling");
+    Object.assign(ghost.style, {
+      left: `${sourceRect.left - bankRect.left}px`,
+      top: `${sourceRect.top - bankRect.top}px`,
+      width: `${sourceRect.width}px`,
+      height: `${sourceRect.height}px`,
+    });
+    showstopperBank.append(ghost);
+    requestAnimationFrame(() => ghost.classList.add("is-flinging"));
+    window.setTimeout(() => ghost.remove(), 520);
+  };
+  const bindShowstopperSwipe = (button: HTMLButtonElement): void => {
+    let pointerId: number | null = null;
+    let startY = 0;
+    let startX = 0;
+    let latestY = 0;
+    let startedAt = 0;
+    const resetDrag = (): void => {
+      pointerId = null;
+      button.classList.remove("is-dragging");
+      button.style.removeProperty("--swipe-y");
+    };
+    button.addEventListener("pointerdown", event => {
+      if (button.disabled || button.hidden || pointerId !== null) return;
+      pointerId = event.pointerId;
+      startY = event.clientY;
+      startX = event.clientX;
+      latestY = event.clientY;
+      startedAt = performance.now();
+      button.classList.add("is-dragging");
+      button.setPointerCapture(event.pointerId);
+      event.preventDefault();
+    });
+    button.addEventListener("pointermove", event => {
+      if (pointerId !== event.pointerId) return;
+      latestY = event.clientY;
+      const y = Math.min(10, Math.max(-92, event.clientY - startY));
+      button.style.setProperty("--swipe-y", `${y}px`);
+      event.preventDefault();
+    });
+    const finish = (event: PointerEvent): void => {
+      if (pointerId !== event.pointerId) return;
+      const deltaY = latestY - startY;
+      const deltaX = event.clientX - startX;
+      const elapsed = Math.max(1, performance.now() - startedAt);
+      const velocityY = deltaY / elapsed;
+      const triggered = deltaY < -46 && Math.abs(deltaY) > Math.abs(deltaX) * .85 || velocityY < -.55 && deltaY < -24;
+      if (triggered) {
+        flingShowstopperButton(button);
+        startAudioForGesture();
+        triggerShowstopper();
+      }
+      resetDrag();
+      event.preventDefault();
+    };
+    button.addEventListener("pointerup", finish);
+    button.addEventListener("click", event => {
+      if (button.disabled || button.hidden) return;
+      if ((event as PointerEvent).pointerType && (event as PointerEvent).pointerType !== "mouse") return;
+      startAudioForGesture();
+      triggerShowstopper();
+    });
+    button.addEventListener("pointercancel", resetDrag);
+    button.addEventListener("lostpointercapture", () => {
+      if (pointerId !== null) resetDrag();
+    });
   };
   const navigateToTracks = (): void => {
     if (location.hash === "#tracks") {
@@ -201,13 +282,12 @@ try {
       if (!sim.isLaneInputLocked()) sim.setSquadLane(lane, { requireActiveTrack: true });
     },
   });
-  showstopperTrigger.addEventListener("click", () => {
-    startAudioForGesture();
-    triggerShowstopper();
-  });
+  bindShowstopperSwipe(showstopperTrigger);
+  bindShowstopperSwipe(showstopperTriggerSecondary);
   addEventListener("keydown", event => {
     if (event.key !== " " && event.key !== "Enter") return;
     if (sim.snapshot().activeTrack && sim.snapshot().active.showstopper && !sim.isLaneInputLocked()) {
+      startAudioForGesture();
       triggerShowstopper();
       event.preventDefault();
     }

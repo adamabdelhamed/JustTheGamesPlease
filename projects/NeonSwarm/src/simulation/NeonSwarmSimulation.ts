@@ -121,6 +121,7 @@ export interface NeonSwarmSnapshot {
     lightning: { id: LightningId; level: number } | null;
     showstopper: ShowstopperId | null;
     showstopperCount: number;
+    showstoppers: Array<{ id: ShowstopperId; count: number }>;
   };
   enemies: Array<{ id: number; enemyId: OrbId; lane: Lane; x: number; y: number; health: number; maxHealth: number; dying: boolean }>;
   pickups: {
@@ -327,7 +328,7 @@ export class NeonSwarmSimulation {
     iconScale: .22,
     spacing: 63,
     fontSize: 15,
-    verticalOffset: 146,
+    verticalOffset: 131,
   };
   private simulationSpeed = 1;
   private sceneBackgroundTuning: LaneRunnerSceneBackgroundTuning = { ...defaultLaneRunnerSceneBackgroundTuning };
@@ -542,6 +543,16 @@ export class NeonSwarmSimulation {
       if (count > 0) return id;
     }
     return null;
+  }
+
+  private bankedShowstopperEntries(limit = Number.POSITIVE_INFINITY): Array<{ id: ShowstopperId; count: number }> {
+    const entries: Array<{ id: ShowstopperId; count: number }> = [];
+    for (const [id, count] of this.bankedShowstoppers) {
+      if (count <= 0) continue;
+      entries.push({ id, count });
+      if (entries.length >= limit) break;
+    }
+    return entries;
   }
 
   private bankedShowstopperCount(id: ShowstopperId | null): number {
@@ -1038,6 +1049,7 @@ export class NeonSwarmSimulation {
         lightning: this.activeByFamily.lightning ? { id: this.activeByFamily.lightning.lightningId, level: this.activeByFamily.lightning.level } : null,
         showstopper: this.activeShowstopper?.id ?? bankedShowstopper,
         showstopperCount: this.activeShowstopper ? 0 : this.bankedShowstopperCount(bankedShowstopper),
+        showstoppers: this.activeShowstopper ? [] : this.bankedShowstopperEntries(2),
       },
       enemies: this.enemies
         .filter(enemy => !enemy.suppressed)

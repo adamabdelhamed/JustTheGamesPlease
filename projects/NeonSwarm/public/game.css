@@ -302,33 +302,79 @@ button { font: inherit; }
 .showstopper-bank {
   position: absolute;
   z-index: 7;
-  right: 12px;
-  top: calc(50% + 48px);
-  display: flex;
-  flex-direction: column-reverse;
-  align-items: flex-end;
-  gap: 8px;
-  transform: translateY(-50%);
+  left: 50%;
+  bottom: -18px;
+  width: min(88%, 330px);
+  transform: translateX(-50%);
   pointer-events: none;
 }
 
+.showstopper-bank__hint {
+  position: absolute;
+  left: 50%;
+  bottom: 56px;
+  margin: 0;
+  transform: translateX(-50%);
+  padding: 5px 10px;
+  border: 1px solid #ffdf8566;
+  border-radius: 999px;
+  background: #120b08c8;
+  color: #ffedb5;
+  box-shadow: 0 0 18px #ff8a4524;
+  font-size: .62rem;
+  font-weight: 900;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  opacity: 1;
+}
+
+.showstopper-bank__dock {
+  display: flex;
+  flex-direction: column-reverse;
+  align-items: center;
+  gap: 8px;
+}
+
 .showstopper-trigger {
-  width: 158px;
-  height: 60px;
-  min-height: 60px;
-  padding: 8px 12px;
+  width: 100%;
+  height: 72px;
+  min-height: 72px;
+  padding: 10px 16px 18px;
   border: 1px solid #ffb44a88;
   border-radius: 8px;
-  background: #201008d9;
+  background: linear-gradient(180deg, #321609f2, #160905f2);
   color: #ffdf85;
-  box-shadow: 0 0 18px #ff8a4533;
-  font-size: .72rem;
+  box-shadow: 0 -8px 28px #0009, 0 0 22px #ff8a453d;
+  font-size: .78rem;
   font-weight: 800;
   letter-spacing: .08em;
   line-height: 1.1;
   text-transform: uppercase;
-  cursor: pointer;
+  cursor: grab;
   pointer-events: auto;
+  touch-action: none;
+  user-select: none;
+  transform: translateY(var(--swipe-y, 0)) scale(1);
+  transition: transform 180ms ease, opacity 180ms ease, border-color 160ms ease, color 160ms ease;
+  will-change: transform, opacity;
+}
+
+.showstopper-trigger--secondary {
+  width: 86%;
+  height: 50px;
+  min-height: 50px;
+  padding: 8px 14px;
+  opacity: .7;
+  cursor: default;
+  transform: translateY(0) scale(.94);
+}
+
+.showstopper-trigger.is-dragging {
+  cursor: grabbing;
+  transition: opacity 120ms ease, border-color 120ms ease, color 120ms ease;
+  border-color: #ffe8a8;
+  color: #fff5c9;
 }
 
 .showstopper-trigger:hover:not(:disabled) {
@@ -337,12 +383,28 @@ button { font: inherit; }
 }
 
 .showstopper-trigger:disabled {
-  opacity: .45;
+  opacity: .52;
   cursor: default;
+  pointer-events: none;
 }
 
 .showstopper-trigger[hidden] {
   display: none;
+}
+
+.showstopper-trigger--fling {
+  position: absolute;
+  z-index: 2;
+  margin: 0;
+  pointer-events: none;
+  transform: translateY(0) scale(1);
+  opacity: 1;
+}
+
+.showstopper-trigger--fling.is-flinging {
+  transform: translateY(-185px) scale(.78) rotate(-4deg);
+  opacity: 0;
+  transition: transform 500ms cubic-bezier(.17,.84,.21,1), opacity 500ms ease;
 }
 
 .result {
