@@ -6,6 +6,7 @@ export enum NeonShapeDisposal {
   Disappear = "disappear",
   Explode = "explode",
   Burn = "burn",
+  Freeze = "freeze",
 }
 
 export interface NeonShapeVector {
@@ -120,7 +121,7 @@ export class NeonShapeActor {
     this.#impactVelocity.x *= damping; this.#impactVelocity.y *= damping;
     this.#impactRotation.x *= damping; this.#impactRotation.y *= damping;
     if (this.#disposalProgress > 0 && !this.disposed) {
-      const duration = this.disposal === NeonShapeDisposal.Explode ? .85 : this.disposal === NeonShapeDisposal.Burn ? 2.85 : .55;
+      const duration = this.disposal === NeonShapeDisposal.Explode ? .85 : this.disposal === NeonShapeDisposal.Burn ? 2.85 : this.disposal === NeonShapeDisposal.Freeze ? 2.85 : .55;
       this.#disposalProgress = Math.min(1, this.#disposalProgress + deltaSeconds / duration);
       if (this.#disposalProgress >= 1) this.disposed = true;
     }
@@ -140,7 +141,8 @@ export class NeonShapeActor {
       explodeMagnitude: this.explodeMagnitude,
       ...overrides,
     };
-    return this.disposal === NeonShapeDisposal.Burn ? this.burnRenderInstance(instance) : instance;
+    if (this.disposal === NeonShapeDisposal.Burn) return this.burnRenderInstance(instance);
+    return this.disposal === NeonShapeDisposal.Freeze ? this.freezeRenderInstance(instance) : instance;
   }
 
   private burnRenderInstance(instance: NeonShapeInstance): NeonShapeInstance {
@@ -165,6 +167,27 @@ export class NeonShapeActor {
       explodeProgress: 0,
       explodeMagnitude: Math.max(.18, this.explodeMagnitude * .45),
       fallProgress: fallT,
+    };
+  }
+
+  private freezeRenderInstance(instance: NeonShapeInstance): NeonShapeInstance {
+    const progress = Math.max(0, Math.min(1, this.#disposalProgress));
+    const freezeEnd = .16;
+    const shatterStart = .7;
+    const freezeT = Math.min(1, progress / freezeEnd);
+    const shatterT = Math.max(0, (progress - shatterStart) / Math.max(.001, 1 - shatterStart));
+    return {
+      ...instance,
+      color: mixHex(instance.color ?? this.shape.color, "#9deaff", freezeT),
+      glow: .55 + freezeT * .75,
+      energyIntensity: 0,
+      energyCoverage: 0,
+      energySpeed: 0,
+      energyBleed: 0,
+      opacity: (instance.opacity ?? 1) * (1 - shatterT * .95),
+      explodeProgress: shatterT,
+      explodeMagnitude: Math.max(.3, this.explodeMagnitude * .8),
+      fallProgress: 0,
     };
   }
 }

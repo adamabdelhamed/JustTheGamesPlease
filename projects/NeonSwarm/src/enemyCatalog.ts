@@ -49,7 +49,7 @@ export function createEnemyDeathEffect(options: {
   seed?: number;
   visual?: EnemyExitVisualOverride;
 }): ActiveEnemyExitEffect | null {
-  if (options.visual === "none" || options.visual === "burn") return null;
+  if (options.visual === "none" || options.visual === "burn" || options.visual === "freeze") return null;
   const definition = orbFamily.members[options.enemyId];
   if (definition.deathVisual !== "cloud") return null;
   return createEnemyExitEffect({
@@ -61,8 +61,8 @@ export function createEnemyDeathEffect(options: {
   });
 }
 
-export type EnemyExitVisualOverride = "default" | "none" | "burn";
-export type EnemyExitSoundOverride = "default" | "none";
+export type EnemyExitVisualOverride = "default" | "none" | "burn" | "freeze";
+export type EnemyExitSoundOverride = "default" | "none" | "FrozenShatter";
 
 export interface EnemyExitOverride {
   visual?: EnemyExitVisualOverride;
@@ -76,7 +76,12 @@ export interface EnemyDefeatResult {
 
 export function disposeEnemyActor(actor: NeonShapeActor, definition: OrbMember, visual: EnemyExitVisualOverride = "default"): void {
   actor.explodeMagnitude = definition.explosionMagnitude;
-  actor.dispose(visual === "burn" ? NeonShapeDisposal.Burn : NeonShapeDisposal.Explode);
+  const disposal = visual === "burn"
+    ? NeonShapeDisposal.Burn
+    : visual === "freeze"
+      ? NeonShapeDisposal.Freeze
+      : NeonShapeDisposal.Explode;
+  actor.dispose(disposal);
 }
 
 export interface DamageableEnemy {
@@ -115,7 +120,7 @@ export function defeatEnemy(
   disposeEnemyActor(enemy.actor, definition, visual);
   return {
     definition,
-    deathSound: exit.sound === "none" ? null : definition.deathSound,
+    deathSound: exit.sound === "none" ? null : exit.sound && exit.sound !== "default" ? exit.sound : definition.deathSound,
   };
 }
 

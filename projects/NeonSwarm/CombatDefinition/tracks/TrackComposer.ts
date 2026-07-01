@@ -353,7 +353,12 @@ function pickupPower(id: string): number {
   if (id === "unitMultiplier.2x" || id === "pickup.unitMultiplier.2x") {
     return multiplierFamily.members.squadPlusOne.squadAdded * 4;
   }
-  if (id === "showstopper.dragonsBreath" || id === "pickup.showstopper.dragonsBreath") {
+  if (
+    id === "showstopper.dragonsBreath" ||
+    id === "pickup.showstopper.dragonsBreath" ||
+    id === "showstopper.deepFreeze" ||
+    id === "pickup.showstopper.deepFreeze"
+  ) {
     return 14;
   }
   return weaponPower(id);
@@ -434,7 +439,7 @@ function placePickups(section: TrackSectionBuilder, recipe: FamilyRecipe, beat: 
     row += 2;
   }
   if (tier >= 2 && beat.kind === "rebuild") {
-    const pickup = "pickup.showstopper.dragonsBreath";
+    const pickup = state.cycle % 2 === 0 ? "pickup.showstopper.dragonsBreath" : "pickup.showstopper.deepFreeze";
     const pickupRow = Math.max(0, Math.min(rows - 1, rows - 3));
     section.at(pickupRow).pickup(pickup, { column: state.cycle % 2 === 0 ? c.left.inner : c.right.inner });
     state.playerPower += pickupPower(pickup);

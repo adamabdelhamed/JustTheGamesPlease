@@ -87,7 +87,7 @@ export interface NeonSwarmSimulationOptions {
   sceneId?: LaneRunnerSceneId;
   sceneBackgroundProfile?: LaneRunnerSceneBackgroundProfile;
   sceneParallaxInterpretation?: Partial<LaneRunnerSceneParallaxInterpretation>;
-  initialShowstopperBank?: ShowstopperId;
+  initialShowstopperBank?: ShowstopperId | readonly ShowstopperId[];
   playerInvincible?: boolean;
   onRunStatus?: (status: string) => void;
   onFinish?: (result: NeonSwarmFinishResult) => void;
@@ -221,6 +221,22 @@ interface PendingSwordDamage {
   impactSoundId: string;
 }
 
+interface SnowParticle {
+  x: number;
+  y: number;
+  velocityX: number;
+  velocityY: number;
+  age: number;
+  duration: number;
+  size: number;
+  seed: number;
+}
+
+interface DelayedSound {
+  id: string;
+  dueAt: number;
+}
+
 const gunFireSoundIds: Record<GunId, string> = {
   pulsePistol: "Primary",
   needlerSmg: "NeedlerFire",
@@ -247,6 +263,7 @@ const soundAlternativeCounts: Partial<Record<string, number>> = {
   Boss: 1,
   ProjectileHit: 2,
   Lightning: 2,
+  IceCracking: 2,
 };
 const maxTrackSpawnLeadSeconds = 18;
 const firstTrackRowArrivalSeconds = 2 * combatTuning.globalSpeedMultiplier;
@@ -255,6 +272,11 @@ const showstopperMinimumRowWorldDistance = 38;
 const dragonBreathExplosionDurationSeconds = 3;
 const dragonBreathExplosionColumns = 5;
 const dragonBreathFireColors = ["#ff3d00", "#ff7a00", "#ffb321", "#ffd36a"] as const;
+const deepFreezeCloudDurationSeconds = 2.2;
+const deepFreezeSweepColumns = 7;
+const deepFreezeSnowParticlesPerRow = 3;
+const deepFreezeCloudColors = ["#f7fbff", "#dff6ff", "#bfeaff"] as const;
+const frozenShatterDelaySeconds = 2;
 const smoothingClearDistance = 390;
 const smoothingSpawnDistance = 430;
 const smoothingMinimumUpcomingSeconds = 3.2;
@@ -278,7 +300,7 @@ export class NeonSwarmSimulation {
   private sound?: NeonSwarmSound;
   private onRunStatus?: (status: string) => void;
   private onFinish?: (result: NeonSwarmFinishResult) => void;
-  private initialShowstopperBank?: ShowstopperId;
+  private initialShowstopperBank?: ShowstopperId | readonly ShowstopperId[];
   private playerInvincible = false;
   private animationFrame = 0;
   private activeTrack: TrackMember | null = null;
@@ -306,6 +328,8 @@ export class NeonSwarmSimulation {
   private multipliers: MultiplierPickup[] = [];
   private showstopperPickups: ShowstopperPickup[] = [];
   private enemyExitEffects: ActiveEnemyExitEffect[] = [];
+  private snowParticles: SnowParticle[] = [];
+  private delayedSounds: DelayedSound[] = [];
   private victory: NeonVictoryExperience | null = null;
   private swordVisualTuning: Partial<SwordVisualTuning> = {};
   private pendingSwordDamage: PendingSwordDamage | null = null;
@@ -441,6 +465,8 @@ export class NeonSwarmSimulation {
     this.multipliers = [];
     this.showstopperPickups = [];
     this.enemyExitEffects = [];
+    this.snowParticles = [];
+    this.delayedSounds = [];
     this.explodingPlayers = [];
     this.victory = null;
     this.pendingSwordDamage = null;
@@ -479,7 +505,10 @@ export class NeonSwarmSimulation {
     this.squad.x = this.laneX(startLane);
     this.squad.targetX = this.laneX(startLane);
     this.weaponHudScreenX = this.weaponHudTargetScreenX(startLane);
-    if (this.initialShowstopperBank) this.bankShowstopper(this.initialShowstopperBank);
+    if (this.initialShowstopperBank) {
+      const initialBank = Array.isArray(this.initialShowstopperBank) ? this.initialShowstopperBank : [this.initialShowstopperBank];
+      for (const id of initialBank) this.bankShowstopper(id);
+    }
     this.activeShowstopper = null;
     this.showstopperCameraFocusX = null;
     this.showstopperCameraFocusStartX = 0;
@@ -521,8 +550,8 @@ export class NeonSwarmSimulation {
     this.bankedShowstoppers.set(id, this.bankedShowstopperCount(id) + 1);
   }
 
-  triggerBankedShowstopper(): boolean {
-    const banked = this.nextBankedShowstopper();
+  triggerBankedShowstopper(id?: ShowstopperId): boolean {
+    const banked = id && this.bankedShowstopperCount(id) > 0 ? id : this.nextBankedShowstopper();
     if (this.mode === "game" && !this.activeTrack || !banked || this.activeShowstopper) return false;
     this.activeShowstopper = this.showstopperDirector.createState(banked);
     this.showstopperCameraFocusStartX = laneRunnerCameraFocusX(this.canvas.width, this.squad.x);
@@ -822,6 +851,8 @@ export class NeonSwarmSimulation {
       if (item.actor.disposed) this.explodingPlayers.splice(this.explodingPlayers.indexOf(item), 1);
     }
     updateEnemyExitEffects(this.enemyExitEffects, rawDelta);
+    this.updateSnowParticles(rawDelta);
+    this.updateDelayedSounds();
 
     if (this.mode === "game" && !this.activeTrack) return;
     if (this.activeTrack) {
@@ -893,6 +924,7 @@ export class NeonSwarmSimulation {
     }
 
     primitives.push(...this.gunSimulation.projectilePrimitives());
+    primitives.push(...this.snowParticlePrimitives());
     if (this.activeByFamily.lightning) primitives.push(...lightningVisuals(this.activeByFamily.lightning.activeChains, now));
     if (this.victory) primitives.push(...this.victory.primitives(now));
 
@@ -1439,7 +1471,7 @@ export class NeonSwarmSimulation {
       this.play(member.soundCues.attackStart);
     }
     if (step.attackWindow) {
-      this.destroyEnemiesInForwardAttackSweep(step.attackWindow.rowsAhead, step.attackWindow.progress);
+      this.resolveShowstopperAttackSweep(member, step.attackWindow.rowsAhead, step.attackWindow.progress);
     } else if (step.clearRows) {
       this.destroyEnemiesInForwardDistanceRange(
         step.clearRows.from * this.showstopperRowWorldDistance(),
@@ -1453,7 +1485,8 @@ export class NeonSwarmSimulation {
       this.showstopperLastExplosionRow = -1;
       this.showstopperLastAttackProgress = -1;
       this.showstopperAttackSoundPlayed = false;
-      this.play(this.showstopperDirector.member(step.resolved).soundCues.resolve);
+      const resolveSound = this.showstopperDirector.member(step.resolved).soundCues.resolve;
+      if (resolveSound) this.play(resolveSound);
     }
   }
 
@@ -1563,6 +1596,127 @@ export class NeonSwarmSimulation {
     const reach = rowDistance * (1 + Math.max(0, rowsAhead) * clampedProgress);
     this.spawnDragonBreathExplosionRows(reach, rowDistance);
     this.destroyEnemiesInForwardDistanceRange(0, reach, { visual: "burn", sound: "none" });
+  }
+
+  private resolveShowstopperAttackSweep(member: ShowstopperMember, rowsAhead: number, progress: number): void {
+    if (member.attack.effect === "deepFreeze") {
+      this.destroyEnemiesInLateralFreezeSweep(rowsAhead, progress);
+      return;
+    }
+    this.destroyEnemiesInForwardAttackSweep(rowsAhead, progress);
+  }
+
+  private destroyEnemiesInLateralFreezeSweep(rowsAhead: number, progress: number): void {
+    const rowDistance = this.showstopperRowWorldDistance();
+    const clampedProgress = Math.max(0, Math.min(1, progress));
+    const previousProgress = Math.max(0, this.showstopperLastAttackProgress);
+    if (clampedProgress < this.showstopperLastAttackProgress) this.showstopperLastExplosionRow = -1;
+    this.showstopperLastAttackProgress = clampedProgress;
+    this.spawnDeepFreezeSweepColumns(previousProgress, clampedProgress, rowsAhead, rowDistance);
+
+    const bounds = this.deepFreezeSweepBounds(previousProgress, clampedProgress);
+    const maxDistance = rowDistance * (1 + Math.max(0, rowsAhead));
+    for (const enemy of [...this.enemies]) {
+      if (!this.enemyIntersectsForwardDistance(enemy, 0, maxDistance)) continue;
+      const radius = this.enemyDefinition(enemy).radius * this.scale();
+      if (enemy.x + radius < bounds.left || enemy.x - radius > bounds.right) continue;
+      this.destroyEnemy(enemy, { visual: "freeze", sound: "FrozenShatter" });
+    }
+  }
+
+  private deepFreezeSweepBounds(fromProgress: number, toProgress: number): { left: number; right: number } {
+    const margin = 44 * this.scale();
+    const minX = this.laneX(0) - 64 * this.scale();
+    const maxX = this.laneX(1) + 64 * this.scale();
+    const fromX = this.lerp(minX, maxX, fromProgress);
+    const toX = this.lerp(minX, maxX, toProgress);
+    return {
+      left: Math.min(fromX, toX) - margin,
+      right: Math.max(fromX, toX) + margin,
+    };
+  }
+
+  private spawnDeepFreezeSweepColumns(fromProgress: number, toProgress: number, rowsAhead: number, rowDistance: number): void {
+    const columns = Math.max(3, deepFreezeSweepColumns);
+    const targetColumn = Math.max(0, Math.min(columns - 1, Math.floor(toProgress * columns)));
+    if (targetColumn <= this.showstopperLastExplosionRow) return;
+    for (let column = this.showstopperLastExplosionRow + 1; column <= targetColumn; column++) {
+      const progress = columns === 1 ? .5 : Math.max(fromProgress, Math.min(1, column / (columns - 1)));
+      this.spawnDeepFreezeSweepColumn(column, progress, rowsAhead, rowDistance);
+    }
+    this.showstopperLastExplosionRow = targetColumn;
+  }
+
+  private spawnDeepFreezeSweepColumn(column: number, progress: number, rowsAhead: number, rowDistance: number): void {
+    const minX = this.laneX(0) - 64 * this.scale();
+    const maxX = this.laneX(1) + 64 * this.scale();
+    const x = this.lerp(minX, maxX, progress);
+    const windDirection = 1;
+    const maxRow = Math.max(0, rowsAhead);
+    for (let row = 0; row <= maxRow; row++) {
+      const y = this.playerY() - row * rowDistance;
+      const color = deepFreezeCloudColors[(row + column) % deepFreezeCloudColors.length];
+      this.enemyExitEffects.push(createEnemyExitEffect({
+        enemyType: "basicOrb",
+        x: x + Math.sin((row + column) * 1.3) * 7 * this.scale(),
+        y: y + Math.cos((row - column) * 1.1) * 5 * this.scale(),
+        color,
+        seed: 1900 + column * 47 + row * 19,
+        durationSeconds: deepFreezeCloudDurationSeconds,
+        size: 18 * this.scale(),
+        glow: 10,
+        coreIntensity: 1.1,
+        rimIntensity: .75,
+        opacity: .74,
+      }));
+      this.spawnDeepFreezeSnow(x, y, windDirection, column, row);
+    }
+  }
+
+  private spawnDeepFreezeSnow(x: number, y: number, windDirection: number, column: number, row: number): void {
+    for (let index = 0; index < deepFreezeSnowParticlesPerRow; index++) {
+      const seed = column * 113 + row * 37 + index * 17;
+      const jitterX = Math.sin(seed * 12.9898) * 18 * this.scale();
+      const jitterY = Math.cos(seed * 78.233) * 13 * this.scale();
+      this.snowParticles.push({
+        x: x + jitterX,
+        y: y + jitterY,
+        velocityX: windDirection * (34 + (seed % 11) * 4) * this.scale(),
+        velocityY: (24 + (seed % 7) * 5) * this.scale(),
+        age: 0,
+        duration: 1.5 + (seed % 5) * .08,
+        size: (2.2 + (seed % 4) * .45) * this.scale(),
+        seed,
+      });
+    }
+  }
+
+  private updateSnowParticles(deltaSeconds: number): void {
+    for (const particle of [...this.snowParticles]) {
+      particle.age += deltaSeconds;
+      particle.x += particle.velocityX * deltaSeconds;
+      particle.y += particle.velocityY * deltaSeconds;
+      if (particle.age >= particle.duration) this.snowParticles.splice(this.snowParticles.indexOf(particle), 1);
+    }
+  }
+
+  private snowParticlePrimitives(): NeonPrimitive[] {
+    return this.snowParticles.map(particle => {
+      const progress = Math.max(0, Math.min(1, particle.age / particle.duration));
+      const fade = Math.sin(progress * Math.PI);
+      return {
+        x: particle.x,
+        y: particle.y,
+        width: particle.size * (1.8 + fade),
+        height: particle.size,
+        color: "#f7fbff",
+        secondaryColor: "#bfeaff",
+        glow: .35,
+        intensity: .45 + fade * .65,
+        rotation: particle.seed * .13 + progress * Math.PI,
+        shape: "spark",
+      };
+    });
   }
 
   private spawnDragonBreathExplosionRows(reach: number, rowDistance: number): void {
@@ -2001,7 +2155,10 @@ export class NeonSwarmSimulation {
   private destroyEnemy(enemy: Enemy, exit?: Parameters<typeof defeatEnemy>[3]): void {
     const result = defeatEnemy(enemy, this.enemyExitEffects, this.enemyExitColor(enemy), exit);
     this.kills++;
-    if (result.deathSound) this.play(result.deathSound);
+    if (result.deathSound === "FrozenShatter") {
+      this.play("IceCracking");
+      this.delayedSounds.push({ id: result.deathSound, dueAt: this.combatNow + frozenShatterDelaySeconds * 1000 });
+    } else if (result.deathSound) this.play(result.deathSound);
   }
 
   private entityX(entity: ParsedTrackEntity): number {
@@ -2047,6 +2204,14 @@ export class NeonSwarmSimulation {
   private setMusicVolume(volume: number): void {
     this.currentMusicVolume = Math.max(0, Math.min(1, Number.isFinite(volume) ? volume : 1));
     this.sound?.setMusicVolume?.(this.currentMusicVolume);
+  }
+
+  private updateDelayedSounds(): void {
+    for (const sound of [...this.delayedSounds]) {
+      if (this.combatNow < sound.dueAt) continue;
+      this.delayedSounds.splice(this.delayedSounds.indexOf(sound), 1);
+      this.play(sound.id);
+    }
   }
 }
 

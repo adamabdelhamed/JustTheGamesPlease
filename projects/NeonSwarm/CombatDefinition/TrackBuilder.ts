@@ -220,7 +220,9 @@ const pickupAliases: Readonly<Record<string, string>> = {
   "unitMultiplier.2x": "pickup.unitMultiplier.2x",
   "unitMultiplier.squadPlusOne": "pickup.unitMultiplier.2x",
   "showstopper.dragonsBreath": "pickup.showstopper.dragonsBreath",
+  "showstopper.deepFreeze": "pickup.showstopper.deepFreeze",
   "dragonsBreath": "pickup.showstopper.dragonsBreath",
+  "deepFreeze": "pickup.showstopper.deepFreeze",
 };
 const preferredSymbols: Readonly<Record<string, string>> = {
   "enemy.basic": "E",
@@ -242,6 +244,7 @@ const preferredSymbols: Readonly<Record<string, string>> = {
   "pickup.weapon.lightning.forkCapacitor": "F",
   "pickup.unitMultiplier.2x": "2",
   "pickup.showstopper.dragonsBreath": "Q",
+  "pickup.showstopper.deepFreeze": "Z",
 };
 const fallbackSymbols = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz23456789!#$%&*+,-/:;<=>?@^_~".split("")
   .filter(symbol => symbol !== emptySymbol && symbol !== playerSymbol);

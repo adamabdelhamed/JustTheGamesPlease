@@ -34,7 +34,7 @@ export function syncShowstopperTriggerUi(elements: ShowstopperTriggerUiElements,
   const disabled = Boolean(state.disabled) || !member;
 
   syncTriggerButton(elements.triggerButton, primary, Boolean(state.hidden), disabled, state.emptyText);
-  syncTriggerButton(elements.secondaryTriggerButton ?? null, banked[1] ?? null, Boolean(state.hidden), true, state.emptyText);
+  syncTriggerButton(elements.secondaryTriggerButton ?? null, banked[1] ?? null, Boolean(state.hidden), disabled, state.emptyText);
 
   if (elements.bankSlot) {
     elements.bankSlot.dataset.state = bankState;

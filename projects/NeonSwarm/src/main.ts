@@ -1,4 +1,4 @@
-import { startingShowstopperId, trackFamily, type TrackFamilyId, type TrackId } from "../CombatDefinition";
+import { showstopperFamily, trackFamily, type ShowstopperId, type TrackFamilyId, type TrackId } from "../CombatDefinition";
 import { bindSquadInput } from "./input";
 import { NeonSwarmSimulation } from "./simulation/NeonSwarmSimulation";
 import { syncShowstopperTriggerUi } from "./showstopperTriggerUi";
@@ -75,7 +75,7 @@ try {
     cameraSettings,
     sound: window.gameAudio,
     sceneId: defaultTrackSceneId,
-    initialShowstopperBank: startingShowstopperId,
+    initialShowstopperBank: ["deepFreeze", "dragonsBreath"],
     onRunStatus: value => {
       runStatus.textContent = value;
     },
@@ -114,9 +114,10 @@ try {
       disabled: !hasTrack || sim.isLaneInputLocked(),
     });
   };
-  const triggerShowstopper = (): void => {
-    if (sim.triggerBankedShowstopper()) {
-      status.textContent = "Dragon's Breath!";
+  const triggerShowstopper = (id?: ShowstopperId): void => {
+    const labelId = id && showstopperFamily.members[id] ? id : sim.snapshot().active.showstopper;
+    if (sim.triggerBankedShowstopper(id)) {
+      status.textContent = labelId ? `${showstopperFamily.members[labelId].label}!` : "Showstopper!";
       syncShowstopperUi();
     }
   };
@@ -177,7 +178,7 @@ try {
       if (triggered) {
         flingShowstopperButton(button);
         startAudioForGesture();
-        triggerShowstopper();
+        triggerShowstopper(button.dataset.showstopperId as ShowstopperId | undefined);
       }
       resetDrag();
       event.preventDefault();
@@ -187,7 +188,7 @@ try {
       if (button.disabled || button.hidden) return;
       if ((event as PointerEvent).pointerType && (event as PointerEvent).pointerType !== "mouse") return;
       startAudioForGesture();
-      triggerShowstopper();
+      triggerShowstopper(button.dataset.showstopperId as ShowstopperId | undefined);
     });
     button.addEventListener("pointercancel", resetDrag);
     button.addEventListener("lostpointercapture", () => {

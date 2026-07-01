@@ -20,16 +20,20 @@ let activeEnemyId = 0;
 
 const selectedType = (): EnemyVisualType => enemyType.value as EnemyVisualType;
 const selectedColor = (): string => color.value || neonPalette[orbFamily.members[selectedType()].baseColor];
-const selectedExitEffect = (): "default" | "burn" => exitEffect.value === "burn" ? "burn" : "default";
+const selectedExitEffect = (): "default" | "burn" | "freeze" => exitEffect.value === "burn" || exitEffect.value === "freeze" ? exitEffect.value : "default";
 const syncJson = (): void => {
   const effect = selectedExitEffect();
   const profile = effect === "burn"
     ? { visual: "burn", sound: "none", durationSeconds: 2.85 }
-    : enemyExitProfiles[selectedType()];
+    : effect === "freeze"
+      ? { visual: "freeze", sound: "FrozenShatter", durationSeconds: 2.85 }
+      : enemyExitProfiles[selectedType()];
   json.value = JSON.stringify({ enemyType: selectedType(), color: selectedColor(), exitEffect: effect, profile }, null, 2);
   readout.textContent = effect === "burn"
     ? `${selectedType()} - Burn - 2.85s silent molten ash`
-    : `${selectedType()} - ${enemyExitDuration(selectedType()).toFixed(2)}s spark fade`;
+    : effect === "freeze"
+      ? `${selectedType()} - Freeze - 2.85s ice shatter`
+      : `${selectedType()} - ${enemyExitDuration(selectedType()).toFixed(2)}s spark fade`;
 };
 const run = (): void => {
   if (!sim) return;
@@ -45,7 +49,12 @@ const run = (): void => {
     color: selectedColor(),
     playSound: false,
   });
-  sim.defeatEnemyById(activeEnemyId, selectedExitEffect() === "burn" ? { visual: "burn", sound: "none" } : undefined);
+  const effect = selectedExitEffect();
+  sim.defeatEnemyById(activeEnemyId, effect === "burn"
+    ? { visual: "burn", sound: "none" }
+    : effect === "freeze"
+      ? { visual: "freeze", sound: "FrozenShatter" }
+      : undefined);
   sim.startLoop();
   syncJson();
 };
@@ -62,6 +71,7 @@ try {
   test.ready();
   test.assert("Enemy exit profiles include new enemies", "glassShield" in enemyExitProfiles && "winger" in enemyExitProfiles && "tank" in enemyExitProfiles);
   test.assert("Burn exit is available", exitEffect.querySelector('option[value="burn"]') !== null);
+  test.assert("Freeze exit is available", exitEffect.querySelector('option[value="freeze"]') !== null);
   test.assert("WebGPU enemy exit lab initialized", true);
 } catch (cause) {
   const message = cause instanceof Error ? cause.message : String(cause);

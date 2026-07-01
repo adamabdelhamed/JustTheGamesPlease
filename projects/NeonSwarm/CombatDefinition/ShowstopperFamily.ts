@@ -3,6 +3,7 @@ import { FamilyDefinition } from "./FamilyDefinition";
 
 export type ShowstopperBankBehavior = "bankedManualTrigger";
 export type ShowstopperTargetingMode = "allLanesAhead" | "currentLaneAhead";
+export type ShowstopperAttackEffect = "dragonBreath" | "deepFreeze";
 export type ShowstopperEasing = "linear" | "easeIn" | "easeOut" | "easeInOut";
 
 export interface ShowstopperTimeWarpPoint {
@@ -31,6 +32,7 @@ export interface ShowstopperAttackDefinition {
   endMs: number;
   rowsAhead: number;
   targeting: ShowstopperTargetingMode;
+  effect: ShowstopperAttackEffect;
 }
 
 export interface ShowstopperTimelineEvent {
@@ -53,7 +55,15 @@ export interface ShowstopperMember {
   attack: ShowstopperAttackDefinition;
   musicDuckVolume: number;
   pickupColor: NeonColorName;
-  soundCues: Readonly<Record<"deploy" | "attackStart" | "resolve", string>>;
+  soundCues: Readonly<{ deploy: string; attackStart: string; resolve?: string | null }>;
+}
+
+interface ShowstopperPresentation {
+  label: string;
+  description: string;
+  rarity: ShowstopperMember["rarity"];
+  attackEffect: ShowstopperAttackEffect;
+  pickupColor: NeonColorName;
 }
 
 type TimedByProgress<T> = Omit<T, "atMs"> & { progress: number };
@@ -97,11 +107,11 @@ const dragonBreathIntent = {
   },
 } as const satisfies DragonBreathIntent;
 
-function dragonBreathMember(intent: DragonBreathIntent): ShowstopperMember {
+function showstopperMember(intent: DragonBreathIntent, presentation: ShowstopperPresentation): ShowstopperMember {
   return {
-    label: "Dragon's Breath",
-    description: "A banked cinematic clear where a friendly neon shape dives ahead and lays a thick wave of fire.",
-    rarity: "rare",
+    label: presentation.label,
+    description: presentation.description,
+    rarity: presentation.rarity,
     bankBehavior: "bankedManualTrigger",
     durationMs: intent.durationMs,
     centerCameraMs: intent.centerCameraMs,
@@ -117,12 +127,38 @@ function dragonBreathMember(intent: DragonBreathIntent): ShowstopperMember {
       endMs: intent.durationMs,
       rowsAhead: intent.rowsAhead,
       targeting: "allLanesAhead",
+      effect: presentation.attackEffect,
     },
     musicDuckVolume: intent.musicDuckVolume,
-    pickupColor: "orange",
+    pickupColor: presentation.pickupColor,
     soundCues: intent.soundCues,
   };
 }
+
+const dragonBreathPresentation = {
+  label: "Dragon's Breath",
+  description: "A banked cinematic clear where a friendly neon shape dives ahead and lays a thick wave of fire.",
+  rarity: "rare",
+  attackEffect: "dragonBreath",
+  pickupColor: "orange",
+} as const satisfies ShowstopperPresentation;
+
+const deepFreezeIntent = {
+  ...dragonBreathIntent,
+  soundCues: {
+    deploy: "WavePressure",
+    attackStart: "DeepFreeze",
+    resolve: null,
+  },
+} as const satisfies DragonBreathIntent;
+
+const deepFreezePresentation = {
+  label: "Deep Freeze",
+  description: "A banked cinematic clear that sweeps a whiteout blast across the lanes and freezes enemies solid.",
+  rarity: "rare",
+  attackEffect: "deepFreeze",
+  pickupColor: "cyan",
+} as const satisfies ShowstopperPresentation;
 
 function pointsAtMs<T extends { progress: number }>(points: readonly T[], durationMs: number): Array<T & { atMs: number }> {
   return points.map(point => ({
@@ -146,7 +182,8 @@ export class ShowstopperFamilyDefinition extends FamilyDefinition<Record<string,
   } as const;
 
   readonly members = {
-    dragonsBreath: dragonBreathMember(dragonBreathIntent),
+    dragonsBreath: showstopperMember(dragonBreathIntent, dragonBreathPresentation),
+    deepFreeze: showstopperMember(deepFreezeIntent, deepFreezePresentation),
   } as const satisfies Record<string, ShowstopperMember>;
 
   constructor() {

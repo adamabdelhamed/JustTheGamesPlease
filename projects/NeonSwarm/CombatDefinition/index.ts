@@ -125,6 +125,7 @@ export {
   showstopperFamily,
   ShowstopperFamilyDefinition,
   startingShowstopperId,
+  type ShowstopperAttackEffect,
   type ShowstopperAttackDefinition,
   type ShowstopperBankBehavior,
   type ShowstopperCameraPose,
